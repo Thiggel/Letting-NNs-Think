@@ -1,0 +1,9 @@
+class Args:
+    model_name: str
+    dataset: str
+    seq_length: int
+    train_batch_size: int
+    eval_batch_size: int
+    seed: int
+    finetune_layers: list[int]
+    remove_layers: list[int]
