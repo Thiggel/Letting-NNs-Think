@@ -1,37 +1,25 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import os
+from dotenv import load_dotenv
+import wandb
 
-from experiment.utils.make_layers_finetunable import make_layers_finetunable
-from experiment.utils.remove_layers import remove_layers
-from experiment.utils.add_pad_token import add_pad_token
-from experiment.utils.set_seed import set_seed
+from experiment.utils.print_mean_std import print_mean_std
+from experiment.utils.run_different_seeds import run_different_seeds
 from experiment.utils.get_training_args import get_training_args
-from experiment.dataloaders import create_dataloaders
 
 
 def main():
+    load_dotenv()
     args = get_training_args()
     print(args)
 
-    set_seed(args.seed)
+    if args.logger:
+        api_key = os.getenv("WANDB_API_KEY")
+        wandb.login(key=api_key)
 
-    model = AutoModelForCausalLM.from_pretrained(args.model_name)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    add_pad_token(tokenizer)
-    make_layers_finetunable(model, args.finetune_layers)
-    remove_layers(model, args.remove_layers)
+    all_results = run_different_seeds(args)
 
-    train_dataloader, val_dataloader, test_dataloader = create_dataloaders(
-        tokenizer, args
-    )
-
-    print(model)
-    print(tokenizer)
+    print_mean_std(all_results)
 
 
 if __name__ == "__main__":
     main()
-
-
-# TODO:
-# 1. Lightning training loop
-# 2. Add logging (wandb)

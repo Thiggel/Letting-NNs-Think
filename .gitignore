@@ -162,3 +162,4 @@ cython_debug/
 #.idea/
 
 cached_datasets
+.env

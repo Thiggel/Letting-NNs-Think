@@ -1,0 +1,7 @@
+python-dotenv
+wandb
+torch
+lightning
+transformers
+datasets
+numpy

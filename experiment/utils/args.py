@@ -4,6 +4,11 @@ class Args:
     seq_length: int
     train_batch_size: int
     eval_batch_size: int
-    seed: int
+    seeds: list[int]
+    num_runs: int
     finetune_layers: list[int]
     remove_layers: list[int]
+    logger: bool
+    experiment_name: str
+    max_epochs: int
+    warmup_steps: int

@@ -1,7 +1,7 @@
 import argparse
 from typing import Union, Literal
 
-from experiment.dataloaders import get_all_dataset_names
+from experiment.LanguageDataModule import LanguageDataModule
 from experiment.utils.args import Args
 
 
@@ -29,7 +29,10 @@ def int_list(value) -> list[int]:
 
 def get_training_args() -> Args:
     parser = argparse.ArgumentParser(description="Training arguments")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--seeds", type=int_list, default=[1, 2, 3], help="Random seeds"
+    )
+    parser.add_argument("--num_runs", type=int, default=3, help="The number of runs")
     parser.add_argument(
         "--model_name", type=str, default="gpt2", help="The model name to be used"
     )
@@ -45,17 +48,36 @@ def get_training_args() -> Args:
     parser.add_argument(
         "--dataset",
         type=str,
-        choices=get_all_dataset_names(),
-        default=get_all_dataset_names()[0],
+        choices=LanguageDataModule.get_all_dataset_names(),
+        default=LanguageDataModule.get_all_dataset_names()[0],
         help="The dataset to use for training",
     )
     parser.add_argument(
         "--seq_length", type=int, default=128, help="The maximum sequence length"
     )
     parser.add_argument(
-        "--train_batch_size", type=int, default=32, help="The training batch size"
+        "--train_batch_size", type=int, default=128, help="The training batch size"
     )
     parser.add_argument(
-        "--eval_batch_size", type=int, default=32, help="The evaluation batch size"
+        "--eval_batch_size", type=int, default=128, help="The evaluation batch size"
     )
+    parser.add_argument(
+        "--no_logger",
+        action="store_false",
+        dest="logger",
+        help="Whether to use a logger",
+    )
+    parser.add_argument(
+        "--experiment_name",
+        type=str,
+        default="default",
+        help="The name of the experiment",
+    )
+    parser.add_argument(
+        "--max_epochs", type=int, default=100, help="The maximum number of epochs"
+    )
+    parser.add_argument(
+        "--warmup_steps", type=int, default=1000, help="The number of warmup steps"
+    )
+    parser.set_defaults(logger=True)
     return parser.parse_args()
