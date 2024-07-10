@@ -163,3 +163,4 @@ cython_debug/
 
 cached_datasets
 .env
+lightning_logs

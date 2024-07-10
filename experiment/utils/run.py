@@ -2,6 +2,7 @@ from transformers import AutoTokenizer
 from lightning import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
 from lightning.pytorch.loggers import WandbLogger
+import torch
 
 from experiment.utils.set_seed import set_seed
 from experiment.utils.add_pad_token import add_pad_token
@@ -45,6 +46,8 @@ def run(args: Args, seed: int) -> dict:
         model=model,
         datamodule=data_module,
     )
+
+    model.load_state_dict(torch.load(model_checkpoint.best_model_path)["state_dict"])
 
     results = trainer.test(
         model=model,
