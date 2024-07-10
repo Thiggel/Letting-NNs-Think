@@ -22,8 +22,8 @@ def run(args: Args, seed: int) -> dict:
     data_module = LanguageDataModule(tokenizer, args, seed)
 
     model = LMLightningModule(args, data_module, tokenizer)
-    make_layers_finetunable(model, args.finetune_layers)
-    remove_layers(model, args.remove_layers)
+    make_layers_finetunable(model.model, args.finetune_layers)
+    remove_layers(model.model, args.remove_layers)
 
     print(model)
 
