@@ -46,6 +46,12 @@ def get_training_args() -> Args:
         "--remove_layers", type=int_list, default=[], help="The layers to remove"
     )
     parser.add_argument(
+        "--make_layer_recurrent",
+        type=int,
+        default=None,
+        help="The layer to make recurrent",
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
         choices=LanguageDataModule.get_all_dataset_names(),

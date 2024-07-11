@@ -6,8 +6,6 @@ import torch
 
 from experiment.utils.set_seed import set_seed
 from experiment.utils.add_pad_token import add_pad_token
-from experiment.utils.make_layers_finetunable import make_layers_finetunable
-from experiment.utils.remove_layers import remove_layers
 from experiment.LanguageDataModule import LanguageDataModule
 from experiment.utils.args import Args
 from experiment.LMLightningModule import LMLightningModule
@@ -22,8 +20,6 @@ def run(args: Args, seed: int) -> dict:
     data_module = LanguageDataModule(tokenizer, args, seed)
 
     model = LMLightningModule(args, data_module, tokenizer)
-    make_layers_finetunable(model.model, args.finetune_layers)
-    remove_layers(model.model, args.remove_layers)
 
     print(model)
 

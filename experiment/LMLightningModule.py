@@ -1,7 +1,5 @@
 import math
 from typing import Literal
-import torch
-from torch import nn
 from lightning import LightningModule, LightningDataModule
 from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
@@ -9,90 +7,7 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
-
-
-def anderson(f, x0, m=5, lam=1e-4, max_iter=200, tol=1e-2, beta=1.0):
-    """Anderson acceleration for fixed point iteration."""
-    bsz, d = x0.shape
-    X = torch.zeros(bsz, m, d, dtype=x0.dtype, device=x0.device)
-    F = torch.zeros(bsz, m, d, dtype=x0.dtype, device=x0.device)
-    X[:, 0], F[:, 0] = x0.view(bsz, -1), f(x0).view(bsz, -1)
-    X[:, 1], F[:, 1] = F[:, 0], f(F[:, 0].view_as(x0)).view(bsz, -1)
-
-    H = torch.zeros(bsz, m + 1, m + 1, dtype=x0.dtype, device=x0.device)
-    H[:, 0, 1:] = H[:, 1:, 0] = 1
-    y = torch.zeros(bsz, m + 1, 1, dtype=x0.dtype, device=x0.device)
-    y[:, 0] = 1
-
-    res = []
-    for k in range(2, max_iter):
-        n = min(k, m)
-        G = F[:, :n] - X[:, :n]
-        H[:, 1 : n + 1, 1 : n + 1] = (
-            torch.bmm(G, G.transpose(1, 2))
-            + lam * torch.eye(n, dtype=x0.dtype, device=x0.device)[None]
-        )
-        alpha = torch.linalg.solve(H[:, : n + 1, : n + 1], y[:, : n + 1])[
-            :, 1 : n + 1, 0
-        ]  # (bsz x n)
-
-        X[:, k % m] = (
-            beta * (alpha[:, None] @ F[:, :n])[:, 0]
-            + (1 - beta) * (alpha[:, None] @ X[:, :n])[:, 0]
-        )
-        F[:, k % m] = f(X[:, k % m].view_as(x0)).view(bsz, -1)
-        res.append(
-            (F[:, k % m] - X[:, k % m]).norm().item()
-            / (1e-5 + F[:, k % m].norm().item())
-        )
-        if res[-1] < tol:
-            break
-    return X[:, k % m].view_as(x0), res
-
-
-class RecurrentLayer(nn.Module):
-    def __init__(self, layer, max_iter: int = 500, tolerance: float = 1e-2):
-        super().__init__()
-        self.layer = layer
-        self.max_iter = max_iter
-        self.tolerance = tolerance
-        self.solver = anderson
-
-    def forward(self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs):
-        x = x[0].unsqueeze(0)
-        attention_mask = attention_mask[0].unsqueeze(0)
-
-        def f(z, x):
-            print(z.requires_grad, x.requires_grad)
-            x[:, -1, :] = z.clone()
-            x = self.layer(x, attention_mask=attention_mask, *args, **kwargs)[0]
-
-            return x[:, -1, :]
-
-        with torch.no_grad():
-            z, self.forward_res = self.solver(
-                lambda z: f(z, x),
-                x[:, -1, :],
-            )
-
-        z = f(z, x)
-
-        # set up Jacobian vector product (without additional forward calls)
-        z0 = z.clone().detach().requires_grad_()
-        f0 = f(z0, x)
-
-        def backward_hook(grad):
-            g, self.backward_res = self.solver(
-                lambda y: autograd.grad(f0, z0, y, retain_graph=True)[0] + grad,
-                grad,
-            )
-
-            return g
-
-        if z.requires_grad:
-            z.register_hook(backward_hook)
-
-        return z
+from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer
 
 
 class LMLightningModule(LightningModule):
@@ -109,12 +24,30 @@ class LMLightningModule(LightningModule):
         self.total_train_steps = data_module.get_total_train_steps()
         self.tokenizer = tokenizer
 
-        self.add_recurrence(-1)
+        self.remove_layers()
+        self.make_layers_finetunable()
+        self.add_recurrence()
 
-    def add_recurrence(self, layer_idx: int):
-        layer = self.model.transformer.h[layer_idx]
+    def add_recurrence(self):
+        layer = self.model.transformer.h[self.args.make_layer_recurrent]
 
-        self.model.transformer.h[layer_idx] = RecurrentLayer(layer)
+        self.model.transformer.h[self.args.make_layer_recurrent] = (
+            RecurrentTransformerLayer(layer)
+        )
+
+    def make_layers_finetunable(self):
+        finetune_layers = self.args.finetune_layers
+        if finetune_layers != "all":
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+            for i in finetune_layers:
+                for param in self.model.transformer.h[i].parameters():
+                    param.requires_grad = True
+
+    def remove_layers(self):
+        for i in self.args.remove_layers:
+            self.model.transformer.h[i] = nn.Identity()
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)

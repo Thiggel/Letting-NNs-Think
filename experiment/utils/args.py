@@ -7,6 +7,7 @@ class Args:
     seeds: list[int]
     num_runs: int
     finetune_layers: list[int]
+    make_layer_recurrent: int
     remove_layers: list[int]
     logger: bool
     experiment_name: str
