@@ -5,3 +5,5 @@ lightning
 transformers
 datasets
 numpy
+matplotlib
+torchdeq
