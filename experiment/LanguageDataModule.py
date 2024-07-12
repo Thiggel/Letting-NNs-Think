@@ -171,7 +171,7 @@ class LanguageDataModule(LightningDataModule):
         attention_mask = tokenized["attention_mask"]
 
         # Shift the input_ids to create targets for next-token prediction
-        labels = [ids[1:] + [self.tokenizer.pad_token_id] for ids in input_ids]
+        labels = [ids[1:] for ids in input_ids]
         input_ids = [ids[:-1] for ids in input_ids]
         attention_mask = [mask[:-1] for mask in attention_mask]
 
