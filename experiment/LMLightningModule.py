@@ -4,17 +4,19 @@ from lightning import LightningModule, LightningDataModule
 from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
+from torch import nn
 
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
 from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer
+from experiment.LanguageDataModule import LanguageDataModule
 
 
 class LMLightningModule(LightningModule):
     def __init__(
         self,
         args: Args,
-        data_module: LightningDataModule,
+        data_module: LanguageDataModule,
         tokenizer: PreTrainedTokenizer,
     ):
         super().__init__()
@@ -29,6 +31,9 @@ class LMLightningModule(LightningModule):
         self.add_recurrence()
 
     def add_recurrence(self):
+        if self.args.make_layer_recurrent is None:
+            return
+
         layer = self.model.transformer.h[self.args.make_layer_recurrent]
 
         self.model.transformer.h[self.args.make_layer_recurrent] = (
@@ -68,9 +73,7 @@ class LMLightningModule(LightningModule):
 
         return [optimizer], [{"scheduler": scheduler, "interval": "step"}]
 
-    def _step(self, batch, batch_idx, mode: Literal["train", "val", "test"] = "train"):
-        print("input", batch["input_ids"].requires_grad)
-
+    def _step(self, batch, _: int, mode: Literal["train", "val", "test"] = "train"):
         outputs = self(**batch)
         loss = outputs.loss
 

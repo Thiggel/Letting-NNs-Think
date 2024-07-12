@@ -28,7 +28,9 @@ def run(args: Args, seed: int) -> dict:
 
     if args.logger:
         wandb_logger = WandbLogger(
-            project="letting-nns-think", name=args.experiment_name
+            project="letting-nns-think",
+            name=args.experiment_name + f"_{seed}",
+            group=args.experiment_name,
         )
 
     trainer = Trainer(
