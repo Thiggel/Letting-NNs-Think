@@ -204,6 +204,19 @@ class LanguageDataModule(LightningDataModule):
     @staticmethod
     def get_all_dataset_configs() -> Dict[str, Dict[str, Any]]:
         configs: Dict[str, Dict[str, Any]] = {
+            "ultrafeedback": {
+                "name": "openbmb/UltraFeedback",
+                "q_func": lambda x: f"Question: {x['instruction']}\n\nAnswer:",
+                "ans_func": lambda x: " " + x["completions"][0]["response"],
+                "train_field": "train",
+                "test_subset": 1000,
+                "custom_filter": lambda ds: ds.filter(
+                    lambda x: len(
+                        [c for c in x["completions"] if c["model"] == "gpt-4"]
+                    )
+                    > 0
+                ),
+            },
             "csqa_full": {
                 "name": "tau/commonsense_qa",
                 "q_func": lambda x: f"Question: {x['question']}\n\nChoices:\n{chr(10).join(x['choices']['text'])}\n\nAnswer:",
@@ -249,19 +262,6 @@ class LanguageDataModule(LightningDataModule):
                 "ans_func": lambda x: " " + x["output"],
                 "train_field": "train",
                 "test_subset": 1000,
-            },
-            "ultrafeedback": {
-                "name": "openbmb/UltraFeedback",
-                "q_func": lambda x: f"Question: {x['instruction']}\n\nAnswer:",
-                "ans_func": lambda x: " " + x["completions"][0]["response"],
-                "train_field": "train",
-                "test_subset": 1000,
-                "custom_filter": lambda ds: ds.filter(
-                    lambda x: len(
-                        [c for c in x["completions"] if c["model"] == "gpt-4"]
-                    )
-                    > 0
-                ),
             },
             "gsm8k": {
                 "name": "gsm8k",

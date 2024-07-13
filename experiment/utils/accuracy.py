@@ -9,7 +9,7 @@ def accuracy(
     labels: Tensor,
 ) -> float:
     predictions = outputs.logits.argmax(dim=-1)
-    mask = labels != tokenizer.pad_token_id
+    mask = labels != -100
     correct = ((predictions == labels) & mask).sum().item()
     total = mask.sum().item()
     accuracy = correct / total if total > 0 else 0
