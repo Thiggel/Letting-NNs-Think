@@ -1,4 +1,4 @@
-. jobs/enviroment.sh
+. jobs/environment.sh
 
 python -m experiment \
   --model_name "EleutherAI/gpt-neo-125m" \

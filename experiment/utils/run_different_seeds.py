@@ -10,7 +10,7 @@ def run_different_seeds(args: Args) -> list[dict]:
     for run_idx in range(args.num_runs):
         start_time = time.time()
 
-        results = run(args, seed=args.seeds[run_idx])
+        results = run(args, seed=args.seeds[run_idx])[0]
 
         end_time = time.time()
         seconds_to_hours = 3600
