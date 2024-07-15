@@ -2,6 +2,7 @@ from transformers import AutoTokenizer
 from lightning import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.strategies import DeepSpeedStrategy
 import torch
 
 from experiment.utils.set_seed import set_seed
@@ -33,11 +34,38 @@ def run(args: Args, seed: int) -> dict:
             group=args.experiment_name,
         )
 
+    deepspeed_strategy = DeepSpeedStrategy(
+        stage=3,
+        offload_optimizer=True,
+        offload_parameters=True,
+        allgather_bucket_size=5e8,
+        reduce_bucket_size=5e8,
+        contiguous_gradients=True,
+        overlap_comm=True,
+        zero_optimization={
+            "stage": 3,
+            "offload_optimizer": {"device": "cpu", "pin_memory": True},
+            "offload_param": {"device": "cpu", "pin_memory": True},
+            "overlap_comm": True,
+            "contiguous_gradients": True,
+            "sub_group_size": 1e9,
+            "reduce_bucket_size": "auto",
+            "stage3_prefetch_bucket_size": "auto",
+            "stage3_param_persistence_threshold": "auto",
+            "stage3_max_live_parameters": 1e9,
+            "stage3_max_reuse_distance": 1e9,
+            "stage3_gather_16bit_weights_on_model_save": True,
+        },
+        precision="bf16",  # Set precision in DeepSpeed strategy
+    )
+
     trainer = Trainer(
         callbacks=[model_checkpoint, device_stats_monitor],
         enable_checkpointing=True,
         logger=wandb_logger if args.logger else None,
         max_epochs=args.max_epochs,
+        devices="auto",
+        strategy=deepspeed_strategy,
     )
 
     trainer.fit(
