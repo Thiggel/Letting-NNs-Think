@@ -8,3 +8,4 @@ numpy
 matplotlib
 torchdeq
 deepspeed
+h5py
