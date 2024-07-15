@@ -1,6 +1,8 @@
 module purge
-module load 2022
-module load Anaconda3/2022.05
+module load 2023
+module load Anaconda3/2023.07-2
+module load GCC/12.3.0
+module load CUDA/12.1.1
 
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 

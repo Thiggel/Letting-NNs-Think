@@ -6,9 +6,6 @@ from torch.nn.utils.rnn import pad_sequence
 from transformers import PreTrainedTokenizer
 from lightning import LightningDataModule
 import torch.nn.functional as F
-import h5py
-import shutil
-from pathlib import Path
 
 from experiment.utils.get_num_workers import get_num_workers
 from experiment.utils.args import Args
@@ -32,23 +29,12 @@ class LanguageDataModule(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
         cache_path: str = self.get_cache_path()
 
-        self.cleanup_old_caches()
-
-        if self.cached_dataset_exists(cache_path):
-            self.load_cached_dataset(cache_path)
+        if self.cached_datasets_exist(cache_path):
+            self.load_cached_datasets(cache_path)
         else:
             dataset_config: Dict[str, Any] = self.get_dataset_config(self.args.dataset)
             self.prepare_datasets(dataset_config)
-            self.save_dataset_to_disk(cache_path)
-
-    def cleanup_old_caches(self, max_caches: int = 5):
-        cache_dir = Path("./cached_datasets")
-        caches = sorted(cache_dir.glob("*"), key=os.path.getctime, reverse=True)
-        for old_cache in caches[max_caches:]:
-            if old_cache.is_file():
-                old_cache.unlink()
-            elif old_cache.is_dir():
-                shutil.rmtree(old_cache)
+            self.save_datasets_to_disk(cache_path)
 
     def get_total_train_steps(self) -> int:
         return (
@@ -124,14 +110,16 @@ class LanguageDataModule(LightningDataModule):
     def get_cache_path(self) -> str:
         return f"./cached_datasets/{self.args.model_name}_{self.args.dataset}_{self.args.seq_length}_{self.args.train_batch_size}_{self.seed}"
 
-    def cached_dataset_exists(self, cache_path: str) -> bool:
-        return os.path.exists(f"{cache_path}.h5")
+    def cached_datasets_exist(self, cache_path: str) -> bool:
+        return all(
+            os.path.exists(f"{cache_path}_{split}")
+            for split in ["train", "valid", "test"]
+        )
 
-    def load_cached_dataset(self, cache_path: str):
-        with h5py.File(f"{cache_path}.h5", "r") as f:
-            self.train_dataset = Dataset.from_dict(f["train"])
-            self.val_dataset = Dataset.from_dict(f["valid"])
-            self.test_dataset = Dataset.from_dict(f["test"]) if "test" in f else None
+    def load_cached_datasets(self, cache_path: str):
+        self.train_dataset = load_from_disk(f"{cache_path}_train")
+        self.val_dataset = load_from_disk(f"{cache_path}_valid")
+        self.test_dataset = load_from_disk(f"{cache_path}_test")
 
     def get_dataset_config(self, dataset_name: str) -> Dict[str, Any]:
         configs: Dict[str, Dict[str, Any]] = self.get_all_dataset_configs()
@@ -207,18 +195,11 @@ class LanguageDataModule(LightningDataModule):
         split = dataset.train_test_split(test_size=split_size, shuffle=True, seed=42)
         return split["train"], split["test"]
 
-    def save_dataset_to_disk(self, cache_path: str):
-        with h5py.File(f"{cache_path}.h5", "w") as f:
-            f.create_group("train").create_dataset(
-                "data", data=self.train_dataset.to_dict()
-            )
-            f.create_group("valid").create_dataset(
-                "data", data=self.val_dataset.to_dict()
-            )
-            if self.test_dataset:
-                f.create_group("test").create_dataset(
-                    "data", data=self.test_dataset.to_dict()
-                )
+    def save_datasets_to_disk(self, cache_path: str):
+        self.train_dataset.save_to_disk(f"{cache_path}_train")
+        self.val_dataset.save_to_disk(f"{cache_path}_valid")
+        if self.test_dataset:
+            self.test_dataset.save_to_disk(f"{cache_path}_test")
 
     @staticmethod
     def get_all_dataset_configs() -> Dict[str, Dict[str, Any]]:

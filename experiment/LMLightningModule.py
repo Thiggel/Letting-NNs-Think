@@ -26,6 +26,8 @@ class LMLightningModule(LightningModule):
         self.total_train_steps = data_module.get_total_train_steps()
         self.tokenizer = tokenizer
 
+        print(self.model)
+
         self.remove_layers()
         self.make_layers_finetunable()
         self.add_recurrence()

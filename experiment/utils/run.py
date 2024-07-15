@@ -22,8 +22,6 @@ def run(args: Args, seed: int) -> dict:
 
     model = LMLightningModule(args, data_module, tokenizer)
 
-    print(model)
-
     model_checkpoint = ModelCheckpoint(monitor="val_loss", save_top_k=1, mode="min")
     device_stats_monitor = DeviceStatsMonitor()
 
@@ -56,7 +54,6 @@ def run(args: Args, seed: int) -> dict:
             "stage3_max_reuse_distance": 1e9,
             "stage3_gather_16bit_weights_on_model_save": True,
         },
-        precision="bf16",  # Set precision in DeepSpeed strategy
     )
 
     trainer = Trainer(
