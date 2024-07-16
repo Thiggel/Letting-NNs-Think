@@ -18,7 +18,7 @@
 │       └── set_seed.py
 ```
 
-## How to run the experiment?
+## How to run the experiment
 
 All available Snellius jobs are in the directory `jobs`. 
 
