@@ -36,9 +36,9 @@ class LMLightningModule(LightningModule):
         if self.args.make_layer_recurrent is None:
             return
 
-        layer = self.model.transformer.h[self.args.make_layer_recurrent]
+        layer = self.model.model.layers[self.args.make_layer_recurrent]
 
-        self.model.transformer.h[self.args.make_layer_recurrent] = (
+        self.model.model.layers[self.args.make_layer_recurrent] = (
             RecurrentTransformerLayer(layer)
         )
 
@@ -49,12 +49,12 @@ class LMLightningModule(LightningModule):
                 param.requires_grad = False
 
             for i in finetune_layers:
-                for param in self.model.transformer.h[i].parameters():
+                for param in self.model.model.layers[i].parameters():
                     param.requires_grad = True
 
     def remove_layers(self):
         for i in self.args.remove_layers:
-            self.model.transformer.h[i] = nn.Identity()
+            self.model.model.layers[i] = nn.Identity()
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
@@ -79,14 +79,14 @@ class LMLightningModule(LightningModule):
         outputs = self(**batch)
         loss = outputs.loss
 
-        self.log(f"{mode}_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log(f"{mode}_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
 
         if mode != "train":
             acc = accuracy(outputs, self.tokenizer, batch["labels"])
             perplexity = math.exp(loss)
 
             self.log(
-                f"{mode}_accuracy", acc, on_step=False, on_epoch=True, prog_bar=True
+                f"{mode}_accuracy", acc, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True
             )
             self.log(
                 f"{mode}_perplexity",

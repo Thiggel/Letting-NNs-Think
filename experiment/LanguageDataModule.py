@@ -108,7 +108,7 @@ class LanguageDataModule(LightningDataModule):
         return None
 
     def get_cache_path(self) -> str:
-        return f"./cached_datasets/{self.args.model_name}_{self.args.dataset}_{self.args.seq_length}_{self.args.train_batch_size}_{self.seed}"
+        return f"{os.environ['BASE_CACHE_DIR']}/cached_datasets/{self.args.model_name}_{self.args.dataset}_{self.args.seq_length}_{self.args.train_batch_size}_{self.seed}"
 
     def cached_datasets_exist(self, cache_path: str) -> bool:
         return all(

@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import wandb
+from huggingface_hub import login
 
 from experiment.utils.print_mean_std import print_mean_std
 from experiment.utils.run_different_seeds import run_different_seeds
@@ -11,6 +12,8 @@ def main():
     load_dotenv()
     args = get_training_args()
     print(args)
+
+    login(token=os.getenv("HUGGINGFACE_TOKEN"))
 
     if args.logger:
         api_key = os.getenv("WANDB_API_KEY")

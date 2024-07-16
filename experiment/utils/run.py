@@ -1,3 +1,4 @@
+import os
 from transformers import AutoTokenizer
 from lightning import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
@@ -22,7 +23,12 @@ def run(args: Args, seed: int) -> dict:
 
     model = LMLightningModule(args, data_module, tokenizer)
 
-    model_checkpoint = ModelCheckpoint(monitor="val_loss", save_top_k=1, mode="min")
+    model_checkpoint = ModelCheckpoint(
+        monitor="val_loss",
+        save_top_k=1,
+        mode="min",
+        dirpath=os.environ["PYTORCH_LIGHTNING_HOME"],
+    )
     device_stats_monitor = DeviceStatsMonitor()
 
     if args.logger:
@@ -63,6 +69,7 @@ def run(args: Args, seed: int) -> dict:
         max_epochs=args.max_epochs,
         devices="auto",
         strategy=deepspeed_strategy,
+        default_root_dir=os.environ["PYTORCH_LIGHTNING_HOME"],
     )
 
     trainer.fit(
