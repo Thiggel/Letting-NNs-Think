@@ -2,9 +2,10 @@ import math
 from typing import Literal
 from lightning import LightningModule
 from transformers import AutoModelForCausalLM, PreTrainedTokenizer
+from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR
 from torch import nn
-from deepspeed.ops.adam import DeepSpeedCPUAdam
+import torch
 
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
@@ -60,7 +61,12 @@ class LMLightningModule(LightningModule):
         return self.model(*args, **kwargs)
 
     def configure_optimizers(self):
-        optimizer = DeepSpeedCPUAdam(self.parameters(), lr=1e-3, betas=(0.9, 0.95))
+        if torch.cuda.is_available():
+            from deepspeed.ops.adam import DeepSpeedCPUAdam
+
+            optimizer = DeepSpeedCPUAdam(self.parameters(), lr=1e-3, betas=(0.9, 0.95))
+        else:
+            optimizer = AdamW(self.parameters(), lr=1e-3, betas=(0.9, 0.95))
 
         def lr_lambda(current_step):
             if current_step < self.args.warmup_steps:
@@ -79,14 +85,26 @@ class LMLightningModule(LightningModule):
         outputs = self(**batch)
         loss = outputs.loss
 
-        self.log(f"{mode}_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        self.log(
+            f"{mode}_loss",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
 
         if mode != "train":
             acc = accuracy(outputs, self.tokenizer, batch["labels"])
             perplexity = math.exp(loss)
 
             self.log(
-                f"{mode}_accuracy", acc, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True
+                f"{mode}_accuracy",
+                acc,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                sync_dist=True,
             )
             self.log(
                 f"{mode}_perplexity",

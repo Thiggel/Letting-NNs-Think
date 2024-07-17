@@ -1,6 +1,7 @@
 import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk, disable_caching
+import torch
 from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
 from transformers import PreTrainedTokenizer
@@ -108,7 +109,8 @@ class LanguageDataModule(LightningDataModule):
         return None
 
     def get_cache_path(self) -> str:
-        return f"{os.environ['BASE_CACHE_DIR']}/cached_datasets/{self.args.model_name}_{self.args.dataset}_{self.args.seq_length}_{self.args.train_batch_size}_{self.seed}"
+        cache_dir = os.environ["BASE_CACHE_DIR"] if torch.cuda.is_available() else "."
+        return f"{cache_dir}/cached_datasets/{self.args.model_name}_{self.args.dataset}_{self.args.seq_length}_{self.args.train_batch_size}_{self.seed}"
 
     def cached_datasets_exist(self, cache_path: str) -> bool:
         return all(
@@ -171,8 +173,8 @@ class LanguageDataModule(LightningDataModule):
         attention_mask = tokenized["attention_mask"]
 
         # Shift the input_ids to create targets for next-token prediction
-        labels = [ids[1:] for ids in input_ids]
         input_ids = [ids[:-1] for ids in input_ids]
+        labels = [ids[1:] for ids in input_ids]
         attention_mask = [mask[:-1] for mask in attention_mask]
 
         return {

@@ -27,7 +27,7 @@ def int_list(value) -> list[int]:
         )
 
 
-def get_training_args() -> Args:
+def get_training_args(get_defaults: bool = False) -> Args:
     parser = argparse.ArgumentParser(description="Training arguments")
     parser.add_argument(
         "--seeds", type=int_list, default=[1, 2, 3], help="Random seeds"
@@ -86,4 +86,8 @@ def get_training_args() -> Args:
         "--warmup_steps", type=int, default=1000, help="The number of warmup steps"
     )
     parser.set_defaults(logger=True)
+
+    if get_defaults:
+        return parser.parse_args([])
+
     return parser.parse_args()
