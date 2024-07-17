@@ -95,7 +95,7 @@ class LMLightningModule(LightningModule):
         )
 
         if mode != "train":
-            acc = accuracy(outputs, self.tokenizer, batch["labels"])
+            acc = accuracy(outputs, batch["labels"])
             perplexity = math.exp(loss)
 
             self.log(

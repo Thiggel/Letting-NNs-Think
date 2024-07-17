@@ -1,11 +1,9 @@
 from torch import Tensor
-from transformers import PreTrainedTokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 
 def accuracy(
     outputs: CausalLMOutputWithCrossAttentions,
-    tokenizer: PreTrainedTokenizer,
     labels: Tensor,
 ) -> float:
     predictions = outputs.logits.argmax(dim=-1)
