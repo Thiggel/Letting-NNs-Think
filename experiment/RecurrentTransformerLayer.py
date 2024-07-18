@@ -20,6 +20,8 @@ class RecurrentTransformerLayer(nn.Module):
             self.out = self.layer(sequence, *args, **kwargs)
             hidden_states = self.out[0]
 
+            assert torch.all(hidden_states.isnan() == False), "NaN detected"
+
             return hidden_states[:, -1, :]
 
         initial_state = x[:, -1, :]

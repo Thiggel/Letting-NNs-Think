@@ -52,6 +52,16 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="The layer to make recurrent",
     )
     parser.add_argument(
+        "--use_ssm",
+        action="store_true",
+        help="Whether to use an SSM as recurrent layer",
+    )
+    parser.add_argument(
+        "--use_hippo",
+        action="store_true",
+        help="Whether to initialize the SSM using HiPPO",
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
         choices=LanguageDataModule.get_all_dataset_names(),

@@ -10,6 +10,7 @@ import torch
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
 from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer
+from experiment.SSMTransformerLayer import SSMTransformerLayer
 from experiment.LanguageDataModule import LanguageDataModule
 
 
@@ -37,10 +38,23 @@ class LMLightningModule(LightningModule):
         if self.args.make_layer_recurrent is None:
             return
 
-        layer = self.model.model.layers[self.args.make_layer_recurrent]
+        try:
+            layers = self.model.transformer.h
+        except Exception as _:
+            layers = self.model.model.layers
 
-        self.model.model.layers[self.args.make_layer_recurrent] = (
-            RecurrentTransformerLayer(layer)
+        layer = layers[self.args.make_layer_recurrent]
+
+        layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
+            (
+                SSMTransformerLayer(
+                    self.model.config.hidden_size,
+                    self.model.config.num_attention_heads,
+                    self.args.use_hippo,
+                )
+                if self.args.use_ssm
+                else layer
+            ),
         )
 
     def make_layers_finetunable(self):
