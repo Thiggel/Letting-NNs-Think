@@ -6,8 +6,10 @@
 │   ├── LMLightningModule.py            - all the model logic including making layers recurrent etc. is in here
 │   ├── __main__.py
 │   ├── RecurrentTransformerLayer.py    - this module is used my LMLightningModule for recurrent Transformer layers
+│   ├── SSMTransformerLayer.py          - SSM-based layer to replace a Transformer layer with
 │   └── utils
 │       ├── accuracy.py                 - Next-token accuracy function
+│       ├── hippo_init.py               - Initialize a matrix using the HiPPO framework
 │       ├── add_pad_token.py
 │       ├── args.py                     - Command line arguments class (so that my python linter can infer the cmd arg types)
 │       ├── get_num_workers.py
@@ -27,7 +29,7 @@ The experiment can be invoked like this:
 ```
 usage: python -m experiment [-h] [--seeds SEEDS] [--num_runs NUM_RUNS] [--model_name MODEL_NAME]
                    [--finetune_layers FINETUNE_LAYERS] [--remove_layers REMOVE_LAYERS]
-                   [--make_layer_recurrent MAKE_LAYER_RECURRENT]
+                   [--make_layer_recurrent MAKE_LAYER_RECURRENT] [--use_ssm] [--use_hippo]
                    [--dataset {ultrafeedback,csqa_full,arc_full,piqa_full,siqa_full,openhermes,alpaca,gsm8k}]
                    [--seq_length SEQ_LENGTH] [--train_batch_size TRAIN_BATCH_SIZE]
                    [--eval_batch_size EVAL_BATCH_SIZE] [--no_logger]
@@ -48,6 +50,8 @@ options:
                         The layers to remove
   --make_layer_recurrent MAKE_LAYER_RECURRENT
                         The layer to make recurrent
+  --use_ssm             Whether to use an SSM as recurrent layer
+  --use_hippo           Whether to initialize the SSM using HiPPO
   --dataset {ultrafeedback,csqa_full,arc_full,piqa_full,siqa_full,openhermes,alpaca,gsm8k}
                         The dataset to use for training
   --seq_length SEQ_LENGTH
