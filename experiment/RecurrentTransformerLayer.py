@@ -8,7 +8,7 @@ class RecurrentTransformerLayer(nn.Module):
     def __init__(self, layer: nn.Module):
         super().__init__()
         self.layer = layer
-        self.recurrence = get_deq(f_solver="broyden")
+        self.recurrence = get_deq(f_solver="fixed_point_iter")
 
     def forward(self, x: torch.Tensor, *args, **kwargs) -> Optional[tuple]:
         self.out = None

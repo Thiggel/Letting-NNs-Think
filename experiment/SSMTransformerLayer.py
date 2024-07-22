@@ -25,7 +25,7 @@ class SSMTransformerLayer(nn.Module):
         self.B = nn.Linear(d_model * nhead, d_model, bias=False)
 
         if is_hippo_initialized:
-            hippo_init(self.A)
+            hippo_init(self.A, self.B)
 
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
@@ -43,4 +43,4 @@ class SSMTransformerLayer(nn.Module):
 
         output = self.A(x) + self.B(attention_output)
 
-        return (output,)
+        return (output, None)

@@ -59,12 +59,18 @@ class LMLightningModule(LightningModule):
 
     def make_layers_finetunable(self):
         finetune_layers = self.args.finetune_layers
+
+        try:
+            layers = self.model.transformer.h
+        except Exception as _:
+            layers = self.model.model.layers
+
         if finetune_layers != "all":
             for param in self.model.parameters():
                 param.requires_grad = False
 
             for i in finetune_layers:
-                for param in self.model.model.layers[i].parameters():
+                for param in layers[i].parameters():
                     param.requires_grad = True
 
     def remove_layers(self):

@@ -1,7 +1,7 @@
 import torch
 
 
-def hippo_init(A: torch.nn.Linear):
+def hippo_init(A: torch.nn.Linear, B: torch.nn.Linear):
     N = A.weight.shape[0]
 
     q = torch.arange(N, dtype=torch.float64)
@@ -13,3 +13,5 @@ def hippo_init(A: torch.nn.Linear):
 
     with torch.no_grad():
         A.weight.data = T @ M @ torch.linalg.inv(T)
+
+        B.weight.data = torch.ones_like(B.weight.data)
