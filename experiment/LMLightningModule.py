@@ -51,6 +51,7 @@ class LMLightningModule(LightningModule):
                     self.model.config.hidden_size,
                     self.model.config.num_attention_heads,
                     self.args.use_hippo,
+                    self.args.use_norm_in_ssm,
                 )
                 if self.args.use_ssm
                 else layer

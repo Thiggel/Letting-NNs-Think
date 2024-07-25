@@ -62,6 +62,11 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="Whether to initialize the SSM using HiPPO",
     )
     parser.add_argument(
+        "--use_norm_in_ssm",
+        action="store_true",
+        help="Whether to use layer normalization in the SSM",
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
         choices=LanguageDataModule.get_all_dataset_names(),

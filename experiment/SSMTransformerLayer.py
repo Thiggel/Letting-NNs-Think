@@ -10,6 +10,7 @@ class SSMTransformerLayer(nn.Module):
         d_model: int,
         nhead: int,
         is_hippo_initialized: bool = False,
+        use_norm: bool = False,
     ):
         super().__init__()
 
@@ -23,6 +24,9 @@ class SSMTransformerLayer(nn.Module):
 
         self.A = nn.Linear(d_model, d_model, bias=False)
         self.B = nn.Linear(d_model * nhead, d_model, bias=False)
+
+        self.norm1 = nn.LayerNorm(d_model) if use_norm else nn.Identity()
+        self.norm2 = nn.LayerNorm(d_model) if use_norm else nn.Identity()
 
         if is_hippo_initialized:
             hippo_init(self.A, self.B)
@@ -41,6 +45,6 @@ class SSMTransformerLayer(nn.Module):
             queries, keys, values, attn_mask=mask, is_causal=True
         )
 
-        output = self.A(x) + self.B(attention_output)
+        output = self.norm2(self.A(x) + self.norm1(self.B(attention_output)))
 
         return (output, None)

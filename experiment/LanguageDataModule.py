@@ -95,6 +95,7 @@ class LanguageDataModule(LightningDataModule):
             self.val_dataset,
             batch_size=self.args.eval_batch_size,
             collate_fn=self.collate_fn,
+            drop_last=True,
         )
 
     def test_dataloader(self) -> Optional[DataLoader]:
@@ -103,6 +104,7 @@ class LanguageDataModule(LightningDataModule):
                 self.test_dataset,
                 batch_size=self.args.eval_batch_size,
                 collate_fn=self.collate_fn,
+                drop_last=True,
             )
         return None
 
