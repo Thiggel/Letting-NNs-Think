@@ -67,6 +67,12 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="Whether to use layer normalization in the SSM",
     )
     parser.add_argument(
+        "--use_adaptive_A", action="store_true", help="Whether to use adaptive A in SSM"
+    )
+    parser.add_argument(
+        "--use_adaptive_B", action="store_true", help="Whether to use adaptive B in SSM"
+    )
+    parser.add_argument(
         "--dataset",
         type=str,
         choices=LanguageDataModule.get_all_dataset_names(),

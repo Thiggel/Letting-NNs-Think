@@ -11,6 +11,8 @@ class Args:
     use_ssm: bool
     use_hippo: bool
     use_norm_in_ssm: bool
+    use_adaptive_A: bool
+    use_adaptive_B: bool
     remove_layers: list[int]
     logger: bool
     experiment_name: str

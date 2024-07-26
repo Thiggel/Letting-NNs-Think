@@ -52,6 +52,8 @@ class LMLightningModule(LightningModule):
                     self.model.config.num_attention_heads,
                     self.args.use_hippo,
                     self.args.use_norm_in_ssm,
+                    self.args.use_adaptive_A,
+                    self.args.use_adaptive_B,
                 )
                 if self.args.use_ssm
                 else layer

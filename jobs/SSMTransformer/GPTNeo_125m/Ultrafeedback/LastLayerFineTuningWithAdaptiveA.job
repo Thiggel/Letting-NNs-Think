@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --job-name=SSMTransformerWithAdaptiveA_LastLayerFineTuning_GPTNeo_125m_Ultrafeedback
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=18
+#SBATCH --time=50:00:00
+#SBATCH --output=job_logs/SSMTransformerWithAdaptiveA_LastLayerFineTuning_GPTNeo_Ultrafeedback_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/SSMTransformer/GPTNeo_125m/Ultrafeedback/LastLayerFineTuningWithAdaptiveA.sh
