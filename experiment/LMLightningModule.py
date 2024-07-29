@@ -12,6 +12,7 @@ from experiment.utils.accuracy import accuracy
 from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer
 from experiment.SSMTransformerLayer import SSMTransformerLayer
 from experiment.LanguageDataModule import LanguageDataModule
+from experiment.S6 import S6
 
 
 class LMLightningModule(LightningModule):
@@ -34,6 +35,12 @@ class LMLightningModule(LightningModule):
         self.make_layers_finetunable()
         self.add_recurrence()
 
+        for name, module in self.model.named_modules():
+            trainable_params = sum(
+                p.numel() for p in module.parameters() if p.requires_grad
+            )
+            print(f"Module {name} - Trainable parameters: {trainable_params}")
+
     def add_recurrence(self):
         if self.args.make_layer_recurrent is None:
             return
@@ -50,10 +57,6 @@ class LMLightningModule(LightningModule):
                 SSMTransformerLayer(
                     self.model.config.hidden_size,
                     self.model.config.num_attention_heads,
-                    self.args.use_hippo,
-                    self.args.use_norm_in_ssm,
-                    self.args.use_adaptive_A,
-                    self.args.use_adaptive_B,
                 )
                 if self.args.use_ssm
                 else layer

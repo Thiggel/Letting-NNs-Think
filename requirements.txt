@@ -10,3 +10,4 @@ torchdeq
 deepspeed
 huggingface_hub
 pytest
+einops
