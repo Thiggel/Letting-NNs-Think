@@ -34,23 +34,6 @@ class S6(nn.Module):
 
         self.delta_proj = nn.Linear(self.delta_low_rank_dim, hidden_dim)
 
-    def discretize(
-        self,
-        A: torch.Tensor,
-        delta: torch.Tensor,
-        B: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        deltaA = delta.unsqueeze(-1) * A.unsqueeze(0).unsqueeze(0)
-        A_discretized = torch.exp(deltaA)
-
-        deltaB = delta.unsqueeze(-1) * B.unsqueeze(0).unsqueeze(0)
-
-        B_discretized = (
-            deltaA.inverse() @ (A_discretized - torch.eye(self.hidden_dim)) @ deltaB
-        )
-
-        return A_discretized, B_discretized
-
     def get_B_and_delta(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         B_and_delta = self.input_to_B_and_delta(x)
 
@@ -63,6 +46,24 @@ class S6(nn.Module):
         delta = F.softplus(self.delta_proj(delta) + self.delta_default)
 
         return B, delta
+
+    def discretize(
+        self,
+        A: torch.Tensor,
+        delta: torch.Tensor,
+        B: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        deltaA = delta.unsqueeze(-1) * A.unsqueeze(0).unsqueeze(0)
+        A_discretized = torch.exp(deltaA)
+
+        identity = torch.eye(self.hidden_dim, device=A.device)
+        B_discretized = torch.linalg.solve(A, A_discretized - identity)
+        deltaB = delta * B
+        B_discretized = einsum(
+            B_discretized, deltaB, "b l d_in n, b l d_in -> b l d_in n"
+        )
+
+        return A_discretized, B_discretized
 
     def forward(
         self, hidden_states: torch.Tensor, inputs: torch.Tensor
@@ -79,6 +80,9 @@ class S6(nn.Module):
 
         B, delta = self.get_B_and_delta(inputs)
 
-        A_discretized, B_discretized = self.discretize(self.A, delta, B)
+        A_discrete, B_discrete = self.discretize(self.A, delta, B)
 
-        return A_discretized @ hidden_states + B_discretized @ inputs
+        A_output = einsum(A_discrete, hidden_states, "b l d_in n, b l d_in -> b l n")
+        B_output = einsum(B_discrete, hidden_states, "b l d_in n, b l d_in -> b l n")
+
+        return A_output + B_output

@@ -30,6 +30,6 @@ class SSMTransformerLayer(nn.Module):
         )
         x = x.transpose(0, 1)
 
-        output = self.S6(hidden_states=x, inputs=attention_output)
+        output = self.S6(hidden_states=x, inputs=attention_output.transpose(0, 1))
 
         return (output, None)

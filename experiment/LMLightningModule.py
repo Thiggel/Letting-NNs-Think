@@ -35,12 +35,6 @@ class LMLightningModule(LightningModule):
         self.make_layers_finetunable()
         self.add_recurrence()
 
-        for name, module in self.model.named_modules():
-            trainable_params = sum(
-                p.numel() for p in module.parameters() if p.requires_grad
-            )
-            print(f"Module {name} - Trainable parameters: {trainable_params}")
-
     def add_recurrence(self):
         if self.args.make_layer_recurrent is None:
             return
