@@ -12,6 +12,9 @@ from experiment.utils.accuracy import accuracy
 from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer
 from experiment.SSMTransformerLayer import SSMTransformerLayer
 from experiment.LanguageDataModule import LanguageDataModule
+from experiment.AdaptiveTransformer.AdaptiveTransformerLayer import (
+    AdaptiveTransformerLayer,
+)
 from experiment.S6 import S6
 
 
@@ -46,16 +49,24 @@ class LMLightningModule(LightningModule):
 
         layer = layers[self.args.make_layer_recurrent]
 
-        layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
-            (
-                SSMTransformerLayer(
-                    self.model.config.hidden_size,
-                    self.model.config.num_attention_heads,
-                )
-                if self.args.use_ssm
-                else layer
-            ),
-        )
+        if self.args.recurrent_mode == "adaptive_transformer":
+            mlp_size = layer.mlp.c_fc.out_features
+
+            layer = AdaptiveTransformerLayer(
+                self.model.config.hidden_size,
+                self.model.config.num_attention_heads,
+                mlp_size,
+            )
+
+        elif self.args.recurrent_mode in ["mamba", "ssm"]:
+            layer = SSMTransformerLayer(
+                self.model.config.hidden_size,
+                self.model.config.num_attention_heads,
+                use_mamba=self.args.recurrent_mode == "mamba",
+                use_skip_connection=self.args.use_skip_connection,
+            )
+
+        layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(layer)
 
     def make_layers_finetunable(self):
         finetune_layers = self.args.finetune_layers

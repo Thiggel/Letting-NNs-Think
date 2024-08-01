@@ -54,16 +54,10 @@ class S6(nn.Module):
         B: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         deltaA = delta.unsqueeze(-1) * A.unsqueeze(0).unsqueeze(0)
-        A_discretized = torch.exp(deltaA)
+        A_discrete = torch.exp(deltaA)
+        B_discrete = delta * B
 
-        identity = torch.eye(self.hidden_dim, device=A.device)
-        B_discretized = torch.linalg.solve(A, A_discretized - identity)
-        deltaB = delta * B
-        B_discretized = einsum(
-            B_discretized, deltaB, "b l d_in n, b l d_in -> b l d_in n"
-        )
-
-        return A_discretized, B_discretized
+        return A_discrete, B_discrete
 
     def forward(
         self, hidden_states: torch.Tensor, inputs: torch.Tensor
@@ -83,6 +77,6 @@ class S6(nn.Module):
         A_discrete, B_discrete = self.discretize(self.A, delta, B)
 
         A_output = einsum(A_discrete, hidden_states, "b l d_in n, b l d_in -> b l n")
-        B_output = einsum(B_discrete, hidden_states, "b l d_in n, b l d_in -> b l n")
+        B_output = B_discrete @ inputs
 
         return A_output + B_output

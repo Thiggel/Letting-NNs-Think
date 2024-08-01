@@ -3,10 +3,17 @@ import torch
 from torch import nn
 
 from experiment.S6 import S6
+from experiment.AdaptiveSSM import AdaptiveSSM
 
 
 class SSMTransformerLayer(nn.Module):
-    def __init__(self, d_model: int, nhead: int):
+    def __init__(
+        self,
+        d_model: int,
+        nhead: int,
+        use_mamba: bool = False,
+        use_skip_connection: bool = False,
+    ):
         super().__init__()
 
         self.d_model = d_model
@@ -14,9 +21,13 @@ class SSMTransformerLayer(nn.Module):
 
         self.attention = nn.MultiheadAttention(d_model, nhead)
 
-        self.S6 = S6(
-            in_channels=d_model,
-            hidden_dim=d_model,
+        self.ssm = (
+            S6(
+                in_channels=d_model,
+                hidden_dim=d_model,
+            )
+            if use_mamba
+            else AdaptiveSSM(d_model=d_model, use_skip_connection=use_skip_connection)
         )
 
     def forward(
@@ -30,6 +41,6 @@ class SSMTransformerLayer(nn.Module):
         )
         x = x.transpose(0, 1)
 
-        output = self.S6(hidden_states=x, inputs=attention_output.transpose(0, 1))
+        output = self.ssm(hidden_states=x, inputs=attention_output.transpose(0, 1))
 
         return (output, None)

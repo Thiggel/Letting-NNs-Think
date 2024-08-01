@@ -52,25 +52,14 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="The layer to make recurrent",
     )
     parser.add_argument(
-        "--use_ssm",
+        "--recurrent_mode",
+        type=str,
+        choices=["ssm", "mamba", "adaptive_transformer"],
+    )
+    parser.add_argument(
+        "--use_skip_connection",
         action="store_true",
-        help="Whether to use an SSM as recurrent layer",
-    )
-    parser.add_argument(
-        "--use_hippo",
-        action="store_true",
-        help="Whether to initialize the SSM using HiPPO",
-    )
-    parser.add_argument(
-        "--use_norm_in_ssm",
-        action="store_true",
-        help="Whether to use layer normalization in the SSM",
-    )
-    parser.add_argument(
-        "--use_adaptive_A", action="store_true", help="Whether to use adaptive A in SSM"
-    )
-    parser.add_argument(
-        "--use_adaptive_B", action="store_true", help="Whether to use adaptive B in SSM"
+        help="Whether to use a skip connection in the SSM",
     )
     parser.add_argument(
         "--dataset",
@@ -83,10 +72,10 @@ def get_training_args(get_defaults: bool = False) -> Args:
         "--seq_length", type=int, default=128, help="The maximum sequence length"
     )
     parser.add_argument(
-        "--train_batch_size", type=int, default=16, help="The training batch size"
+        "--train_batch_size", type=int, default=8, help="The training batch size"
     )
     parser.add_argument(
-        "--eval_batch_size", type=int, default=16, help="The evaluation batch size"
+        "--eval_batch_size", type=int, default=8, help="The evaluation batch size"
     )
     parser.add_argument(
         "--no_logger",
@@ -101,7 +90,7 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="The name of the experiment",
     )
     parser.add_argument(
-        "--max_epochs", type=int, default=100, help="The maximum number of epochs"
+        "--max_epochs", type=int, default=60, help="The maximum number of epochs"
     )
     parser.add_argument(
         "--warmup_steps", type=int, default=1000, help="The number of warmup steps"

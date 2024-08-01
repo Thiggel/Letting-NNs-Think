@@ -8,11 +8,8 @@ class Args:
     num_runs: int
     finetune_layers: list[int]
     make_layer_recurrent: int
-    use_ssm: bool
-    use_hippo: bool
-    use_norm_in_ssm: bool
-    use_adaptive_A: bool
-    use_adaptive_B: bool
+    recurrent_mode: str
+    use_skip_connection: bool
     remove_layers: list[int]
     logger: bool
     experiment_name: str

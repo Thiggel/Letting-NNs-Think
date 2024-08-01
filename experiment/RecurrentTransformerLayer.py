@@ -8,7 +8,7 @@ class RecurrentTransformerLayer(nn.Module):
     def __init__(self, layer: nn.Module):
         super().__init__()
         self.layer = layer
-        self.recurrence = get_deq(f_solver="fixed_point_iter", f_max_iter=4)
+        self.recurrence = get_deq(f_solver="fixed_point_iter")
 
     def forward(self, x: torch.Tensor, *args, **kwargs) -> Optional[tuple]:
         self.out = None
@@ -19,6 +19,9 @@ class RecurrentTransformerLayer(nn.Module):
             )
             self.out = self.layer(sequence, *args, **kwargs)
             hidden_states = self.out[0]
+
+            if torch.isnan(hidden_states).any():
+                print("nan")
 
             hidden_states[torch.isnan(hidden_states)] = 0
 
