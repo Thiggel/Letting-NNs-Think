@@ -5,12 +5,15 @@ from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.strategies import DeepSpeedStrategy
 import torch
+from lm_eval import tasks, evaluator
+from lm_eval.api.model import LM
 
 from experiment.utils.set_seed import set_seed
 from experiment.utils.add_pad_token import add_pad_token
 from experiment.LanguageDataModule import LanguageDataModule
 from experiment.utils.args import Args
 from experiment.LMLightningModule import LMLightningModule
+from experiment.eval.ModelWrapper import ModelWrapper
 
 
 def run(args: Args, seed: int) -> dict:
@@ -71,6 +74,8 @@ def run(args: Args, seed: int) -> dict:
         logger=wandb_logger if args.logger else None,
         max_epochs=args.max_epochs,
         devices="auto",
+        accumulate_grad_batches=128 if args.train_batch_size == 1 else 1,
+        max_time={"hours": 18},
     )
 
     if torch.cuda.is_available():
@@ -80,16 +85,30 @@ def run(args: Args, seed: int) -> dict:
     trainer = Trainer(**trainer_args)
 
     trainer.fit(
-        model=model,
-        datamodule=data_module,
+       model=model,
+       datamodule=data_module,
     )
 
     model.load_state_dict(torch.load(model_checkpoint.best_model_path)["state_dict"])
 
-    results = trainer.test(
-        model=model,
-        datamodule=data_module,
+    wrapped_model = ModelWrapper(model.model, tokenizer)
+
+    results = evaluator.simple_evaluate(
+        model=wrapped_model,
+        tasks=[
+            "commonsense_qa",
+            # "gsm8k",
+            # "mmlu",
+            # "truthfulqa",
+            "piqa",
+        ],
+        num_fewshot=0,
+        batch_size=args.eval_batch_size,
+        random_seed=seed,
+        device="cuda" if torch.cuda.is_available() else "cpu",
     )
+
+    print(results)
 
     if args.logger:
         wandb_logger.experiment.unwatch()

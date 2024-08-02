@@ -66,7 +66,7 @@ class LMLightningModule(LightningModule):
                 use_skip_connection=self.args.use_skip_connection,
             )
 
-        layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(layer)
+        layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(layer, self.model.config.hidden_size)
 
     def make_layers_finetunable(self):
         finetune_layers = self.args.finetune_layers

@@ -5,4 +5,6 @@ python -m experiment \
   --make_layer_recurrent -1 \
   --recurrent_mode 'adaptive_transformer' \
   --finetune_layers -1 \
-  --experiment_name AdaptiveTransformer_LastLayerFineTuning_GPTNeo_125m_Ultrafeedback
+  --train_batch_size 1 \
+  --eval_batch_size 1 \
+  --experiment_name RLAdaptiveTransformer_LastLayerFineTuning_GPTNeo_125m_Ultrafeedback

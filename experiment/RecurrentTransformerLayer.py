@@ -1,33 +1,37 @@
 import torch
 from torch import nn
-from torchdeq import get_deq
 from typing import Optional
 
 
 class RecurrentTransformerLayer(nn.Module):
-    def __init__(self, layer: nn.Module):
+    def __init__(self, layer: nn.Module, hidden_size: int, max_iter: int = 25):
         super().__init__()
         self.layer = layer
-        self.recurrence = get_deq(f_solver="fixed_point_iter")
+        self.exit_classifier = nn.Linear(hidden_size, 1)
+        self.max_iter = max_iter
 
-    def forward(self, x: torch.Tensor, *args, **kwargs) -> Optional[tuple]:
-        self.out = None
+    def forward(
+        self,
+        initial_hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        *args,
+        **kwargs,
+    ) -> Optional[tuple]:
+        prev_hidden_states = initial_hidden_states
 
-        def f(prev_last_hidden_state: torch.Tensor) -> torch.Tensor:
-            sequence = torch.cat(
-                [x[:, :-1, :], prev_last_hidden_state.unsqueeze(1)], dim=1
+        output_hidden_states = torch.zeros_like(initial_hidden_states)
+
+        for _ in range(self.max_iter):
+            hidden_states = self.layer(
+                prev_hidden_states, attention_mask=attention_mask, *args, **kwargs
+            )[0]
+
+            should_exit = torch.sigmoid(self.exit_classifier(hidden_states))
+
+            output_hidden_states = torch.where(
+                should_exit > 0.5, hidden_states, output_hidden_states
             )
-            self.out = self.layer(sequence, *args, **kwargs)
-            hidden_states = self.out[0]
 
-            if torch.isnan(hidden_states).any():
-                print("nan")
+            prev_hidden_states = hidden_states
 
-            hidden_states[torch.isnan(hidden_states)] = 0
-
-            return hidden_states[:, -1, :]
-
-        initial_state = x[:, -1, :]
-        self.recurrence(f, initial_state, tol=1e-2)
-
-        return self.out
+        return output_hidden_states, None

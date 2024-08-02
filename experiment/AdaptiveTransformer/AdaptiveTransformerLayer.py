@@ -18,10 +18,16 @@ class AdaptiveTransformerLayer(nn.Module):
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
+        self.nhead = num_heads
 
     def forward(
-        self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, *args, **kwargs
+        self,
+        x: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        *args,
+        **kwargs
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        mask = attention_mask.repeat(1, self.nhead, 1, 1)
         attn_output = self.self_attention(x, mask)
         x = self.norm1(x + self.dropout(attn_output))
 

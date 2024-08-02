@@ -4,6 +4,9 @@ from torch import nn
 
 from experiment.S6 import S6
 from experiment.AdaptiveSSM import AdaptiveSSM
+from experiment.AdaptiveTransformer.AdaptiveMultiHeadAttention import (
+    AdaptiveMultiHeadAttention,
+)
 
 
 class SSMTransformerLayer(nn.Module):
@@ -19,7 +22,7 @@ class SSMTransformerLayer(nn.Module):
         self.d_model = d_model
         self.nhead = nhead
 
-        self.attention = nn.MultiheadAttention(d_model, nhead)
+        self.attention = AdaptiveMultiHeadAttention(d_model, nhead)
 
         self.ssm = (
             S6(
@@ -33,14 +36,10 @@ class SSMTransformerLayer(nn.Module):
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
     ) -> tuple[torch.Tensor, Any]:
-        mask = attention_mask.squeeze().repeat(self.nhead, 1, 1)
+        mask = attention_mask.repeat(1, self.nhead, 1, 1)
 
-        x = x.transpose(0, 1)
-        attention_output, _ = self.attention(
-            x, x, x, attn_mask=mask, is_causal=True, need_weights=False
-        )
-        x = x.transpose(0, 1)
+        attention_output = self.attention(x, mask)
 
-        output = self.ssm(hidden_states=x, inputs=attention_output.transpose(0, 1))
+        output = self.ssm(hidden_states=x, inputs=attention_output)
 
         return (output, None)
