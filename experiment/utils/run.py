@@ -85,8 +85,8 @@ def run(args: Args, seed: int) -> dict:
     trainer = Trainer(**trainer_args)
 
     trainer.fit(
-       model=model,
-       datamodule=data_module,
+        model=model,
+        datamodule=data_module,
     )
 
     model.load_state_dict(torch.load(model_checkpoint.best_model_path)["state_dict"])

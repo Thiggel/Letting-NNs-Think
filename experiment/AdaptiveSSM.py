@@ -31,7 +31,4 @@ class AdaptiveSSM(nn.Module):
 
         ssm_output = self.norm1(A_output) + B_output
 
-        if self.use_skip_connection:
-            ssm_output = ssm_output + hidden_states
-
         return self.norm2(ssm_output)
