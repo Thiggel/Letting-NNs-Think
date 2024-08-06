@@ -62,11 +62,13 @@ class LMLightningModule(LightningModule):
             layer = SSMTransformerLayer(
                 self.model.config.hidden_size,
                 self.model.config.num_attention_heads,
-                use_mamba=self.args.recurrent_mode == "mamba",
-                use_skip_connection=self.args.use_skip_connection,
+                self.args.train_batch_size,
+                self.args.seq_length,
             )
 
-        layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(layer, self.model.config.hidden_size)
+        layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
+            layer, use_fixed_num_steps=self.args.use_fixed_num_steps
+        )
 
     def make_layers_finetunable(self):
         finetune_layers = self.args.finetune_layers

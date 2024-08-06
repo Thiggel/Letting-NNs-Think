@@ -10,6 +10,7 @@ class Args:
     make_layer_recurrent: int
     recurrent_mode: str
     use_skip_connection: bool
+    use_fixed_num_steps: bool
     remove_layers: list[int]
     logger: bool
     experiment_name: str

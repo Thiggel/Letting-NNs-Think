@@ -62,6 +62,12 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="Whether to use a skip connection in the SSM",
     )
     parser.add_argument(
+        "--use_fixed_num_steps",
+        action="store_true",
+        help="Whether to use a fixed number of steps in the recurrent transformer",
+    )
+    parser.set_defaults(use_skip_connection=False, use_fixed_num_steps=False)
+    parser.add_argument(
         "--dataset",
         type=str,
         choices=LanguageDataModule.get_all_dataset_names(),
@@ -90,7 +96,7 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="The name of the experiment",
     )
     parser.add_argument(
-        "--max_epochs", type=int, default=60, help="The maximum number of epochs"
+        "--max_epochs", type=int, default=10, help="The maximum number of epochs"
     )
     parser.add_argument(
         "--warmup_steps", type=int, default=1000, help="The number of warmup steps"

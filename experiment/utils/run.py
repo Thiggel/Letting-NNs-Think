@@ -7,6 +7,10 @@ from lightning.pytorch.strategies import DeepSpeedStrategy
 import torch
 from lm_eval import tasks, evaluator
 from lm_eval.api.model import LM
+import subprocess
+from pytorch_lightning.utilities.deepspeed import (
+    convert_zero_checkpoint_to_fp32_state_dict,
+)
 
 from experiment.utils.set_seed import set_seed
 from experiment.utils.add_pad_token import add_pad_token
@@ -33,12 +37,13 @@ def run(args: Args, seed: int) -> dict:
         dirpath=(
             os.environ["PYTORCH_LIGHTNING_HOME"] if torch.cuda.is_available() else None
         ),
+        filename="best-checkpoint-{epoch:02d}-{val_loss:.2f}",
     )
     device_stats_monitor = DeviceStatsMonitor()
 
     if args.logger:
         wandb_logger = WandbLogger(
-            project="letting-nns-think",
+            project="letting-nns-think2",
             name=args.experiment_name + f"_{seed}",
             group=args.experiment_name,
         )
@@ -89,7 +94,14 @@ def run(args: Args, seed: int) -> dict:
         datamodule=data_module,
     )
 
-    model.load_state_dict(torch.load(model_checkpoint.best_model_path)["state_dict"])
+    output_path = "model.pt"
+    convert_zero_checkpoint_to_fp32_state_dict(
+        model_checkpoint.best_model_path, output_path
+    )
+
+    model = LMLightningModule.load_from_checkpoint(
+        output_path, args=args, data_module=data_module, tokenizer=tokenizer
+    )
 
     wrapped_model = ModelWrapper(model.model, tokenizer)
 
@@ -105,12 +117,15 @@ def run(args: Args, seed: int) -> dict:
         num_fewshot=0,
         batch_size=args.eval_batch_size,
         random_seed=seed,
+        numpy_random_seed=seed,
+        torch_random_seed=seed,
+        fewshot_random_seed=seed,
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
 
-    print(results)
+    print(results["results"])
 
     if args.logger:
         wandb_logger.experiment.unwatch()
 
-    return results
+    return results["results"]

@@ -3,5 +3,7 @@
 python -m experiment \
   --model_name "EleutherAI/gpt-neo-125m" \
   --make_layer_recurrent -1 \
-  --finetune_layers -1 \
-  --experiment_name RLOneLayerRecurrentTransformer_LastLayerFineTuning_GPTNeo_125m_Ultrafeedback
+  --finetune_layers -2 \
+  --num_runs 1 \
+  --use_fixed_num_steps \
+  --experiment_name OneLayerRecurrentTransformer_FixedThreeSteps_LastLayerFineTuning_GPTNeo_125m_Ultrafeedback
