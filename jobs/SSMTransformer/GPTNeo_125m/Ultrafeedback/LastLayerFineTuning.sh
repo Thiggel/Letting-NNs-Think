@@ -6,4 +6,5 @@ python -m experiment \
   --recurrent_mode "ssm" \
   --finetune_layers -1 \
   --num_runs 1 \
-  --experiment_name SSMTransformer_LastLayerFineTuning_GPTNeo_125m_Ultrafeedback
+  --use_fixed_num_steps \
+  --experiment_name SSMTransformer_ThreeFixedSteps_LastLayerFineTuning_GPTNeo_125m_Ultrafeedback

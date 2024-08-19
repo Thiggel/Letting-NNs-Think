@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu_h100
 #SBATCH --gpus=1
 #SBATCH --job-name=OneLayerRecurrentTransformer_LastLayerFineTuning_GPTNeo_125m_Ultrafeedback
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=18
+#SBATCH --cpus-per-task=16
 #SBATCH --time=24:00:00
 #SBATCH --output=job_logs/OneLayerRecurrentTransformer_LastLayerFineTuning_GPTNeo_Ultrafeedback_%A.out
 

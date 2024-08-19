@@ -88,6 +88,7 @@ class LanguageDataModule(LightningDataModule):
             shuffle=True,
             collate_fn=self.collate_fn,
             drop_last=True,
+            num_workers=int(0.75 * get_num_workers()),
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -96,6 +97,7 @@ class LanguageDataModule(LightningDataModule):
             batch_size=self.args.eval_batch_size,
             collate_fn=self.collate_fn,
             drop_last=True,
+            num_workers=int(0.75 * get_num_workers()),
         )
 
     def test_dataloader(self) -> Optional[DataLoader]:
@@ -105,6 +107,7 @@ class LanguageDataModule(LightningDataModule):
                 batch_size=self.args.eval_batch_size,
                 collate_fn=self.collate_fn,
                 drop_last=True,
+                num_workers=int(0.75 * get_num_workers()),
             )
         return None
 

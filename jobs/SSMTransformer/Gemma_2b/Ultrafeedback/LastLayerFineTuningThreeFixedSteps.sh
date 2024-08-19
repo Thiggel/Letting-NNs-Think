@@ -6,7 +6,8 @@ python -m experiment \
   --recurrent_mode "ssm" \
   --finetune_layers -1 \
   --num_runs 1 \
+  --use_fixed_num_steps \
+  --train_batch_size 1 \
+  --eval_batch_size 1 \
   --no_logger \
-  --train_batch_size 4 \
-  --eval_batch_size 4 \
-  --experiment_name SSMTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback
+  --experiment_name SSMTransformer_ThreeFixedSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback

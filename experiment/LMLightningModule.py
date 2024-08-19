@@ -27,7 +27,8 @@ class LMLightningModule(LightningModule):
     ):
         super().__init__()
         self.args = args
-        self.model = AutoModelForCausalLM.from_pretrained(args.model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(args.model_name, attn_implementation='eager')
+        self.model.use_cache = False
         self.model.train()
         self.total_train_steps = data_module.get_total_train_steps()
         self.tokenizer = tokenizer
@@ -62,8 +63,6 @@ class LMLightningModule(LightningModule):
             layer = SSMTransformerLayer(
                 self.model.config.hidden_size,
                 self.model.config.num_attention_heads,
-                self.args.train_batch_size,
-                self.args.seq_length,
             )
 
         layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(

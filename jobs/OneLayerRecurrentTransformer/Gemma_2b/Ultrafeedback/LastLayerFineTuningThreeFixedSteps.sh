@@ -5,6 +5,6 @@ python -m experiment \
   --make_layer_recurrent 25 \
   --finetune_layers 24,25 \
   --num_runs 1 \
-  --use_fixed_num_steps \
   --no_logger \
-  --experiment_name OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback
+  --use_fixed_num_steps \
+  --experiment_name OneLayerRecurrentTransformer_ThreeFixedSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback

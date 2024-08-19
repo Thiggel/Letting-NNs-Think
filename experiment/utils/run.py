@@ -11,6 +11,7 @@ import subprocess
 from pytorch_lightning.utilities.deepspeed import (
     convert_zero_checkpoint_to_fp32_state_dict,
 )
+import wandb
 
 from experiment.utils.set_seed import set_seed
 from experiment.utils.add_pad_token import add_pad_token
@@ -94,7 +95,7 @@ def run(args: Args, seed: int) -> dict:
         datamodule=data_module,
     )
 
-    output_path = "model.pt"
+    output_path = os.environ['BASE_CACHE_DIR'] + "/model.pt"
     convert_zero_checkpoint_to_fp32_state_dict(
         model_checkpoint.best_model_path, output_path
     )
@@ -121,11 +122,20 @@ def run(args: Args, seed: int) -> dict:
         torch_random_seed=seed,
         fewshot_random_seed=seed,
         device="cuda" if torch.cuda.is_available() else "cpu",
-    )
+        limit=10
+    )["results"]
 
-    print(results["results"])
+    results = {
+        f'{key}_accuracy': value['acc,none']
+        for key, value in results.items()
+    }
+
+    if args.logger:
+        wandb.log(results)
+
+    print(results)
 
     if args.logger:
         wandb_logger.experiment.unwatch()
 
-    return results["results"]
+    return results
