@@ -3,9 +3,9 @@
 #SBATCH --partition=gpu
 #SBATCH --gpus=4
 #SBATCH --job-name=SSMTransformer_ThreeFixedSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback
-#SBATCH --ntasks=1
+#SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=18
-#SBATCH --time=40:00:00
+#SBATCH --time=30:00:00
 #SBATCH --output=job_logs/SSMTransformer_ThreeFixedSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback_%A.out
 
 cd $HOME/Letting-NNs-Think

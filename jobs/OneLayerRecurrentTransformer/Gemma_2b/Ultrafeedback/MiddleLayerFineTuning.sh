@@ -1,6 +1,6 @@
 . jobs/environment.sh
 
-python -m experiment \
+srun python -m experiment \
   --model_name "google/gemma-2b" \
   --finetune_layers 5 \
   --finetune_layers 5 \

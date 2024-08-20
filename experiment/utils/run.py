@@ -85,8 +85,10 @@ def run(args: Args, seed: int) -> dict:
     )
 
     if torch.cuda.is_available():
-        trainer_args["strategy"] = deepspeed_strategy
+        trainer_args["strategy"] = "deepspeed_stage_3_offload"
         trainer_args["default_root_dir"] = os.environ["PYTORCH_LIGHTNING_HOME"]
+        print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))
+        print("GPUs Available: ", torch.cuda.device_count())
 
     trainer = Trainer(**trainer_args)
 
@@ -110,7 +112,7 @@ def run(args: Args, seed: int) -> dict:
         model=wrapped_model,
         tasks=[
             "commonsense_qa",
-            # "gsm8k",
+            "gsm8k",
             # "mmlu",
             # "truthfulqa",
             "piqa",
@@ -122,7 +124,6 @@ def run(args: Args, seed: int) -> dict:
         torch_random_seed=seed,
         fewshot_random_seed=seed,
         device="cuda" if torch.cuda.is_available() else "cpu",
-        limit=10
     )["results"]
 
     results = {
