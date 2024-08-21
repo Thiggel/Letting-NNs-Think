@@ -27,9 +27,9 @@ def run(args: Args, seed: int) -> dict:
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     add_pad_token(tokenizer)
 
-    data_module = LanguageDataModule(tokenizer, args, seed)
+    model = LMLightningModule(args, tokenizer)
 
-    model = LMLightningModule(args, data_module, tokenizer)
+    data_module = LanguageDataModule(model, tokenizer, args, seed)
 
     model_checkpoint = ModelCheckpoint(
         monitor="val_loss",
@@ -47,31 +47,6 @@ def run(args: Args, seed: int) -> dict:
             project="letting-nns-think2",
             name=args.experiment_name + f"_{seed}",
             group=args.experiment_name,
-        )
-
-    if torch.cuda.is_available():
-        deepspeed_strategy = DeepSpeedStrategy(
-            stage=3,
-            offload_optimizer=True,
-            offload_parameters=True,
-            allgather_bucket_size=5e8,
-            reduce_bucket_size=5e8,
-            contiguous_gradients=True,
-            overlap_comm=True,
-            zero_optimization={
-                "stage": 3,
-                "offload_optimizer": {"device": "cpu", "pin_memory": True},
-                "offload_param": {"device": "cpu", "pin_memory": True},
-                "overlap_comm": True,
-                "contiguous_gradients": True,
-                "sub_group_size": 1e9,
-                "reduce_bucket_size": "auto",
-                "stage3_prefetch_bucket_size": "auto",
-                "stage3_param_persistence_threshold": "auto",
-                "stage3_max_live_parameters": 1e9,
-                "stage3_max_reuse_distance": 1e9,
-                "stage3_gather_16bit_weights_on_model_save": True,
-            },
         )
 
     trainer_args = dict(
@@ -97,7 +72,7 @@ def run(args: Args, seed: int) -> dict:
         datamodule=data_module,
     )
 
-    output_path = os.environ['BASE_CACHE_DIR'] + "/model.pt"
+    output_path = os.environ["BASE_CACHE_DIR"] + "/model.pt"
     convert_zero_checkpoint_to_fp32_state_dict(
         model_checkpoint.best_model_path, output_path
     )
@@ -126,10 +101,7 @@ def run(args: Args, seed: int) -> dict:
         device="cuda" if torch.cuda.is_available() else "cpu",
     )["results"]
 
-    results = {
-        f'{key}_accuracy': value['acc,none']
-        for key, value in results.items()
-    }
+    results = {f"{key}_accuracy": value["acc,none"] for key, value in results.items()}
 
     if args.logger:
         wandb.log(results)

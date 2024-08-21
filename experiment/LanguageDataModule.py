@@ -7,14 +7,24 @@ from torch.nn.utils.rnn import pad_sequence
 from transformers import PreTrainedTokenizer
 from lightning import LightningDataModule
 import torch.nn.functional as F
+from tqdm import tqdm
+import numpy as np
 
+from experiment.LMLightningModule import LMLightningModule
 from experiment.utils.get_num_workers import get_num_workers
 from experiment.utils.args import Args
 
 
 class LanguageDataModule(LightningDataModule):
-    def __init__(self, tokenizer: PreTrainedTokenizer, args: Args, seed: int):
+    def __init__(
+        self,
+        model: LMLightningModule,
+        tokenizer: PreTrainedTokenizer,
+        args: Args,
+        seed: int,
+    ):
         super().__init__()
+        self.model = model
         self.tokenizer = tokenizer
         self.args = args
         self.seed = seed
@@ -22,20 +32,79 @@ class LanguageDataModule(LightningDataModule):
         self.val_dataset: Optional[Dataset] = None
         self.test_dataset: Optional[Dataset] = None
 
+        self.hidden_states_cache_file = self.get_hidden_states_cache_file()
         self.setup()
 
     def prepare_data(self):
         disable_caching()
 
     def setup(self, stage: Optional[str] = None):
-        cache_path: str = self.get_cache_path()
-
-        if self.cached_datasets_exist(cache_path):
-            self.load_cached_datasets(cache_path)
+        if os.path.exists(self.hidden_states_cache_file):
+            self.load_hidden_states()
         else:
-            dataset_config: Dict[str, Any] = self.get_dataset_config(self.args.dataset)
-            self.prepare_datasets(dataset_config)
-            self.save_datasets_to_disk(cache_path)
+            cache_path: str = self.get_cache_path()
+
+            if self.cached_datasets_exist(cache_path):
+                self.load_cached_datasets(cache_path)
+            else:
+                dataset_config: Dict[str, Any] = self.get_dataset_config(
+                    self.args.dataset
+                )
+                self.prepare_datasets(dataset_config)
+                self.save_datasets_to_disk(cache_path)
+            self.cache_hidden_states()
+
+    def get_hidden_states_cache_file(self) -> str:
+        last_frozen_layer_idx = self.model.get_idx_of_last_frozen_layer()
+        cache_dir = os.environ["BASE_CACHE_DIR"] if torch.cuda.is_available() else "."
+        cache_file = f"{cache_dir}/cached_hidden_states/{self.args.model_name}_{self.args.dataset}_{last_frozen_layer_idx}.pt"
+        return cache_file
+
+    def load_hidden_states(self):
+        print(f"Loading hidden states from {self.hidden_states_cache_file}")
+        hidden_states = torch.load(self.hidden_states_cache_file)
+        self.train_dataset = hidden_states["train"]
+        self.val_dataset = hidden_states["val"]
+        if "test" in hidden_states:
+            self.test_dataset = hidden_states["test"]
+
+    def cache_hidden_states(self):
+        print(f"Caching hidden states to {self.hidden_states_cache_file}")
+        hidden_states = {
+            "train": self.process_dataset_for_hidden_states(self.train_dataset),
+            "val": self.process_dataset_for_hidden_states(self.val_dataset),
+        }
+        if self.test_dataset:
+            hidden_states["test"] = self.process_dataset_for_hidden_states(
+                self.test_dataset
+            )
+        torch.save(hidden_states, self.hidden_states_cache_file)
+
+    def process_dataset_for_hidden_states(self, dataset: Dataset) -> Dataset:
+        processed_hidden_states = []
+        data_loader = DataLoader(
+            dataset,
+            batch_size=self.args.train_batch_size,
+            collate_fn=self.collate_fn,
+            num_workers=int(0.75 * get_num_workers()),
+        )
+
+        last_frozen_layer_idx = self.model.get_idx_of_last_frozen_layer()
+
+        self.model.eval()  # Ensure the model is in evaluation mode for generating hidden states
+        with torch.no_grad():
+            for batch in tqdm(data_loader, desc="Processing hidden states"):
+                input_ids, attention_mask = batch["input_ids"], batch["attention_mask"]
+                outputs = self.model.model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    output_hidden_states=True,
+                )
+                last_hidden_state = outputs.hidden_states[last_frozen_layer_idx]
+                processed_hidden_states.append(last_hidden_state.cpu())
+
+        # Convert the list of hidden states back to a single torch tensor
+        return torch.cat(processed_hidden_states, dim=0)
 
     def get_total_train_steps(self) -> int:
         return (
