@@ -5,8 +5,6 @@ from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.strategies import DeepSpeedStrategy
 import torch
-from lm_eval import tasks, evaluator
-from lm_eval.api.model import LM
 import subprocess
 from pytorch_lightning.utilities.deepspeed import (
     convert_zero_checkpoint_to_fp32_state_dict,
@@ -19,6 +17,7 @@ from experiment.LanguageDataModule import LanguageDataModule
 from experiment.utils.args import Args
 from experiment.LMLightningModule import LMLightningModule
 from experiment.eval.ModelWrapper import ModelWrapper
+from experiment.eval.evaluate import evaluate
 
 
 def run(args: Args, seed: int) -> dict:
@@ -84,23 +83,7 @@ def run(args: Args, seed: int) -> dict:
 
     wrapped_model = ModelWrapper(model.model, tokenizer)
 
-    results = evaluator.simple_evaluate(
-        model=wrapped_model,
-        tasks=[
-            "commonsense_qa",
-            "gsm8k",
-            # "mmlu",
-            # "truthfulqa",
-            "piqa",
-        ],
-        num_fewshot=0,
-        batch_size=args.eval_batch_size,
-        random_seed=seed,
-        numpy_random_seed=seed,
-        torch_random_seed=seed,
-        fewshot_random_seed=seed,
-        device="cuda" if torch.cuda.is_available() else "cpu",
-    )["results"]
+    results = evaluate(wrapped_model, seed, args)
 
     results = {f"{key}_accuracy": value["acc,none"] for key, value in results.items()}
 
@@ -108,6 +91,28 @@ def run(args: Args, seed: int) -> dict:
         wandb.log(results)
 
     print(results)
+
+    if args.use_fixed_num_steps:
+        print(
+            "How does this performance change with different numbers of recurrent steps?"
+        )
+
+        for new_num_steps in range(1, 6):
+            print("Changing num_steps to ", new_num_steps)
+            model.change_fixed_num_steps(new_num_steps)
+            wrapped_model = ModelWrapper(model.model, tokenizer)
+
+            results = evaluate(wrapped_model, seed, args, limit=200)
+
+            results = {
+                f"num_steps_{new_num_steps}_{key}_accuracy": value["acc,none"]
+                for key, value in results.items()
+            }
+
+            if args.logger:
+                wandb.log(results)
+
+            print(results)
 
     if args.logger:
         wandb_logger.experiment.unwatch()

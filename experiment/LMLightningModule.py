@@ -31,10 +31,11 @@ class LMLightningModule(LightningModule):
         self.model.train()
         self.tokenizer = tokenizer
         self.cache_dir = (
-            os.path.join(os.environ["PYTORCH_LIGHTNING_HOME"], "cache")
+            os.path.join(os.environ["BASE_CACHE_DIR"], "cache")
             if torch.cuda.is_available()
             else "./cache"
         )
+        os.makedirs(self.cache_dir, exist_ok=True)
 
         print(self.model)
 
@@ -42,6 +43,8 @@ class LMLightningModule(LightningModule):
         self.make_layers_finetunable()
         self.idx_of_last_frozen_layer = self.get_idx_of_last_frozen_layer()
         self.add_recurrence()
+        
+        self.cache = {}
 
     def add_recurrence(self):
         if self.args.make_layer_recurrent is None:
@@ -60,6 +63,16 @@ class LMLightningModule(LightningModule):
         layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
             layer, use_fixed_num_steps=self.args.use_fixed_num_steps
         )
+
+    def change_fixed_num_steps(self, new_num_steps: int):
+        if (
+            self.args.make_layer_recurrent is None or
+            self.args.use_fixed_num_steps in [None, False]
+        ):
+            return
+        
+        layers[self.args.make_layer_recurrent].num_steps = new_num_steps
+        
 
     def make_layers_finetunable(self):
         finetune_layers = self.args.finetune_layers
@@ -86,7 +99,7 @@ class LMLightningModule(LightningModule):
             self.model.model.layers[i] = nn.Identity()
 
     def forward(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
+        return self.model(*args, **kwargs, output_hidden_states=True)
 
     def configure_optimizers(self):
         if torch.cuda.is_available():
@@ -105,13 +118,22 @@ class LMLightningModule(LightningModule):
         torch.save(hidden_states.cpu(), cache_file)
 
     def load_cached_hidden_states(self, batch_idx, mode="train"):
-        cache_file = os.path.join(
-            self.cache_dir, f"{mode}_hidden_state_{self.global_rank}_{batch_idx}.pt"
-        )
-        if os.path.exists(cache_file):
-            return torch.load(cache_file)
-        else:
-            return None
+        if mode not in cache:
+            cache[mode] = {}
+
+        if self.global_rank not in cache[mode]:
+            cache[mode][self.global_rank] = {}
+
+        if batch_idx not in cache[mode][self.global_rank]:
+            cache_file = os.path.join(
+                self.cache_dir, f"{mode}_hidden_state_{self.global_rank}_{batch_idx}.pt"
+            )
+            if os.path.exists(cache_file):
+                cache[mode][self.global_rank][batch_idx] = torch.load(cache_file)
+            else:
+                return None
+
+        return cache[mode][self.global_rank][batch_idx].to(self.device)
 
     def forward_with_cached_states(
         self,
@@ -199,9 +221,10 @@ class LMLightningModule(LightningModule):
         cached_hidden_states = self.load_cached_hidden_states(batch_idx, mode)
 
         if cached_hidden_states is not None:
-            outputs = self.forward_with_cached_states(batch, cached_hidden_states)
+            batch["input_ids"] = cached_hidden_states
+            outputs = self.forward_with_cached_states(**batch)
         else:
-            outputs = self(batch)
+            outputs = self(**batch)
             if mode in [
                 "train",
                 "val",
@@ -237,6 +260,7 @@ class LMLightningModule(LightningModule):
                 on_step=False,
                 on_epoch=True,
                 prog_bar=True,
+                sync_dist=True,
             )
 
         return loss
