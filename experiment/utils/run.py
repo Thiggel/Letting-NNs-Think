@@ -46,6 +46,7 @@ def run(args: Args, seed: int) -> dict:
             project="letting-nns-think2",
             name=args.experiment_name + f"_{seed}",
             group=args.experiment_name,
+            save_dir=os.environ["WANDB_DIR"],
         )
 
     trainer_args = dict(
