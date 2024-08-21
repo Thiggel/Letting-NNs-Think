@@ -81,6 +81,8 @@ def run(args: Args, seed: int) -> dict:
             output_path, args=args, data_module=data_module, tokenizer=tokenizer
         )
 
+    model.turn_off_cache_mode()
+
     wrapped_model = ModelWrapper(model.model, tokenizer)
 
     results = evaluate(wrapped_model, seed, args)

@@ -44,7 +44,7 @@ class LMLightningModule(LightningModule):
         self.make_layers_finetunable()
         self.idx_of_last_frozen_layer = self.get_idx_of_last_frozen_layer()
         self.add_recurrence()
-        
+
         self.cache = {}
         self.cache_mode = False
 
@@ -67,14 +67,13 @@ class LMLightningModule(LightningModule):
         )
 
     def change_fixed_num_steps(self, new_num_steps: int):
-        if (
-            self.args.make_layer_recurrent is None or
-            self.args.use_fixed_num_steps in [None, False]
-        ):
+        if self.args.make_layer_recurrent is None or self.args.use_fixed_num_steps in [
+            None,
+            False,
+        ]:
             return
-        
+
         layers[self.args.make_layer_recurrent].num_steps = new_num_steps
-        
 
     def make_layers_finetunable(self):
         finetune_layers = self.args.finetune_layers
@@ -140,94 +139,24 @@ class LMLightningModule(LightningModule):
     def turn_on_cache_mode(self):
         self.old_embed_tokens = self.model.model.embed_tokens
 
-        self.old_layers = self.model.model.layers[:self.idx_of_last_frozen_layer]
+        self.old_layers = self.model.model.layers[: self.idx_of_last_frozen_layer]
 
         self.model.model.embed_tokens = nn.Identity()
+        self.model.model.layers[: self.idx_of_last_frozen_layer] = nn.Identity()
 
-    def forward_with_cached_states(
-        self, *args, **kwargs
-    ) -> Union[tuple, CausalLMOutputWithPast]:
-        layers = self.model.model.layers
-
-        hidden_states = input_ids
-
-        causal_mask = self._update_causal_mask(
-            attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
-        )
-
-        if attention_mask is not None and position_ids is None:
-            # create position_ids on the fly for batch generation
-            position_ids = attention_mask.long().cumsum(-1) - 1
-            position_ids.masked_fill_(attention_mask == 0, 1)
-            if past_key_values:
-                position_ids = position_ids[:, -input_ids.shape[1] :]
-                # This `clone` call is needed to avoid recapturing cuda graphs with `torch.compile`'s  `mode="reduce-overhead`, as otherwise the input `position_ids` would have various stride during the decoding. Here, simply using `.contiguous()` is not sufficient as in the batch size = 1 case, `position_ids` is already contiguous but with varying stride which retriggers a capture.
-                position_ids = position_ids.clone(memory_format=torch.contiguous_format)
-
-        last_frozen_layer_idx = self.get_idx_of_last_frozen_layer()
-        for i in range(last_frozen_layer_idx + 1, len(layers)):
-            decoder_layer = layers[i]
-
-            if self.model.model.gradient_checkpointing and self.model.model.training:
-                layer_outputs = self.model.model._gradient_checkpointing_func(
-                    decoder_layer.__call__,
-                    hidden_states,
-                    causal_mask,
-                    position_ids,
-                    past_key_values,
-                    output_attentions,
-                    use_cache,
-                    cache_position,
-                )
-            else:
-                layer_outputs = decoder_layer(
-                    hidden_states,
-                    attention_mask=causal_mask,
-                    position_ids=position_ids,
-                    past_key_value=past_key_values,
-                    output_attentions=output_attentions,
-                    use_cache=use_cache,
-                    cache_position=cache_position,
-                )
-
-            hidden_states = layer_outputs[0]
-
-        hidden_states = self.model.norm(hidden_states)
-
-        logits = self.lm_head(hidden_states)
-        logits = logits.float()
-        loss = None
-        if labels is not None:
-            # Shift so that tokens < n predict n
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            # Flatten the tokens
-            loss_fct = CrossEntropyLoss()
-            shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            # Enable model parallelism
-            shift_labels = shift_labels.to(shift_logits.device)
-            loss = loss_fct(shift_logits, shift_labels)
-
-        if not return_dict:
-            output = (logits, None, None, None)
-            return (loss,) + output if loss is not None else output
-
-        return CausalLMOutputWithPast(
-            loss=loss,
-            logits=logits,
-            past_key_values=past_key_values,
-            hidden_states=hidden_states,
-            attentions=output_attentions,
-        )
+    def turn_off_cache_mode(self):
+        self.model.model.embed_tokens = self.old_embed_tokens
+        self.model.model.layers[: self.idx_of_last_frozen_layer] = self.old_layers
 
     def _step(self, batch, batch_idx, mode="train"):
         cached_hidden_states = self.load_cached_hidden_states(batch_idx, mode)
 
         if cached_hidden_states is not None:
+            self.turn_on_cache_mode()
             batch["input_ids"] = cached_hidden_states
-            outputs = self.forward_with_cached_states(**batch)
+            outputs = self(**batch)
         else:
+            self.turn_off_cache_mode()
             outputs = self(**batch)
             if mode in [
                 "train",
