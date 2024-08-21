@@ -27,9 +27,8 @@ def run(args: Args, seed: int) -> dict:
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     add_pad_token(tokenizer)
 
+    data_module = LanguageDataModule(tokenizer, args, seed)
     model = LMLightningModule(args, tokenizer)
-
-    data_module = LanguageDataModule(model, tokenizer, args, seed)
 
     model_checkpoint = ModelCheckpoint(
         monitor="val_loss",
@@ -72,7 +71,7 @@ def run(args: Args, seed: int) -> dict:
         datamodule=data_module,
     )
 
-    output_path = os.environ["BASE_CACHE_DIR"] + "/model.pt"
+    output_path = os.environ["BASE_CACHE_DIR"] + f"/model_{args.experiment_name}.pt"
     convert_zero_checkpoint_to_fp32_state_dict(
         model_checkpoint.best_model_path, output_path
     )

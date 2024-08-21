@@ -1,10 +1,14 @@
 import math
-from typing import Literal
+import os
 from lightning import LightningModule
-from transformers import AutoModelForCausalLM, PreTrainedTokenizer
+from numpy import who
+from transformers import AutoModelForCausalLM, Cache, PreTrainedTokenizer
 from torch.optim import AdamW
 from torch import nn
 import torch
+from typing import Optional, Union, List
+
+from transformers.modeling_outputs import BaseModelOutputWithPast
 
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
@@ -26,11 +30,17 @@ class LMLightningModule(LightningModule):
         self.model.use_cache = False
         self.model.train()
         self.tokenizer = tokenizer
+        self.cache_dir = (
+            os.path.join(os.environ["PYTORCH_LIGHTNING_HOME"], "cache")
+            if torch.cuda.is_available()
+            else "./cache"
+        )
 
         print(self.model)
 
         self.remove_layers()
         self.make_layers_finetunable()
+        self.idx_of_last_frozen_layer = self.get_idx_of_last_frozen_layer()
         self.add_recurrence()
 
     def add_recurrence(self):
@@ -88,14 +98,123 @@ class LMLightningModule(LightningModule):
 
         return [optimizer]
 
-    def _step(self, batch, _: int, mode: Literal["train", "val", "test"] = "train"):
-        outputs = self(**batch)
-        loss = outputs.loss
+    def cache_hidden_states(self, batch_idx, hidden_states, mode="train"):
+        cache_file = os.path.join(
+            self.cache_dir, f"{mode}_hidden_state_{self.global_rank}_{batch_idx}.pt"
+        )
+        torch.save(hidden_states.cpu(), cache_file)
 
+    def load_cached_hidden_states(self, batch_idx, mode="train"):
+        cache_file = os.path.join(
+            self.cache_dir, f"{mode}_hidden_state_{self.global_rank}_{batch_idx}.pt"
+        )
+        if os.path.exists(cache_file):
+            return torch.load(cache_file)
+        else:
+            return None
+
+    def forward_with_cached_states(
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[Union[Cache, List[torch.FloatTensor]]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        cache_position: Optional[torch.LongTensor] = None,
+    ) -> Union[tuple, BaseModelOutputWithPast]:
+        layers = self.model.model.layers
+
+        hidden_states = input_ids
+
+        causal_mask = self.model._update_causal_mask(
+            attention_mask,
+            inputs_embeds,
+            cache_position,
+            past_key_values,
+            output_attentions,
+        )
+
+        all_hidden_states = () if output_hidden_states else None
+        all_self_attns = () if output_attentions else None
+        next_decoder_cache = None
+
+        last_frozen_layer_idx = self.get_idx_of_last_frozen_layer()
+        for i in range(last_frozen_layer_idx + 1, len(layers)):
+            decoder_layer = layers[i]
+
+            if output_hidden_states:
+                all_hidden_states += (hidden_states,)
+
+            if self.gradient_checkpointing and self.training:
+                layer_outputs = self.model._gradient_checkpointing_func(
+                    decoder_layer.__call__,
+                    hidden_states,
+                    causal_mask,
+                    position_ids,
+                    past_key_values,
+                    output_attentions,
+                    use_cache,
+                    cache_position,
+                )
+            else:
+                layer_outputs = decoder_layer(
+                    hidden_states,
+                    attention_mask=causal_mask,
+                    position_ids=position_ids,
+                    past_key_value=past_key_values,
+                    output_attentions=output_attentions,
+                    use_cache=use_cache,
+                    cache_position=cache_position,
+                )
+
+            hidden_states = layer_outputs[0]
+
+        hidden_states = self.model.norm(hidden_states)
+
+        # add hidden states from the last decoder layer
+        if output_hidden_states:
+            all_hidden_states += (hidden_states,)
+
+        next_cache = next_decoder_cache if use_cache else None
+
+        if not return_dict:
+            return tuple(
+                v
+                for v in [hidden_states, next_cache, all_hidden_states, all_self_attns]
+                if v is not None
+            )
+
+        return BaseModelOutputWithPast(
+            last_hidden_state=hidden_states,
+            past_key_values=next_cache,
+            hidden_states=all_hidden_states,
+            attentions=all_self_attns,
+        )
+
+    def _step(self, batch, batch_idx, mode="train"):
+        cached_hidden_states = self.load_cached_hidden_states(batch_idx, mode)
+
+        if cached_hidden_states is not None:
+            outputs = self.forward_with_cached_states(batch, cached_hidden_states)
+        else:
+            outputs = self(batch)
+            if mode in [
+                "train",
+                "val",
+                "test",
+            ]:
+                hidden_states = outputs.hidden_states[self.idx_of_last_frozen_layer]
+                self.cache_hidden_states(batch_idx, hidden_states, mode)
+
+        loss = outputs.loss
         self.log(
             f"{mode}_loss",
             loss,
-            on_step=True,
+            on_step=(mode == "train"),
             on_epoch=True,
             prog_bar=True,
             sync_dist=True,
@@ -104,7 +223,6 @@ class LMLightningModule(LightningModule):
         if mode != "train":
             acc = accuracy(outputs, batch["labels"])
             perplexity = math.exp(loss)
-
             self.log(
                 f"{mode}_accuracy",
                 acc,
@@ -124,7 +242,7 @@ class LMLightningModule(LightningModule):
         return loss
 
     def training_step(self, batch, batch_idx):
-        return self._step(batch, batch_idx)
+        return self._step(batch, batch_idx, mode="train")
 
     def validation_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="val")
