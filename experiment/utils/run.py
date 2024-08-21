@@ -110,7 +110,9 @@ def run(args: Args, seed: int) -> dict:
             }
 
             if args.logger:
-                wandb.log(results)
+                log_data = {"num_steps": new_num_steps}
+                log_data.update(results)
+                wandb.log(log_data)
 
             print(results)
 
