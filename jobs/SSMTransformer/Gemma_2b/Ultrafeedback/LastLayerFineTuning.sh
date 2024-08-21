@@ -6,7 +6,6 @@ srun python -m experiment \
   --recurrent_mode "ssm" \
   --finetune_layers -1 \
   --num_runs 1 \
-  --no_logger \
   --train_batch_size 4 \
   --eval_batch_size 4 \
   --experiment_name SSMTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback

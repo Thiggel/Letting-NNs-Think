@@ -1,14 +1,15 @@
 import math
 import os
 from lightning import LightningModule
-from numpy import who
 from transformers import AutoModelForCausalLM, Cache, PreTrainedTokenizer
 from torch.optim import AdamW
 from torch import nn
+from torch.nn import CrossEntropyLoss
 import torch
 from typing import Optional, Union, List
 
-from transformers.modeling_outputs import BaseModelOutputWithPast
+
+from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
@@ -45,6 +46,7 @@ class LMLightningModule(LightningModule):
         self.add_recurrence()
         
         self.cache = {}
+        self.cache_mode = False
 
     def add_recurrence(self):
         if self.args.make_layer_recurrent is None:
@@ -118,61 +120,56 @@ class LMLightningModule(LightningModule):
         torch.save(hidden_states.cpu(), cache_file)
 
     def load_cached_hidden_states(self, batch_idx, mode="train"):
-        if mode not in cache:
-            cache[mode] = {}
+        if mode not in self.cache:
+            self.cache[mode] = {}
 
-        if self.global_rank not in cache[mode]:
-            cache[mode][self.global_rank] = {}
+        if self.global_rank not in self.cache[mode]:
+            self.cache[mode][self.global_rank] = {}
 
-        if batch_idx not in cache[mode][self.global_rank]:
+        if batch_idx not in self.cache[mode][self.global_rank]:
             cache_file = os.path.join(
                 self.cache_dir, f"{mode}_hidden_state_{self.global_rank}_{batch_idx}.pt"
             )
             if os.path.exists(cache_file):
-                cache[mode][self.global_rank][batch_idx] = torch.load(cache_file)
+                self.cache[mode][self.global_rank][batch_idx] = torch.load(cache_file)
             else:
                 return None
 
-        return cache[mode][self.global_rank][batch_idx].to(self.device)
+        return self.cache[mode][self.global_rank][batch_idx].to(self.device)
+
+    def turn_on_cache_mode(self):
+        self.old_embed_tokens = self.model.model.embed_tokens
+
+        self.old_layers = self.model.model.layers[:self.idx_of_last_frozen_layer]
+
+        self.model.model.embed_tokens = nn.Identity()
 
     def forward_with_cached_states(
-        self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[Union[Cache, List[torch.FloatTensor]]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-        cache_position: Optional[torch.LongTensor] = None,
-    ) -> Union[tuple, BaseModelOutputWithPast]:
+        self, *args, **kwargs
+    ) -> Union[tuple, CausalLMOutputWithPast]:
         layers = self.model.model.layers
 
         hidden_states = input_ids
 
-        causal_mask = self.model._update_causal_mask(
-            attention_mask,
-            inputs_embeds,
-            cache_position,
-            past_key_values,
-            output_attentions,
+        causal_mask = self._update_causal_mask(
+            attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
 
-        all_hidden_states = () if output_hidden_states else None
-        all_self_attns = () if output_attentions else None
-        next_decoder_cache = None
+        if attention_mask is not None and position_ids is None:
+            # create position_ids on the fly for batch generation
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            if past_key_values:
+                position_ids = position_ids[:, -input_ids.shape[1] :]
+                # This `clone` call is needed to avoid recapturing cuda graphs with `torch.compile`'s  `mode="reduce-overhead`, as otherwise the input `position_ids` would have various stride during the decoding. Here, simply using `.contiguous()` is not sufficient as in the batch size = 1 case, `position_ids` is already contiguous but with varying stride which retriggers a capture.
+                position_ids = position_ids.clone(memory_format=torch.contiguous_format)
 
         last_frozen_layer_idx = self.get_idx_of_last_frozen_layer()
         for i in range(last_frozen_layer_idx + 1, len(layers)):
             decoder_layer = layers[i]
 
-            if output_hidden_states:
-                all_hidden_states += (hidden_states,)
-
-            if self.gradient_checkpointing and self.training:
-                layer_outputs = self.model._gradient_checkpointing_func(
+            if self.model.model.gradient_checkpointing and self.model.model.training:
+                layer_outputs = self.model.model._gradient_checkpointing_func(
                     decoder_layer.__call__,
                     hidden_states,
                     causal_mask,
@@ -197,24 +194,31 @@ class LMLightningModule(LightningModule):
 
         hidden_states = self.model.norm(hidden_states)
 
-        # add hidden states from the last decoder layer
-        if output_hidden_states:
-            all_hidden_states += (hidden_states,)
-
-        next_cache = next_decoder_cache if use_cache else None
+        logits = self.lm_head(hidden_states)
+        logits = logits.float()
+        loss = None
+        if labels is not None:
+            # Shift so that tokens < n predict n
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            # Flatten the tokens
+            loss_fct = CrossEntropyLoss()
+            shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
+            shift_labels = shift_labels.view(-1)
+            # Enable model parallelism
+            shift_labels = shift_labels.to(shift_logits.device)
+            loss = loss_fct(shift_logits, shift_labels)
 
         if not return_dict:
-            return tuple(
-                v
-                for v in [hidden_states, next_cache, all_hidden_states, all_self_attns]
-                if v is not None
-            )
+            output = (logits, None, None, None)
+            return (loss,) + output if loss is not None else output
 
-        return BaseModelOutputWithPast(
-            last_hidden_state=hidden_states,
-            past_key_values=next_cache,
-            hidden_states=all_hidden_states,
-            attentions=all_self_attns,
+        return CausalLMOutputWithPast(
+            loss=loss,
+            logits=logits,
+            past_key_values=past_key_values,
+            hidden_states=hidden_states,
+            attentions=output_attentions,
         )
 
     def _step(self, batch, batch_idx, mode="train"):

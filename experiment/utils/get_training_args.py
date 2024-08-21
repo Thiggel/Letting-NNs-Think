@@ -77,10 +77,10 @@ def get_training_args(get_defaults: bool = False) -> Args:
         "--seq_length", type=int, default=128, help="The maximum sequence length"
     )
     parser.add_argument(
-        "--train_batch_size", type=int, default=8, help="The training batch size"
+        "--train_batch_size", type=int, default=32, help="The training batch size"
     )
     parser.add_argument(
-        "--eval_batch_size", type=int, default=8, help="The evaluation batch size"
+        "--eval_batch_size", type=int, default=32, help="The evaluation batch size"
     )
     parser.add_argument(
         "--no_logger",
