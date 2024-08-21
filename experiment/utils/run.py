@@ -67,19 +67,20 @@ def run(args: Args, seed: int) -> dict:
 
     trainer = Trainer(**trainer_args)
 
-    trainer.fit(
-        model=model,
-        datamodule=data_module,
-    )
+    if args.finetune_layers is not None:
+        trainer.fit(
+            model=model,
+            datamodule=data_module,
+        )
 
-    output_path = os.environ["BASE_CACHE_DIR"] + f"/model_{args.experiment_name}.pt"
-    convert_zero_checkpoint_to_fp32_state_dict(
-        model_checkpoint.best_model_path, output_path
-    )
+        output_path = os.environ["BASE_CACHE_DIR"] + f"/model_{args.experiment_name}.pt"
+        convert_zero_checkpoint_to_fp32_state_dict(
+            model_checkpoint.best_model_path, output_path
+        )
 
-    model = LMLightningModule.load_from_checkpoint(
-        output_path, args=args, data_module=data_module, tokenizer=tokenizer
-    )
+        model = LMLightningModule.load_from_checkpoint(
+            output_path, args=args, data_module=data_module, tokenizer=tokenizer
+        )
 
     wrapped_model = ModelWrapper(model.model, tokenizer)
 

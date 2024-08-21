@@ -39,7 +39,6 @@ def get_training_args(get_defaults: bool = False) -> Args:
     parser.add_argument(
         "--finetune_layers",
         type=int_list_or_all,
-        default="all",
         help="The layers to fine-tune",
     )
     parser.add_argument(
