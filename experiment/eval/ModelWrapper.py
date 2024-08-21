@@ -16,6 +16,15 @@ class ModelWrapper(LM):
             inputs = self.tokenizer(context + continuation, return_tensors="pt")
             with torch.no_grad():
                 outputs = self.model(**inputs, labels=inputs["input_ids"])
+
+            decoded = self.tokenizer.decode(
+                outputs.logits.argmax(dim=-1)[0], skip_special_tokens=True
+            )
+
+            print(
+                f"Context: {context}\nContinuation: {continuation}\nDecoded: {decoded}\n\n"
+            )
+
             log_likelihood = -outputs.loss.item() * inputs["input_ids"].size(1)
             is_greedy = continuation in self.greedy_until([(context, "")])
             res.append((log_likelihood, is_greedy))
@@ -28,6 +37,13 @@ class ModelWrapper(LM):
             inputs = self.tokenizer(context, return_tensors="pt")
             with torch.no_grad():
                 outputs = self.model(**inputs, labels=inputs["input_ids"])
+
+            decoded = self.tokenizer.decode(
+                outputs.logits.argmax(dim=-1)[0], skip_special_tokens=True
+            )
+
+            print(f"Context: {context}\nDecoded: {decoded}\n\n")
+
             log_likelihood = -outputs.loss.item() * inputs["input_ids"].size(1)
             res.append(log_likelihood)
         return res
@@ -39,6 +55,8 @@ class ModelWrapper(LM):
             input_ids = self.tokenizer.encode(context, return_tensors="pt")
             output = self.model.generate(input_ids, **gen_kwargs)
             decoded = self.tokenizer.decode(output[0], skip_special_tokens=True)
+
+            print(f"Context: {context}\nDecoded: {decoded}\n\n")
             res.append(decoded)
         return res
 
@@ -48,5 +66,7 @@ class ModelWrapper(LM):
             input_ids = self.tokenizer.encode(context, return_tensors="pt")
             output = self.model.generate(input_ids, max_length=100)
             decoded = self.tokenizer.decode(output[0], skip_special_tokens=True)
+
+            print(f"Context: {context}\nDecoded: {decoded}\n\n")
             res.append(decoded)
         return res
