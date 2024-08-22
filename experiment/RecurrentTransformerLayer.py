@@ -1,19 +1,24 @@
 import torch
+import random
 from torch import nn
 from torchdeq import get_deq, reset_deq
 from typing import Any
-from transformers.cache_utils import DynamicCache
 
 
 class RecurrentTransformerLayer(nn.Module):
     def __init__(
-        self, layer: nn.Module, use_fixed_num_steps: bool = False, num_steps: int = 3
+        self,
+        layer: nn.Module,
+        use_fixed_num_steps: bool = False,
+        use_random_num_steps: bool = False,
+        num_steps: int = 3,
     ):
         super().__init__()
         self.layer = layer
         self.recurrence = get_deq(f_solver="fixed_point_iter")
 
         self.use_fixed_num_steps = use_fixed_num_steps
+        self.use_random_num_steps = use_random_num_steps
         self.num_steps = num_steps
 
     def forward(
@@ -26,8 +31,13 @@ class RecurrentTransformerLayer(nn.Module):
         kwargs["past_key_value"] = None
         kwargs["use_cache"] = False
 
-        if self.use_fixed_num_steps:
-            for _ in range(self.num_steps):
+        if self.use_fixed_num_steps or self.use_random_num_steps:
+            if self.use_fixed_num_steps:
+                num_steps = self.num_steps
+            else:
+                num_steps = random.randint(1, 10)
+
+            for _ in range(num_steps):
                 if (
                     attention_mask is not None
                     and attention_mask.shape[-1] != attention_mask.shape[-2]

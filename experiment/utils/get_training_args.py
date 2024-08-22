@@ -65,6 +65,11 @@ def get_training_args(get_defaults: bool = False) -> Args:
         action="store_true",
         help="Whether to use a fixed number of steps in the recurrent transformer",
     )
+    parser.add_argument(
+        "--use_random_num_steps",
+        action="store_true",
+        help="Whether to use a random number of steps in the recurrent transformer",
+    )
     parser.set_defaults(use_skip_connection=False, use_fixed_num_steps=False)
     parser.add_argument(
         "--dataset",

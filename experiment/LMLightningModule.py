@@ -62,7 +62,9 @@ class LMLightningModule(LightningModule):
             )
 
         layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
-            layer, use_fixed_num_steps=self.args.use_fixed_num_steps
+            layer,
+            use_fixed_num_steps=self.args.use_fixed_num_steps,
+            use_random_num_steps=self.args.use_random_num_steps,
         )
 
     def change_fixed_num_steps(self, new_num_steps: int):
@@ -136,7 +138,6 @@ class LMLightningModule(LightningModule):
             for layer_idx in range(self.idx_of_last_frozen_layer):
                 self.model.model.layers[layer_idx] = self.old_layers[layer_idx]
 
-
     def _step(self, batch, batch_idx, mode="train"):
         if mode not in self.cache:
             self.cache[mode] = {}
@@ -154,11 +155,15 @@ class LMLightningModule(LightningModule):
             self.turn_off_cache_mode()
             print(self.model.model.embed_tokens)
             outputs = self(**batch)
-            if mode in [
-                "train",
-                "val",
-                "test",
-            ] and not self.trainer.sanity_checking:
+            if (
+                mode
+                in [
+                    "train",
+                    "val",
+                    "test",
+                ]
+                and not self.trainer.sanity_checking
+            ):
                 hidden_states = outputs.hidden_states[self.idx_of_last_frozen_layer]
                 self.cache_hidden_states(batch_idx, hidden_states, mode)
 
