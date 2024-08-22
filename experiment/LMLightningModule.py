@@ -1,12 +1,10 @@
 import math
 import os
 from lightning import LightningModule
-from transformers import AutoModelForCausalLM, Cache, PreTrainedTokenizer
+from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
 from torch import nn
-from torch.nn import CrossEntropyLoss
 import torch
-from typing import Optional, Union, List
 
 
 from transformers.modeling_outputs import CausalLMOutputWithPast
@@ -114,28 +112,13 @@ class LMLightningModule(LightningModule):
         return [optimizer]
 
     def cache_hidden_states(self, batch_idx, hidden_states, mode="train"):
-        cache_file = os.path.join(
-            self.cache_dir, f"{mode}_hidden_state_{self.global_rank}_{batch_idx}.pt"
-        )
-        torch.save(hidden_states.cpu(), cache_file)
+        self.cache[mode][self.global_rank][batch_idx] = hidden_states
 
     def load_cached_hidden_states(self, batch_idx, mode="train"):
-        if mode not in self.cache:
-            self.cache[mode] = {}
+        if batch_idx in self.cache[mode][self.global_rank]:
+            return self.cache[mode][self.global_rank][batch_idx].contiguous()
 
-        if self.global_rank not in self.cache[mode]:
-            self.cache[mode][self.global_rank] = {}
-
-        if batch_idx not in self.cache[mode][self.global_rank]:
-            cache_file = os.path.join(
-                self.cache_dir, f"{mode}_hidden_state_{self.global_rank}_{batch_idx}.pt"
-            )
-            if os.path.exists(cache_file):
-                self.cache[mode][self.global_rank][batch_idx] = torch.load(cache_file)
-            else:
-                return None
-
-        return self.cache[mode][self.global_rank][batch_idx].to(self.device)
+        return None
 
     def turn_on_cache_mode(self):
         self.old_embed_tokens = self.model.model.embed_tokens
@@ -155,6 +138,12 @@ class LMLightningModule(LightningModule):
 
 
     def _step(self, batch, batch_idx, mode="train"):
+        if mode not in self.cache:
+            self.cache[mode] = {}
+
+        if self.global_rank not in self.cache[mode]:
+            self.cache[mode][self.global_rank] = {}
+
         cached_hidden_states = self.load_cached_hidden_states(batch_idx, mode)
 
         if cached_hidden_states is not None:

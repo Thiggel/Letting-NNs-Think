@@ -58,7 +58,9 @@ class RecurrentTransformerLayer(nn.Module):
 
                 return hidden_states
 
-            fixed_points, _ = self.recurrence(f, x, tol=1e-2)
+            with torch.no_grad():
+                fixed_points, _ = self.recurrence(f, x, tol=1e-2)
+
             output = fixed_points[-1]
 
         if hasattr(self.layer, "unsqueeze_seq_len"):
