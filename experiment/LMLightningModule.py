@@ -5,10 +5,6 @@ from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
 from torch import nn
 import torch
-
-
-from transformers.modeling_outputs import CausalLMOutputWithPast
-
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
 from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer

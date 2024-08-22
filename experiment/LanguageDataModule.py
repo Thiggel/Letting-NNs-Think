@@ -222,60 +222,6 @@ class LanguageDataModule(LightningDataModule):
                     > 0
                 ),
             },
-            "csqa_full": {
-                "name": "tau/commonsense_qa",
-                "q_func": lambda x: f"Question: {x['question']}\n\nChoices:\n{chr(10).join(x['choices']['text'])}\n\nAnswer:",
-                "ans_func": lambda x: " "
-                + x["choices"]["text"][x["choices"]["label"].index(x["answerKey"])],
-                "train_field": "train",
-                "test_field": "validation",
-            },
-            "arc_full": {
-                "name": "allenai/ai2_arc",
-                "q_func": lambda x: f"Question: {x['question']}\n\nChoices:\n{chr(10).join(x['choices']['text'])}\n\nAnswer:",
-                "ans_func": lambda x: " "
-                + x["choices"]["text"][x["choices"]["label"].index(x["answerKey"])],
-                "train_field": "train",
-                "test_field": "validation",
-                "subset": "ARC-Challenge",
-            },
-            "piqa_full": {
-                "name": "piqa",
-                "q_func": lambda x: f"Question: {x['goal']}\n\nChoices:\n{x['sol1']}\n{x['sol2']}\n\nAnswer:",
-                "ans_func": lambda x: " "
-                + (x["sol1"] if x["label"] == 0 else x["sol2"]),
-                "train_field": "train",
-                "test_field": "validation",
-            },
-            "siqa_full": {
-                "name": "social_i_qa",
-                "q_func": lambda x: f"Question: Given the context, answer correctly the question.\nContext: {x['context']}\nQuestion: {x['question']}\n\nChoices:\n(0) {x['answerA']}\n(1) {x['answerB']}\n(2) {x['answerC']}\n\nAnswer:",
-                "ans_func": lambda x: " " + f"({int(x['label']) - 1})",
-                "train_field": "train",
-                "test_field": "validation",
-            },
-            "openhermes": {
-                "name": "teknium/openhermes",
-                "q_func": lambda x: f"Question: {x['instruction']}{chr(10)}{x['input'] if x['input'] else ''}\n\nAnswer:",
-                "ans_func": lambda x: " " + x["output"],
-                "train_field": "train",
-                "test_subset": 1000,
-            },
-            "alpaca": {
-                "name": "yahma/alpaca-cleaned",
-                "q_func": lambda x: f"Question: {x['instruction']}{chr(10)}{x['input'] if x['input'] else ''}\n\nAnswer:",
-                "ans_func": lambda x: " " + x["output"],
-                "train_field": "train",
-                "test_subset": 1000,
-            },
-            "gsm8k": {
-                "name": "gsm8k",
-                "q_func": lambda x: f"Question: {x['question']}\n\nAnswer:",
-                "ans_func": lambda x: " " + x["answer"],
-                "subset": "main",
-                "train_field": "train",
-                "test_field": "test",
-            },
         }
 
         return configs
