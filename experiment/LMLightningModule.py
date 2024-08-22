@@ -46,7 +46,8 @@ class LMLightningModule(LightningModule):
         self.add_recurrence()
 
         self.cache = {}
-        self.cache_mode = False
+        self.old_embed_tokens = None
+        self.old_layers = None
 
     def add_recurrence(self):
         if self.args.make_layer_recurrent is None:
@@ -142,11 +143,16 @@ class LMLightningModule(LightningModule):
         self.old_layers = self.model.model.layers[: self.idx_of_last_frozen_layer]
 
         self.model.model.embed_tokens = nn.Identity()
-        self.model.model.layers[: self.idx_of_last_frozen_layer] = nn.Identity()
+
+        for layer_idx in range(self.idx_of_last_frozen_layer):
+            self.model.model.layers[layer_idx] = nn.Identity()
 
     def turn_off_cache_mode(self):
-        self.model.model.embed_tokens = self.old_embed_tokens
-        self.model.model.layers[: self.idx_of_last_frozen_layer] = self.old_layers
+        if self.old_embed_tokens is not None and self.old_layers is not None:
+            self.model.model.embed_tokens = self.old_embed_tokens
+            for layer_idx in range(self.idx_of_last_frozen_layer):
+                self.model.model.layers[layer_idx] = self.old_layers[layer_idx]
+
 
     def _step(self, batch, batch_idx, mode="train"):
         cached_hidden_states = self.load_cached_hidden_states(batch_idx, mode)
@@ -157,12 +163,13 @@ class LMLightningModule(LightningModule):
             outputs = self(**batch)
         else:
             self.turn_off_cache_mode()
+            print(self.model.model.embed_tokens)
             outputs = self(**batch)
             if mode in [
                 "train",
                 "val",
                 "test",
-            ]:
+            ] and not self.trainer.sanity_checking:
                 hidden_states = outputs.hidden_states[self.idx_of_last_frozen_layer]
                 self.cache_hidden_states(batch_idx, hidden_states, mode)
 
