@@ -7,6 +7,6 @@ srun python -m experiment \
   --finetune_layers -1 \
   --num_runs 1 \
   --use_fixed_num_steps \
-  --train_batch_size 1 \
-  --eval_batch_size 1 \
+  --train_batch_size 2 \
+  --eval_batch_size 2 \
   --experiment_name SSMTransformer_ThreeFixedSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback

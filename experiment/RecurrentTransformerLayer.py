@@ -68,8 +68,7 @@ class RecurrentTransformerLayer(nn.Module):
 
                 return hidden_states
 
-            with torch.no_grad():
-                fixed_points, _ = self.recurrence(f, x, tol=1e-2)
+            fixed_points, _ = self.recurrence(f, x, tol=1e-2)
 
             output = fixed_points[-1]
 

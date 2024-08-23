@@ -32,7 +32,7 @@ def get_training_args(get_defaults: bool = False) -> Args:
     parser.add_argument(
         "--seeds", type=int_list, default=[1, 2, 3], help="Random seeds"
     )
-    parser.add_argument("--num_runs", type=int, default=3, help="The number of runs")
+    parser.add_argument("--num_runs", type=int, default=1, help="The number of runs")
     parser.add_argument(
         "--model_name", type=str, default="gpt2", help="The model name to be used"
     )

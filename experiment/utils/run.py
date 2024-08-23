@@ -81,15 +81,21 @@ def run(args: Args, seed: int) -> dict:
             output_path, args=args, data_module=data_module, tokenizer=tokenizer
         )
 
-    model.turn_off_cache_mode()
-
     wrapped_model = ModelWrapper(model.model, tokenizer)
 
-    results = evaluate(wrapped_model, seed, args)
+    results = evaluate(wrapped_model, seed, args, limit=100)
 
-    results = {f"{key}_accuracy": value["acc,none"] for key, value in results.items()}
+    results = {
+        f"{key}_accuracy": (
+            value["acc,none"]
+            if "acc,none" in value
+            else value["exact_match,flexible-extract"]
+        )
+        for key, value in results.items()
+    }
 
     if args.logger:
+        results["num_steps"] = 3
         wandb.log(results)
 
     print(results)
@@ -99,12 +105,12 @@ def run(args: Args, seed: int) -> dict:
             "How does this performance change with different numbers of recurrent steps?"
         )
 
-        for new_num_steps in range(1, 6):
+        for new_num_steps in [1, 5]:
             print("Changing num_steps to ", new_num_steps)
             model.change_fixed_num_steps(new_num_steps)
             wrapped_model = ModelWrapper(model.model, tokenizer)
 
-            results = evaluate(wrapped_model, seed, args, limit=200)
+            results = evaluate(wrapped_model, seed, args, limit=50)
 
             results = {
                 f"num_steps_{new_num_steps}_{key}_accuracy": value["acc,none"]

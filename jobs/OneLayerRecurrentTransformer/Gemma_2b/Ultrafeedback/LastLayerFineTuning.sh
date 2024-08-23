@@ -5,5 +5,6 @@ srun python -m experiment \
   --make_layer_recurrent -1 \
   --finetune_layers -1 \
   --num_runs 1 \
-  --use_fixed_num_steps \
+  --train_batch_size 4 \
+  --eval_batch_size 4 \
   --experiment_name OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback

@@ -6,15 +6,23 @@ from tqdm import tqdm
 class ModelWrapper(LM):
     def __init__(self, model, tokenizer):
         super().__init__()
-        self.model = model
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = model.to(self.device)
         self.tokenizer = tokenizer
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = model.to(self.device)
+
+    def _to_device(self, inputs):
+        return {k: v.to(self.device) for k, v in inputs.items()}
 
     def loglikelihood(self, requests) -> list[tuple[float, bool]]:
         res = []
         for request in tqdm(requests, desc="loglikelihood"):
             context, continuation = request.arguments
-            inputs = self.tokenizer(context + continuation, return_tensors="pt")
+            inputs = self._to_device(self.tokenizer(context + continuation, return_tensors="pt"))
             with torch.no_grad():
+                print(self.model.device, inputs["input_ids"].device)
                 outputs = self.model(**inputs, labels=inputs["input_ids"])
 
             decoded = self.tokenizer.decode(
@@ -34,7 +42,7 @@ class ModelWrapper(LM):
         res = []
         for request in tqdm(requests, desc="loglikelihood_rolling"):
             context = request.arguments[0]
-            inputs = self.tokenizer(context, return_tensors="pt")
+            inputs = self._to_device(self.tokenizer(context, return_tensors="pt"))
             with torch.no_grad():
                 outputs = self.model(**inputs, labels=inputs["input_ids"])
 
@@ -50,9 +58,14 @@ class ModelWrapper(LM):
 
     def generate_until(self, requests) -> list[str]:
         res = []
-        for request in tqdm(requests, desc="generate_until"):
+        for request in requests:
             context, gen_kwargs = request.arguments
-            input_ids = self.tokenizer.encode(context, return_tensors="pt")
+            input_ids = self.tokenizer.encode(context, return_tensors="pt").to(self.device)
+            if 'until' in gen_kwargs:
+                gen_kwargs.pop('until')
+
+            gen_kwargs['max_length'] = 99
+            gen_kwargs['max_new_tokens'] = 50
             output = self.model.generate(input_ids, **gen_kwargs)
             decoded = self.tokenizer.decode(output[0], skip_special_tokens=True)
 
@@ -62,8 +75,8 @@ class ModelWrapper(LM):
 
     def greedy_until(self, requests):
         res = []
-        for context, _ in tqdm(requests, desc="greedy_until"):
-            input_ids = self.tokenizer.encode(context, return_tensors="pt")
+        for context, _ in requests:
+            input_ids = self.tokenizer.encode(context, return_tensors="pt").to(self.device)
             output = self.model.generate(input_ids, max_length=100)
             decoded = self.tokenizer.decode(output[0], skip_special_tokens=True)
 
