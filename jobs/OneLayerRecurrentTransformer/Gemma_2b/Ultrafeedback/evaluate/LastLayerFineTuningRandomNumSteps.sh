@@ -6,5 +6,5 @@ srun python -m experiment \
   --finetune_layers -1 \
   --num_runs 1 \
   --use_random_num_steps \
-  --no_evaluate \
+  --checkpoint model_OneLayerRecurrentTransformer_RandomNumSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback.pt \
   --experiment_name OneLayerRecurrentTransformer_RandomNumSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback

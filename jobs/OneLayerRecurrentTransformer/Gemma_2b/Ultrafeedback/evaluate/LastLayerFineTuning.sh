@@ -7,5 +7,5 @@ srun python -m experiment \
   --num_runs 1 \
   --train_batch_size 4 \
   --eval_batch_size 4 \
-  --no_evaluate \
+  --checkpoint model_OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback.pt \
   --experiment_name OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback

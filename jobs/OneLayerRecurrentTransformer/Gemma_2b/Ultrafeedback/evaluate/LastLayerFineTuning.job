@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --job-name=OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback_EVALUATE
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=18
+#SBATCH --time=12:00:00
+#SBATCH --output=job_logs/OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback_EVALUATE_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/OneLayerRecurrentTransformer/Gemma_2b/Ultrafeedback/evaluate/LastLayerFineTuning.sh

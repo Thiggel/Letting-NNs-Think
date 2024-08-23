@@ -9,5 +9,5 @@ srun python -m experiment \
   --use_random_num_steps \
   --train_batch_size 1 \
   --eval_batch_size 1 \
-  --no_evaluate \
+  --checkpoint model_OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback.pt \
   --experiment_name SSMTransformer_RandomNumSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback

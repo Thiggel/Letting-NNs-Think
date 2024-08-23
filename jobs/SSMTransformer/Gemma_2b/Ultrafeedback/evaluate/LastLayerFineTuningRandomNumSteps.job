@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --job-name=SSMTransformer_RandomNumSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback_EVALUATE
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=18
+#SBATCH --time=24:00:00
+#SBATCH --output=job_logs/SSMTransformer_RandomNumSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback_EVALUATE_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/SSMTransformer/Gemma_2b/Ultrafeedback/evaluate/LastLayerFineTuningRandomNumSteps.sh
