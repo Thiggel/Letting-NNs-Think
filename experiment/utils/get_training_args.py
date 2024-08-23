@@ -105,7 +105,19 @@ def get_training_args(get_defaults: bool = False) -> Args:
     parser.add_argument(
         "--warmup_steps", type=int, default=1000, help="The number of warmup steps"
     )
-    parser.set_defaults(logger=True)
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="The path to the checkpoint to load",
+    )
+    parser.add_argument(
+        "--no_evaluate",
+        action="store_false",
+        dest="evaluate",
+        help="Whether to evaluate the model",
+    )
+    parser.set_defaults(logger=True, evaluate=True)
 
     if get_defaults:
         return parser.parse_args([])

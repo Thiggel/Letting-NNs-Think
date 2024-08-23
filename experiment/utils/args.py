@@ -17,3 +17,5 @@ class Args:
     experiment_name: str
     max_epochs: int
     warmup_steps: int
+    checkpoint: str
+    evaluate: bool
