@@ -10,30 +10,30 @@ class S6(nn.Module):
     def __init__(
         self,
         in_channels: int,
-        hidden_dim: int,
+        state_dim: int,
         delta_low_rank_dim: Optional[int] = None,
     ):
         super(S6, self).__init__()
         self.in_channels = in_channels
-        self.hidden_dim = hidden_dim
+        self.state_dim = state_dim
         self.delta_low_rank_dim: int = (
             delta_low_rank_dim
             if delta_low_rank_dim is not None
-            else math.ceil(hidden_dim / 16)
+            else math.ceil(state_dim / 16)
         )
 
-        A = repeat(torch.arange(1, hidden_dim + 1), "n -> d n", d=in_channels)
+        A = repeat(torch.arange(1, state_dim + 1), "n -> d n", d=in_channels)
         self.A_log = nn.Parameter(torch.log(A))
         self.D = nn.Parameter(torch.ones(in_channels))
 
-        self.delta_default = nn.Parameter(torch.empty(hidden_dim))
+        self.delta_default = nn.Parameter(torch.empty(state_dim))
         nn.init.uniform_(self.delta_default, 0.001, 0.1)
 
         self.input_to_B_C_and_delta = nn.Linear(
-            in_channels, self.delta_low_rank_dim + hidden_dim * 2
+            in_channels, self.delta_low_rank_dim + state_dim * 2
         )
 
-        self.delta_proj = nn.Linear(self.delta_low_rank_dim, hidden_dim)
+        self.delta_proj = nn.Linear(self.delta_low_rank_dim, state_dim)
 
     def get_B_C_and_delta(
         self, x: torch.Tensor
@@ -42,7 +42,7 @@ class S6(nn.Module):
 
         B, C, delta = torch.split(
             B_C_and_delta,
-            [self.hidden_dim, self.hidden_dim, self.delta_low_rank_dim],
+            [self.state_dim, self.state_dim, self.delta_low_rank_dim],
             dim=-1,
         )
 
@@ -53,8 +53,8 @@ class S6(nn.Module):
     def forward(
         self, hidden_states: torch.Tensor, inputs: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        assert hidden_states.shape[-1] == self.hidden_dim, (
-            f"Expected hidden_states to have shape (*, {self.hidden_dim}), "
+        assert hidden_states.shape[-1] == self.state_dim, (
+            f"Expected hidden_states to have shape (*, {self.state_dim}), "
             f"but got {hidden_states.shape}"
         )
 

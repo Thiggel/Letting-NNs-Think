@@ -9,6 +9,7 @@ class MambaTransformerLayer(nn.Module):
         self,
         d_model: int,
         nhead: int,
+        state_dimension: int = 128
     ):
         super().__init__()
 
@@ -19,11 +20,14 @@ class MambaTransformerLayer(nn.Module):
 
         self.attention = nn.MultiheadAttention(d_model, nhead)
 
-        self.state_dimension = d_model
+        self.state_dimension = state_dimension
         self.state = None
         self.s6 = S6(d_model, self.state_dimension)
 
         self.norm = nn.LayerNorm(d_model)
+
+    def get_device(self):
+        return next(self.parameters()).device
 
     def squeeze_seq_len(self, x: torch.Tensor) -> torch.Tensor:
         if self.batch_size is None or self.seq_len is None:
@@ -35,7 +39,7 @@ class MambaTransformerLayer(nn.Module):
         return x.reshape(self.batch_size, -1, self.d_model)
 
     def reset_state(self):
-        self.state = torch.zeros((self.d_model, self.state_dimension))
+        self.state = torch.zeros((self.d_model, self.state_dimension)).to(self.get_device())
 
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
@@ -53,6 +57,6 @@ class MambaTransformerLayer(nn.Module):
         attention_output = self.squeeze_seq_len(attention_output)
         x = self.squeeze_seq_len(x)
 
-        self.state, output = self.s6(x, attention_output)
+        self.state, output = self.s6(self.state, attention_output)
 
         return output.squeeze(1), None
