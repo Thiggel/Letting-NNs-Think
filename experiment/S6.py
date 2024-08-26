@@ -38,7 +38,7 @@ class S6(nn.Module):
     def get_B_C_and_delta(
         self, x: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        B_C_and_delta = self.input_to_B_and_delta(x)
+        B_C_and_delta = self.input_to_B_C_and_delta(x)
 
         B, C, delta = torch.split(
             B_C_and_delta,
