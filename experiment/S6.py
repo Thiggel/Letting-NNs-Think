@@ -3,7 +3,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from typing import Optional
-from einops import einsum
+from einops import einsum, repeat
 
 
 class S6(nn.Module):
@@ -22,8 +22,9 @@ class S6(nn.Module):
             else math.ceil(hidden_dim / 16)
         )
 
-        self.A = nn.Parameter(torch.ones(hidden_dim, hidden_dim))
-        nn.init.xavier_uniform_(self.A)
+        A = repeat(torch.arange(1, hidden_dim + 1), "n -> d n", d=in_channels)
+        self.A_log = nn.Parameter(torch.log(A))
+        self.D = nn.Parameter(torch.ones(in_channels))
 
         self.delta_default = nn.Parameter(torch.empty(hidden_dim))
         nn.init.uniform_(self.delta_default, 0.001, 0.1)
@@ -34,7 +35,9 @@ class S6(nn.Module):
 
         self.delta_proj = nn.Linear(self.delta_low_rank_dim, hidden_dim)
 
-    def get_B_C_and_delta(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def get_B_C_and_delta(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         B_C_and_delta = self.input_to_B_and_delta(x)
 
         B, C, delta = torch.split(
@@ -60,14 +63,18 @@ class S6(nn.Module):
             f"but got {inputs.shape}"
         )
 
+        A = -torch.exp(self.A_log.float())
         B, C, delta = self.get_B_C_and_delta(inputs)
+        D = self.D.float()
 
-        deltaA = delta.unsqueeze(-1) * self.A.unsqueeze(0)
+        deltaA = delta.unsqueeze(-1) * A.unsqueeze(0)
         A_discrete = torch.exp(deltaA)
         A_output = A_discrete * hidden_states
 
         B_output = einsum(delta, B, inputs, "b d_in, b n, b d_in -> b d_in n")
         new_hidden_states = A_output + B_output
-        C_output = einsum(new_hidden_states, C, "b d_in n, b n -> b d_in")
 
-        return new_hidden_states, C_output
+        C_output = einsum(new_hidden_states, C, "b d_in n, b n -> b d_in")
+        output = C_output + D * inputs
+
+        return new_hidden_states, output

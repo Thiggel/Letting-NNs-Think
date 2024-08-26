@@ -24,8 +24,8 @@ class RecurrentTransformerLayer(nn.Module):
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
     ) -> tuple[torch.Tensor, Any]:
-        if hasattr(self.layer, "expand_state_dimension"):
-            x = self.layer.expand_state_dimension(x)
+        if hasattr(self.layer, "reset_state"):
+            self.layer.reset_state()
 
         if hasattr(self.layer, "squeeze_seq_len"):
             x = self.layer.squeeze_seq_len(x)
