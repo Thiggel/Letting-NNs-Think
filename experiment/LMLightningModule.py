@@ -1,9 +1,7 @@
 import math
-import os
 from lightning import LightningModule
 from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
-from torch import nn
 import torch
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
@@ -58,7 +56,7 @@ class LMLightningModule(LightningModule):
         ]:
             return
 
-        layers[self.args.make_layer_recurrent].num_steps = new_num_steps
+        self.model.model.layers[self.args.make_layer_recurrent].num_steps = new_num_steps
 
     def make_layers_finetunable(self):
         finetune_layers = self.args.finetune_layers
@@ -88,6 +86,7 @@ class LMLightningModule(LightningModule):
         return [optimizer]
 
     def on_after_backward(self):
+        print("on after backward")
         self.log_gradient_norms()
 
     def log_gradient_norms(self):

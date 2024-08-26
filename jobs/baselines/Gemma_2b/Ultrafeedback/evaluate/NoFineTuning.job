@@ -10,4 +10,4 @@
 
 cd $HOME/Letting-NNs-Think
 
-. jobs/baselines/Gemma_2b/Ultrafeedback/evaluate_NoFineTuning.sh
+. jobs/baselines/Gemma_2b/Ultrafeedback/evaluate/NoFineTuning.sh

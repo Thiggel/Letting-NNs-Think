@@ -27,6 +27,7 @@ def run(args: Args, seed: int) -> dict:
     add_pad_token(tokenizer)
 
     data_module = LanguageDataModule(tokenizer, args, seed)
+    wandb_logger = None
 
     if args.checkpoint is None:
         model = LMLightningModule(args, tokenizer)
@@ -86,7 +87,8 @@ def run(args: Args, seed: int) -> dict:
     if not args.evaluate:
         return {}
 
-    if args.checkpoint is not None:
+    if args.checkpoint is not None or args.finetune_layers is None:
+        wandb.init(project="letting-nns-think2", name=args.experiment_name)
         output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}"
 
     if args.finetune_layers is not None:
@@ -137,7 +139,9 @@ def run(args: Args, seed: int) -> dict:
 
             print(results)
 
-    if args.logger:
+    if args.logger and wandb_logger is not None:
         wandb_logger.experiment.unwatch()
+    elif args.logger:
+        wandb.finish()
 
     return results
