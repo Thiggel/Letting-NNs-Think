@@ -6,7 +6,7 @@ import torch
 from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
 from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer
-from experiment.SSMTransformerLayer import SSMTransformerLayer
+from experiment.S6 import S6
 
 
 class LMLightningModule(LightningModule):
@@ -37,10 +37,10 @@ class LMLightningModule(LightningModule):
 
         layer = layers[self.args.make_layer_recurrent]
 
-        if self.args.recurrent_mode in ["mamba", "ssm"]:
-            layer = SSMTransformerLayer(
+        if self.args.recurrent_mode == "mamba":
+            layer = S6(
                 self.model.config.hidden_size,
-                self.model.config.num_attention_heads,
+                self.model.config.hidden_size,
             )
 
         layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
@@ -56,7 +56,9 @@ class LMLightningModule(LightningModule):
         ]:
             return
 
-        self.model.model.layers[self.args.make_layer_recurrent].num_steps = new_num_steps
+        self.model.model.layers[self.args.make_layer_recurrent].num_steps = (
+            new_num_steps
+        )
 
     def make_layers_finetunable(self):
         finetune_layers = self.args.finetune_layers
@@ -96,8 +98,8 @@ class LMLightningModule(LightningModule):
                 param_norm = param.grad.data.norm(2)
                 total_norm += param_norm.item() ** 2
                 self.log(f"gradient_norm/{name}", param_norm.item())
-        
-        total_norm = total_norm ** 0.5
+
+        total_norm = total_norm**0.5
         self.log("gradient_norm/total", total_norm)
 
     def _step(self, batch, batch_idx, mode="train"):
