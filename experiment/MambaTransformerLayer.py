@@ -29,10 +29,10 @@ class MambaTransformerLayer(nn.Module):
         if self.batch_size is None or self.seq_len is None:
             self.batch_size, self.seq_len, self.d_model = x.shape
 
-        return x.reshape(-1, self.d_model, self.state_dimension)
+        return x.reshape(-1, self.d_model)
 
     def unsqueeze_seq_len(self, x: torch.Tensor) -> torch.Tensor:
-        return x.reshape(self.batch_size, -1, self.d_model, self.state_dimension)
+        return x.reshape(self.batch_size, -1, self.d_model)
 
     def reset_state(self):
         self.state = torch.zeros((self.d_model, self.state_dimension))
