@@ -9,17 +9,21 @@ class MambaTransformerLayer(nn.Module):
         self,
         d_model: int,
         nhead: int,
+        batch_size: int,
+        seq_len: int,
     ):
         super().__init__()
 
         self.d_model = d_model
         self.nhead = nhead
-        self.batch_size = None
-        self.seq_len = None
+        self.batch_size = batch_size
+        self.seq_len = seq_len
 
         self.attention = nn.MultiheadAttention(d_model, nhead)
 
-        self.s6 = S6(d_model, d_model)
+        self.state_dimension = d_model
+        self.state = torch.zeros((self.batch_size * self.seq_len))
+        self.s6 = S6(d_model, self.state_dimension)
 
         self.norm = nn.LayerNorm(d_model)
 
@@ -27,10 +31,13 @@ class MambaTransformerLayer(nn.Module):
         if self.batch_size is None or self.seq_len is None:
             self.batch_size, self.seq_len, self.d_model = x.shape
 
-        return x.reshape(-1, self.d_model)
+        return x.reshape(-1, self.d_model, self.state_dimension)
 
     def unsqueeze_seq_len(self, x: torch.Tensor) -> torch.Tensor:
-        return x.reshape(self.batch_size, -1, self.d_model)
+        return x.reshape(self.batch_size, -1, self.d_model, self.state_dimension)
+
+    def expand_state_dimension(self, x: torch.Tensor) -> torch.Tensor:
+        return x.repeat(1, 1, self.state_dimension)
 
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
@@ -49,6 +56,6 @@ class MambaTransformerLayer(nn.Module):
         attention_output = self.squeeze_seq_len(attention_output)
         x = self.squeeze_seq_len(x)
 
-        output = self.norm(self.s6(x, attention_output))
+        new_hidden_states, output = self.norm(self.s6(x, attention_output))
 
         return output.squeeze(1), None
