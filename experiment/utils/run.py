@@ -88,7 +88,11 @@ def run(args: Args, seed: int) -> dict:
         return {}
 
     if args.checkpoint is not None or args.finetune_layers is None:
-        wandb.init(project="letting-nns-think2", name=args.experiment_name)
+        wandb.init(
+            project="letting-nns-think2",
+            name=args.experiment_name + f"_{seed}",
+            group=args.experiment_name,
+        )
         output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}"
 
     if args.finetune_layers is not None:
@@ -96,26 +100,29 @@ def run(args: Args, seed: int) -> dict:
             output_path, args=args, data_module=data_module, tokenizer=tokenizer
         )
 
-    wrapped_model = ModelWrapper(model.model, tokenizer)
+    try:
+        wrapped_model = ModelWrapper(model.model, tokenizer)
 
-    results = evaluate(wrapped_model, seed, args, limit=100)
+        results = evaluate(wrapped_model, seed, args, limit=100)
 
-    results = {
-        f"{key}_accuracy": (
-            value["acc,none"]
-            if "acc,none" in value
-            else value["exact_match,flexible-extract"]
-        )
-        for key, value in results.items()
-    }
+        results = {
+            f"{key}_accuracy": (
+                value["acc,none"]
+                if "acc,none" in value
+                else value["exact_match,flexible-extract"]
+            )
+            for key, value in results.items()
+        }
 
-    if args.logger:
-        results["num_steps"] = 3
-        wandb.log(results)
+        if args.logger:
+            results["num_steps"] = 3
+            wandb.log(results)
 
-    print(results)
+        print(results)
+    except Exception as e:
+        print(e)
 
-    if args.use_fixed_num_steps:
+    if args.use_fixed_num_steps or args.use_random_num_steps:
         print(
             "How does this performance change with different numbers of recurrent steps?"
         )
@@ -128,7 +135,11 @@ def run(args: Args, seed: int) -> dict:
             results = evaluate(wrapped_model, seed, args, limit=50)
 
             results = {
-                f"num_steps_{new_num_steps}_{key}_accuracy": value["acc,none"]
+                f"{key}_accuracy": (
+                    value["acc,none"]
+                    if "acc,none" in value
+                    else value["exact_match,flexible-extract"]
+                )
                 for key, value in results.items()
             }
 

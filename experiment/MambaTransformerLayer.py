@@ -5,12 +5,7 @@ from experiment.S6 import S6
 
 
 class MambaTransformerLayer(nn.Module):
-    def __init__(
-        self,
-        d_model: int,
-        nhead: int,
-        state_dimension: int = 128
-    ):
+    def __init__(self, d_model: int, nhead: int, state_dimension: int = 128):
         super().__init__()
 
         self.d_model = d_model
@@ -24,22 +19,26 @@ class MambaTransformerLayer(nn.Module):
         self.state = None
         self.s6 = S6(d_model, self.state_dimension)
 
-        self.norm = nn.LayerNorm(d_model)
+        self.initial_state_proj = nn.Linear(d_model, d_model)
+
+        self.norm1 = nn.LayerNorm(self.state_dimension)
+        self.norm2 = nn.LayerNorm(d_model)
 
     def get_device(self):
         return next(self.parameters()).device
 
     def squeeze_seq_len(self, x: torch.Tensor) -> torch.Tensor:
-        if self.batch_size is None or self.seq_len is None:
-            self.batch_size, self.seq_len, self.d_model = x.shape
+        self.batch_size, self.seq_len, self.d_model = x.shape
 
         return x.reshape(-1, self.d_model)
 
     def unsqueeze_seq_len(self, x: torch.Tensor) -> torch.Tensor:
         return x.reshape(self.batch_size, -1, self.d_model)
 
-    def reset_state(self):
-        self.state = torch.zeros((self.d_model, self.state_dimension)).to(self.get_device())
+    def reset_state(self, x: torch.Tensor):
+        self.state = self.initial_state_proj(
+            x
+        ).unsqueeze(-1).repeat(1, 1, self.state_dimension)
 
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
@@ -57,6 +56,6 @@ class MambaTransformerLayer(nn.Module):
         attention_output = self.squeeze_seq_len(attention_output)
         x = self.squeeze_seq_len(x)
 
-        self.state, output = self.s6(self.state, attention_output)
+        self.state, output = self.s6(self.state, self.norm2(attention_output))
 
         return output.squeeze(1), None

@@ -24,11 +24,11 @@ class RecurrentTransformerLayer(nn.Module):
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
     ) -> tuple[torch.Tensor, Any]:
-        if hasattr(self.layer, "reset_state"):
-            self.layer.reset_state()
-
         if hasattr(self.layer, "squeeze_seq_len"):
             x = self.layer.squeeze_seq_len(x)
+
+        if hasattr(self.layer, "reset_state"):
+            self.layer.reset_state(x)
 
         past_key_value = kwargs.get("past_key_value", None)
         kwargs["past_key_value"] = None
@@ -39,6 +39,7 @@ class RecurrentTransformerLayer(nn.Module):
                 num_steps = self.num_steps
             else:
                 num_steps = random.randint(1, 10)
+                print("NUM STEPS: ", num_steps)
 
             for _ in range(num_steps):
                 if (

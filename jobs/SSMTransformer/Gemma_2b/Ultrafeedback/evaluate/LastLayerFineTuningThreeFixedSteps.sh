@@ -7,7 +7,5 @@ srun python -m experiment \
   --finetune_layers -1 \
   --num_runs 1 \
   --use_fixed_num_steps \
-  --train_batch_size 2 \
-  --eval_batch_size 2 \
-  --checkpoint model_OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback.pt \
-  --experiment_name SSMTransformer_ThreeFixedSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback
+  --checkpoint model_Mamba_InitialStateProj_ThreeSteps.pt \
+  --experiment_name Mamba_InitialStateProj_ThreeSteps

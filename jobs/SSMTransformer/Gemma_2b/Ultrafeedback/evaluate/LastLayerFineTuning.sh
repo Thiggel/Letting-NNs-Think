@@ -6,7 +6,5 @@ srun python -m experiment \
   --recurrent_mode "mamba" \
   --finetune_layers -1 \
   --num_runs 1 \
-  --train_batch_size 4 \
-  --eval_batch_size 4 \
-  --checkpoint model_OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback.pt \
-  --experiment_name SSMTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback
+  --checkpoint model_Mamba_DynamicNumSteps.pt \
+  --experiment_name Mamba_DynamicNumSteps

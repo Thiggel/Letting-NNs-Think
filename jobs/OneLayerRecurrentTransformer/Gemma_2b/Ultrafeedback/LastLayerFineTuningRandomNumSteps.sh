@@ -7,4 +7,4 @@ srun python -m experiment \
   --num_runs 1 \
   --use_random_num_steps \
   --no_evaluate \
-  --experiment_name OneLayerRecurrentTransformer_RandomNumSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback
+  --experiment_name RecurrentTransformer_RandomNumSteps

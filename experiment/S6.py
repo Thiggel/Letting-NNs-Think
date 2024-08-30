@@ -26,14 +26,14 @@ class S6(nn.Module):
         self.A_log = nn.Parameter(torch.log(A))
         self.D = nn.Parameter(torch.ones(in_channels))
 
-        self.delta_default = nn.Parameter(torch.empty(state_dim))
+        self.delta_default = nn.Parameter(torch.empty(in_channels))
         nn.init.uniform_(self.delta_default, 0.001, 0.1)
 
         self.input_to_B_C_and_delta = nn.Linear(
             in_channels, self.delta_low_rank_dim + state_dim * 2
         )
 
-        self.delta_proj = nn.Linear(self.delta_low_rank_dim, state_dim)
+        self.delta_proj = nn.Linear(self.delta_low_rank_dim, in_channels)
 
     def get_B_C_and_delta(
         self, x: torch.Tensor

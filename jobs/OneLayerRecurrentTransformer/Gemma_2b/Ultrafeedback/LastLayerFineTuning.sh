@@ -8,4 +8,4 @@ srun python -m experiment \
   --train_batch_size 4 \
   --eval_batch_size 4 \
   --no_evaluate \
-  --experiment_name OneLayerRecurrentTransformer_LastLayerFineTuning_Gemma_2b_Ultrafeedback
+  --experiment_name RecurrentTransformer_DynamicNumSteps

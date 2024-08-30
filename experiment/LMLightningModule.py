@@ -1,5 +1,6 @@
 import math
 from lightning import LightningModule
+from lightning.pytorch.utilities import grad_norm
 from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
 import torch
@@ -7,6 +8,7 @@ from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
 from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer
 from experiment.MambaTransformerLayer import MambaTransformerLayer
+from deepspeed.utils import safe_get_full_grad
 
 
 class LMLightningModule(LightningModule):
@@ -87,20 +89,27 @@ class LMLightningModule(LightningModule):
 
         return [optimizer]
 
-    def on_after_backward(self):
-        print("on after backward")
-        self.log_gradient_norms()
-
     def log_gradient_norms(self):
         total_norm = 0
         for name, param in self.named_parameters():
-            if param.requires_grad and param.grad is not None:
-                param_norm = param.grad.data.norm(2)
+            if param.requires_grad:
+                param_norm = safe_get_full_grad(param).norm(2)
                 total_norm += param_norm.item() ** 2
                 self.log(f"gradient_norm/{name}", param_norm.item())
 
         total_norm = total_norm**0.5
         self.log("gradient_norm/total", total_norm)
+
+    def on_before_optimizer_step(self, optimizer):
+        self.log_gradient_norms()
+
+    def check_for_nans(self) -> bool:
+        for name, param in self.named_parameters():
+            if param.requires_grad and torch.isnan(param).any():
+                print(f"Found NaN in {name}")
+                return True
+
+        return False
 
     def _step(self, batch, batch_idx, mode="train"):
         outputs = self(**batch)

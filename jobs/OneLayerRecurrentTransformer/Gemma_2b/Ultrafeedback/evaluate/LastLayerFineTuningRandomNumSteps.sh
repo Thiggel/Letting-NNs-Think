@@ -5,6 +5,6 @@ srun python -m experiment \
   --make_layer_recurrent -1 \
   --finetune_layers -1 \
   --num_runs 1 \
-  --use_random_num_steps \
-  --checkpoint model_OneLayerRecurrentTransformer_RandomNumSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback.pt \
-  --experiment_name OneLayerRecurrentTransformer_RandomNumSteps_LastLayerFineTuning_Gemma_2b_Ultrafeedback
+  --use_fixed_num_steps \
+  --checkpoint model_RecurrentTransformer_RandomNumSteps.pt \
+  --experiment_name RecurrentTransformer_RandomNumSteps

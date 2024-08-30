@@ -65,15 +65,10 @@ class LanguageDataModule(LightningDataModule):
         labels = labels[:, :max_length]
 
         if input_ids.shape[1] < max_length:
-            input_ids = F.pad(
-                input_ids,
-                (0, max_length - input_ids.shape[1]),
-                value=self.tokenizer.pad_token_id,
-            )
-            attention_mask = F.pad(
-                attention_mask, (0, max_length - attention_mask.shape[1]), value=0
-            )
-            labels = F.pad(labels, (0, max_length - labels.shape[1]), value=-100)
+            pad_length = max_length - input_ids.shape[1]
+            input_ids = F.pad(input_ids, (0, pad_length), value=self.tokenizer.pad_token_id)
+            attention_mask = F.pad(attention_mask, (0, pad_length), value=0)
+            labels = F.pad(labels, (0, pad_length), value=-100)
 
         return {
             "input_ids": input_ids,
@@ -176,9 +171,11 @@ class LanguageDataModule(LightningDataModule):
         attention_mask = tokenized["attention_mask"]
 
         # Shift the input_ids to create targets for next-token prediction
-        input_ids = [ids[:-1] for ids in input_ids]
-        labels = [ids[1:] for ids in input_ids]
-        attention_mask = [mask[:-1] for mask in attention_mask]
+        #input_ids = [ids[:-1] for ids in input_ids]
+        #labels = [ids[1:] for ids in input_ids]
+        #attention_mask = [mask[:-1] for mask in attention_mask]
+
+        labels = input_ids.copy()
 
         return {
             "input_ids": input_ids,
