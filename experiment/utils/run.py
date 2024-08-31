@@ -3,9 +3,7 @@ from transformers import AutoTokenizer
 from lightning import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
 from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.strategies import DeepSpeedStrategy
 import torch
-import subprocess
 from pytorch_lightning.utilities.deepspeed import (
     convert_zero_checkpoint_to_fp32_state_dict,
 )
@@ -16,7 +14,6 @@ from experiment.utils.add_pad_token import add_pad_token
 from experiment.LanguageDataModule import LanguageDataModule
 from experiment.utils.args import Args
 from experiment.LMLightningModule import LMLightningModule
-from experiment.eval.ModelWrapper import ModelWrapper
 from experiment.eval.evaluate import evaluate
 
 
@@ -47,7 +44,7 @@ def run(args: Args, seed: int) -> dict:
 
         if args.logger:
             wandb_logger = WandbLogger(
-                project="letting-nns-think2",
+                project="letting-nns-think-FixedEval",
                 name=args.experiment_name + f"_{seed}",
                 group=args.experiment_name,
                 save_dir=os.environ["WANDB_DIR"],
@@ -87,9 +84,9 @@ def run(args: Args, seed: int) -> dict:
     if not args.evaluate:
         return {}
 
-    if args.checkpoint is not None or args.finetune_layers is None:
+    if args.logger and (args.checkpoint is not None or args.finetune_layers is None):
         wandb.init(
-            project="letting-nns-think2",
+            project="letting-nns-think-FixedEval",
             name=args.experiment_name + f"_{seed}",
             group=args.experiment_name,
         )
@@ -100,27 +97,22 @@ def run(args: Args, seed: int) -> dict:
             output_path, args=args, data_module=data_module, tokenizer=tokenizer
         )
 
-    try:
-        wrapped_model = ModelWrapper(model.model, tokenizer)
+    results = evaluate(model.model, tokenizer, seed, args)
 
-        results = evaluate(wrapped_model, seed, args, limit=100)
+    results = {
+        f"{key}_accuracy": (
+            value["acc,none"]
+            if "acc,none" in value
+            else value["exact_match,flexible-extract"]
+        )
+        for key, value in results.items()
+    }
 
-        results = {
-            f"{key}_accuracy": (
-                value["acc,none"]
-                if "acc,none" in value
-                else value["exact_match,flexible-extract"]
-            )
-            for key, value in results.items()
-        }
+    if args.logger:
+        results["num_steps"] = 3
+        wandb.log(results)
 
-        if args.logger:
-            results["num_steps"] = 3
-            wandb.log(results)
-
-        print(results)
-    except Exception as e:
-        print(e)
+    print(results)
 
     if args.use_fixed_num_steps or args.use_random_num_steps:
         print(
@@ -130,9 +122,8 @@ def run(args: Args, seed: int) -> dict:
         for new_num_steps in [1, 5]:
             print("Changing num_steps to ", new_num_steps)
             model.change_fixed_num_steps(new_num_steps)
-            wrapped_model = ModelWrapper(model.model, tokenizer)
 
-            results = evaluate(wrapped_model, seed, args, limit=50)
+            results = evaluate(model.model, tokenizer, seed, args, limit=200)
 
             results = {
                 f"{key}_accuracy": (

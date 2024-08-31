@@ -1,12 +1,26 @@
 from lm_eval import evaluator
 import torch
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
+from transformers import PreTrainedModel, PreTrainedTokenizer
+from lm_eval.models.huggingface import HFLM
 
-from experiment.eval.ModelWrapper import ModelWrapper
 from experiment.utils.args import Args
 
-def evaluate(wrapped_model: ModelWrapper, seed: int, args: Args, limit=None):
+
+def evaluate(
+    model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizer,
+    seed: int,
+    args: Args,
+    limit=None,
+):
+    wrapped_model = HFLM(
+        pretrained=model,
+        tokenizer=tokenizer,
+        batch_size=args.eval_batch_size,
+        max_length=512,
+        backend="causal",
+    )
+
     return evaluator.simple_evaluate(
         model=wrapped_model,
         tasks=[
@@ -23,5 +37,6 @@ def evaluate(wrapped_model: ModelWrapper, seed: int, args: Args, limit=None):
         torch_random_seed=seed,
         fewshot_random_seed=seed,
         device="cuda" if torch.cuda.is_available() else "cpu",
-        limit=limit
+        limit=limit,
+        log_samples=True,
     )["results"]
