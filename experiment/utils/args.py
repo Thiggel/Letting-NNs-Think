@@ -9,6 +9,7 @@ class Args:
     finetune_layers: list[int]
     make_layer_recurrent: int
     recurrent_mode: str
+    num_steps: int
     use_skip_connection: bool
     use_fixed_num_steps: bool
     use_random_num_steps: bool
@@ -19,3 +20,5 @@ class Args:
     warmup_steps: int
     checkpoint: str
     evaluate: bool
+    time_embedding: bool
+    gating: bool

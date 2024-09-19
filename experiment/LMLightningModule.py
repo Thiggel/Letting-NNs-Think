@@ -1,6 +1,5 @@
 import math
 from lightning import LightningModule
-from lightning.pytorch.utilities import grad_norm
 from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
 import torch
@@ -8,6 +7,7 @@ from experiment.utils.args import Args
 from experiment.utils.accuracy import accuracy
 from experiment.RecurrentTransformerLayer import RecurrentTransformerLayer
 from experiment.MambaTransformerLayer import MambaTransformerLayer
+from experiment.GatedGemmaDecoderLayer import GatedGemmaDecoderLayer
 from deepspeed.utils import safe_get_full_grad
 
 
@@ -44,11 +44,19 @@ class LMLightningModule(LightningModule):
                 self.model.config.hidden_size,
                 self.model.config.num_attention_heads,
             )
+        elif self.args.gating:
+            old_layer = layer
+            layer = GatedGemmaDecoderLayer(self.model.config, self.args.make_layer_recurrent)
+            layer.self_attn.load_state_dict(old_layer.self_attn.state_dict())
+            layer.mlp.load_state_dict(old_layer.mlp.state_dict())
+
 
         layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
             layer,
             use_fixed_num_steps=self.args.use_fixed_num_steps,
             use_random_num_steps=self.args.use_random_num_steps,
+            use_time_embedding=self.args.time_embedding,
+            num_steps=self.args.num_steps,
         )
 
     def change_fixed_num_steps(self, new_num_steps: int):

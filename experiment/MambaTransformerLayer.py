@@ -17,6 +17,7 @@ class MambaTransformerLayer(nn.Module):
 
         self.state_dimension = state_dimension
         self.state = None
+        self.initial_state_proj = nn.Linear(d_model, d_model)
         self.s6 = S6(d_model, self.state_dimension)
 
         self.norm1 = nn.LayerNorm(self.state_dimension)
@@ -34,9 +35,9 @@ class MambaTransformerLayer(nn.Module):
         return x.reshape(self.batch_size, -1, self.d_model)
 
     def reset_state(self, x: torch.Tensor):
-        self.state = torch.zeros(
-            self.batch_size * self.seq_len, self.d_model, self.state_dimension
-        ).to(self.get_device())
+        self.state = self.initial_state_proj(
+            x
+        ).unsqueeze(-1).repeat(1, 1, self.state_dimension)
 
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
@@ -46,8 +47,8 @@ class MambaTransformerLayer(nn.Module):
         if attention_mask is not None:
             attention_mask = attention_mask.squeeze().repeat(self.nhead, 1, 1)
 
-        if attention_mask.shape[-1] != x.shape[-1]:
-            attention_mask = None
+            if attention_mask.shape[-1] != x.shape[-1]:
+                attention_mask = None
 
         x = x.transpose(0, 1)
         attention_output, _ = self.attention(x, x, x, attn_mask=attention_mask)

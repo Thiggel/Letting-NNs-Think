@@ -2,11 +2,11 @@
 
 srun python -m experiment \
   --model_name "google/gemma-2-2b" \
-  --make_layer_recurrent -1 \
-  --recurrent_mode "mamba" \
-  --finetune_layers -1 \
+  --make_layer_recurrent 12 \
+  --finetune_layers "all" \
   --num_runs 1 \
-  --max_epochs 50 \
   --use_fixed_num_steps \
   --no_evaluate \
-  --experiment_name Mamba_ThreeSteps
+  --num_steps 10 \
+  --max_epochs 30 \
+  --experiment_name FullMiddleTenSteps

@@ -3,10 +3,10 @@
 srun python -m experiment \
   --model_name "google/gemma-2-2b" \
   --make_layer_recurrent -1 \
-  --recurrent_mode "mamba" \
   --finetune_layers -1 \
   --num_runs 1 \
-  --max_epochs 50 \
   --use_fixed_num_steps \
-  --no_evaluate \
-  --experiment_name Mamba_ThreeSteps
+  --num_steps 20 \
+  --time_embedding \
+  --checkpoint model_RecurrentTransformer_TwentyStepsTimeEmbedding.pt \
+  --experiment_name RecurrentTransformer_TwentyStepsTimeEmbedding

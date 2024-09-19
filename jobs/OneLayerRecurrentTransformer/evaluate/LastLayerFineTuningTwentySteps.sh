@@ -3,8 +3,9 @@
 srun python -m experiment \
   --model_name "google/gemma-2-2b" \
   --make_layer_recurrent -1 \
-  --recurrent_mode "mamba" \
   --finetune_layers -1 \
   --num_runs 1 \
-  --checkpoint model_Mamba_InitialStateProj_DynamicNumSteps.pt \
-  --experiment_name Mamba_InitialStateProj_DynamicNumSteps
+  --use_fixed_num_steps \
+  --num_steps 20 \
+  --checkpoint model_RecurrentTransformer_TwentySteps.pt \
+  --experiment_name RecurrentTransformer_TwentySteps

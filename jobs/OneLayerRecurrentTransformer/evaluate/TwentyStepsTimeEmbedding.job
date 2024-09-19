@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=4
+#SBATCH --job-name=Rec20StepsTimeEmbeddingEVAL
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=18
+#SBATCH --time=4:00:00
+#SBATCH --output=job_logs/Rec20StepsTimeEmbeddingEVAL-%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/OneLayerRecurrentTransformer/evaluate/TwentyStepsTimeEmbedding.sh

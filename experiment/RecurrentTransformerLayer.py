@@ -3,6 +3,7 @@ import random
 from torch import nn
 from torchdeq import get_deq, reset_deq
 from typing import Any
+from transformers.models.gemma.configuration_gemma import GemmaConfig
 
 
 class RecurrentTransformerLayer(nn.Module):
@@ -11,7 +12,8 @@ class RecurrentTransformerLayer(nn.Module):
         layer: nn.Module,
         use_fixed_num_steps: bool = False,
         use_random_num_steps: bool = False,
-        num_steps: int = 3,
+        num_steps: int = 10,
+        use_time_embedding: bool = False,
     ):
         super().__init__()
         self.layer = layer
@@ -20,6 +22,7 @@ class RecurrentTransformerLayer(nn.Module):
         self.use_fixed_num_steps = use_fixed_num_steps
         self.use_random_num_steps = use_random_num_steps
         self.num_steps = num_steps
+        self.use_time_embedding = use_time_embedding
 
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
@@ -39,14 +42,16 @@ class RecurrentTransformerLayer(nn.Module):
                 num_steps = self.num_steps
             else:
                 num_steps = random.randint(1, 10)
-                print("NUM STEPS: ", num_steps)
 
-            for _ in range(num_steps):
+            for step in range(num_steps):
                 if (
                     attention_mask is not None
                     and attention_mask.shape[-1] != attention_mask.shape[-2]
                 ):
                     attention_mask = None
+
+                if self.use_time_embedding:
+                    x = x + step + 1
 
                 self.outputs = self.layer(
                     x, attention_mask=attention_mask, *args, **kwargs

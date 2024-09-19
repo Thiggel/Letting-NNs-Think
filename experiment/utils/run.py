@@ -90,11 +90,12 @@ def run(args: Args, seed: int) -> dict:
             name=args.experiment_name + f"_{seed}",
             group=args.experiment_name,
         )
-        output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}"
+
+    output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}"
 
     if args.finetune_layers is not None:
         model = LMLightningModule.load_from_checkpoint(
-            output_path, args=args, data_module=data_module, tokenizer=tokenizer
+            output_path, args=args, data_module=data_module, tokenizer=tokenizer,  strict=False
         )
 
     results = evaluate(model.model, tokenizer, seed, args)
@@ -123,7 +124,7 @@ def run(args: Args, seed: int) -> dict:
             print("Changing num_steps to ", new_num_steps)
             model.change_fixed_num_steps(new_num_steps)
 
-            results = evaluate(model.model, tokenizer, seed, args, limit=200)
+            results = evaluate(model.model, tokenizer, seed, args, limit=200, filename_suffix=f"_{new_num_steps}")
 
             results = {
                 f"{key}_accuracy": (

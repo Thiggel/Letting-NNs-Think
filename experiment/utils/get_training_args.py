@@ -56,6 +56,12 @@ def get_training_args(get_defaults: bool = False) -> Args:
         choices=["ssm", "mamba", "adaptive_transformer"],
     )
     parser.add_argument(
+        "--num_steps",
+        type=int,
+        default=3,
+        help="The number of steps in the recurrent transformer",
+    )
+    parser.add_argument(
         "--use_skip_connection",
         action="store_true",
         help="Whether to use a skip connection in the SSM",
@@ -118,6 +124,17 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="Whether to evaluate the model",
     )
     parser.set_defaults(logger=True, evaluate=True)
+    parser.add_argument(
+        "--time_embedding",
+        action="store_true",
+        help="Whether to use a time embedding in the model",
+    )
+    parser.add_argument(
+        "--gating",
+        action="store_true",
+        help="Whether to use a gating in the model",
+    )
+    parser.set_defaults(logger=True, evaluate=True, time_embedding=False, gating=False)
 
     if get_defaults:
         return parser.parse_args([])
