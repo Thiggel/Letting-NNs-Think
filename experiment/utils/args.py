@@ -22,3 +22,8 @@ class Args:
     evaluate: bool
     time_embedding: bool
     gating: bool
+    use_reinforce: bool
+    gamma: float
+    temperature: float
+    max_grad_norm: float
+    baseline_decay: float

@@ -136,6 +136,32 @@ def get_training_args(get_defaults: bool = False) -> Args:
     )
     parser.set_defaults(logger=True, evaluate=True, time_embedding=False, gating=False)
 
+    parser.add_argument(
+        "--use_reinforce",
+        action="store_true",
+        help="Whether to use the REINFORCE algorithm",
+    )
+
+    parser.add_argument("--gamma", type=float, default=0.99, help="The discount factor")
+
+    parser.add_argument(
+        "--temperature", type=float, default=1.0, help="The sampling temperature"
+    )
+
+    parser.add_argument(
+        "--max_grad_norm",
+        type=float,
+        default=1.0,
+        help="The maximum gradient norm for gradient clipping",
+    )
+
+    parser.add_argument(
+        "--baseline_decay",
+        type=float,
+        default=0.99,
+        help="The decay factor for the baseline",
+    )
+
     if get_defaults:
         return parser.parse_args([])
 
