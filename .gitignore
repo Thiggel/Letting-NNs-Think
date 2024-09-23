@@ -167,3 +167,4 @@ lightning_logs
 job_logs
 wandb
 
+.*.*

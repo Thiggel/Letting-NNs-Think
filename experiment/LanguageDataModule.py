@@ -1,6 +1,13 @@
 import os
 from typing import Any, Dict, List, Optional, Tuple, Union
-from datasets import Dataset, DatasetDict, load_dataset, load_from_disk, disable_caching
+from datasets import (
+    Dataset,
+    DatasetDict,
+    load_dataset,
+    load_from_disk,
+    disable_caching,
+    IterableDataset,
+)
 import torch
 from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
@@ -18,9 +25,9 @@ class LanguageDataModule(LightningDataModule):
         self.tokenizer = tokenizer
         self.args = args
         self.seed = seed
-        self.train_dataset: Optional[Dataset] = None
-        self.val_dataset: Optional[Dataset] = None
-        self.test_dataset: Optional[Dataset] = None
+        self.train_dataset: Optional[Union[Dataset, IterableDataset]] = None
+        self.val_dataset: Optional[Union[Dataset, IterableDataset]] = None
+        self.test_dataset: Optional[Union[Dataset, IterableDataset]] = None
 
         self.setup()
 
@@ -28,33 +35,42 @@ class LanguageDataModule(LightningDataModule):
         disable_caching()
 
     def setup(self, stage: Optional[str] = None):
-        cache_path: str = self.get_cache_path()
+        self.dataset_config: Dict[str, Any] = self.get_dataset_config(self.args.dataset)
 
-        if self.cached_datasets_exist(cache_path):
-            self.load_cached_datasets(cache_path)
+        if self.dataset_config.get("streaming", False):
+            self.prepare_streaming_datasets(self.dataset_config)
         else:
-            dataset_config: Dict[str, Any] = self.get_dataset_config(self.args.dataset)
-            self.prepare_datasets(dataset_config)
-            self.save_datasets_to_disk(cache_path)
+            cache_path: str = self.get_cache_path()
+            if self.cached_datasets_exist(cache_path):
+                self.load_cached_datasets(cache_path)
+            else:
+                self.prepare_datasets(self.dataset_config)
+                self.save_datasets_to_disk(cache_path)
 
     def get_total_train_steps(self) -> int:
         return (
             len(self.train_dataset) // self.args.train_batch_size * self.args.max_epochs
         )
 
+    def ensure_tensor(self, x):
+        if isinstance(x, torch.Tensor):
+            return x
+        else:
+            return torch.tensor(x)
+
     def collate_fn(self, batch):
         input_ids = pad_sequence(
-            [item["input_ids"] for item in batch],
+            [self.ensure_tensor(item["input_ids"]) for item in batch],
             batch_first=True,
             padding_value=self.tokenizer.pad_token_id,
         )
         attention_mask = pad_sequence(
-            [item["attention_mask"] for item in batch],
+            [self.ensure_tensor(item["attention_mask"]) for item in batch],
             batch_first=True,
             padding_value=0,
         )
         labels = pad_sequence(
-            [item["labels"] for item in batch],
+            [self.ensure_tensor(item["labels"]) for item in batch],
             batch_first=True,
             padding_value=-100,
         )
@@ -66,7 +82,9 @@ class LanguageDataModule(LightningDataModule):
 
         if input_ids.shape[1] < max_length:
             pad_length = max_length - input_ids.shape[1]
-            input_ids = F.pad(input_ids, (0, pad_length), value=self.tokenizer.pad_token_id)
+            input_ids = F.pad(
+                input_ids, (0, pad_length), value=self.tokenizer.pad_token_id
+            )
             attention_mask = F.pad(attention_mask, (0, pad_length), value=0)
             labels = F.pad(labels, (0, pad_length), value=-100)
 
@@ -76,34 +94,61 @@ class LanguageDataModule(LightningDataModule):
             "labels": labels,
         }
 
+    def get_num_workers(self) -> int:
+        return int(0.75 * get_num_workers())
+
     def train_dataloader(self) -> DataLoader:
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.args.train_batch_size,
-            shuffle=True,
-            collate_fn=self.collate_fn,
-            drop_last=True,
-            num_workers=int(0.75 * get_num_workers()),
-        )
+        if isinstance(self.train_dataset, IterableDataset):
+            return DataLoader(
+                self.train_dataset,
+                batch_size=self.args.train_batch_size,
+                collate_fn=self.collate_fn,
+                num_workers=self.get_num_workers(),
+            )
+        else:
+            return DataLoader(
+                self.train_dataset,
+                batch_size=self.args.train_batch_size,
+                shuffle=True,
+                collate_fn=self.collate_fn,
+                drop_last=not self.dataset_confing.streaming,
+                num_workers=self.get_num_workers(),
+            )
 
     def val_dataloader(self) -> DataLoader:
-        return DataLoader(
-            self.val_dataset,
-            batch_size=self.args.eval_batch_size,
-            collate_fn=self.collate_fn,
-            drop_last=True,
-            num_workers=int(0.75 * get_num_workers()),
-        )
+        if isinstance(self.val_dataset, IterableDataset):
+            return DataLoader(
+                self.val_dataset,
+                batch_size=self.args.eval_batch_size,
+                collate_fn=self.collate_fn,
+                num_workers=self.get_num_workers(),
+            )
+        else:
+            return DataLoader(
+                self.val_dataset,
+                batch_size=self.args.eval_batch_size,
+                collate_fn=self.collate_fn,
+                drop_last=not self.dataset_confing.streaming,
+                num_workers=self.get_num_workers(),
+            )
 
     def test_dataloader(self) -> Optional[DataLoader]:
         if self.test_dataset:
-            return DataLoader(
-                self.test_dataset,
-                batch_size=self.args.eval_batch_size,
-                collate_fn=self.collate_fn,
-                drop_last=True,
-                num_workers=int(0.75 * get_num_workers()),
-            )
+            if isinstance(self.test_dataset, IterableDataset):
+                return DataLoader(
+                    self.test_dataset,
+                    batch_size=self.args.eval_batch_size,
+                    collate_fn=self.collate_fn,
+                    num_workers=self.get_num_workers(),
+                )
+            else:
+                return DataLoader(
+                    self.test_dataset,
+                    batch_size=self.args.eval_batch_size,
+                    collate_fn=self.collate_fn,
+                    drop_last=not self.dataset_confing.streaming,
+                    num_workers=self.get_num_workers(),
+                )
         return None
 
     def get_cache_path(self) -> str:
@@ -128,7 +173,9 @@ class LanguageDataModule(LightningDataModule):
         return configs[dataset_name]
 
     def prepare_datasets(self, config: Dict[str, Any]):
-        ds: DatasetDict = load_dataset(config["name"], config.get("subset"))
+        ds: DatasetDict = load_dataset(
+            config["name"], config.get("subset"), trust_remote_code=True
+        )
 
         if "custom_filter" in config:
             ds = config["custom_filter"](ds)
@@ -148,14 +195,51 @@ class LanguageDataModule(LightningDataModule):
             self.train_dataset, int(len(self.train_dataset) * 0.1)
         )
 
-    def process_split(self, dataset: Dataset, config: Dict[str, Any]) -> Dataset:
-        dataset = dataset.map(
+    def prepare_streaming_datasets(self, config: Dict[str, Any]):
+        ds = load_dataset(
+            config["name"],
+            "en",
+            streaming=True,
+            trust_remote_code=True,
+        )
+
+        self.train_dataset = self.process_split(ds[config["train_field"]], config)
+
+        # Create a separate validation dataset
+        if "validation_field" in config:
+            self.val_dataset = self.process_split(
+                ds[config["validation_field"]], config
+            )
+        else:
+            # If no separate validation field, create a validation set from the training data
+            self.val_dataset = self.create_validation_set(self.train_dataset, config)
+
+        if "test_field" in config:
+            self.test_dataset = self.process_split(ds[config["test_field"]], config)
+        else:
+            self.test_dataset = None
+
+    def create_validation_set(
+        self, train_dataset: IterableDataset, config: Dict[str, Any]
+    ) -> IterableDataset:
+        def validation_generator():
+            train_iter = iter(train_dataset)
+            for i, item in enumerate(train_iter):
+                if i % 10 == 0:  # Every 10th item goes to validation
+                    yield item
+                else:
+                    yield next(train_iter)
+
+        return IterableDataset.from_generator(validation_generator)
+
+    def process_split(
+        self, dataset: Union[Dataset, IterableDataset], config: Dict[str, Any]
+    ) -> Union[Dataset, IterableDataset]:
+        return dataset.map(
             lambda samples: self.tokenize(samples, config),
             remove_columns=dataset.column_names,
             batched=True,
-            num_proc=get_num_workers(),
         )
-        return dataset.with_format("torch")
 
     def tokenize(
         self, samples: Dict[str, List[Any]], config: Dict[str, Any]
@@ -169,11 +253,6 @@ class LanguageDataModule(LightningDataModule):
 
         input_ids = tokenized["input_ids"]
         attention_mask = tokenized["attention_mask"]
-
-        # Shift the input_ids to create targets for next-token prediction
-        #input_ids = [ids[:-1] for ids in input_ids]
-        #labels = [ids[1:] for ids in input_ids]
-        #attention_mask = [mask[:-1] for mask in attention_mask]
 
         labels = input_ids.copy()
 
@@ -218,6 +297,15 @@ class LanguageDataModule(LightningDataModule):
                     )
                     > 0
                 ),
+            },
+            "c4": {
+                "name": "allenai/c4",
+                "subset_of_interest": "whole",
+                "q_func": lambda x: x["text"],
+                "ans_func": lambda x: "",
+                "train_field": "train",
+                "validation_field": "validation",  # Add this if The Pile has a validation split
+                "streaming": True,
             },
         }
 
