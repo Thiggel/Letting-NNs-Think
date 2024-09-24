@@ -44,6 +44,8 @@ class RecurrentTransformerLayer(nn.Module):
             else:
                 num_steps = random.randint(1, 10)
 
+            self.intermediate_outputs = []
+
             for step in range(num_steps):
                 if (
                     attention_mask is not None
