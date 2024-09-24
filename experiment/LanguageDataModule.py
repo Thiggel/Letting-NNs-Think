@@ -297,6 +297,7 @@ class LanguageDataModule(LightningDataModule):
                     )
                     > 0
                 ),
+                "streaming": False,
             },
             "c4": {
                 "name": "allenai/c4",
