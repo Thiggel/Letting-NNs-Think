@@ -111,7 +111,7 @@ class LanguageDataModule(LightningDataModule):
                 batch_size=self.args.train_batch_size,
                 shuffle=True,
                 collate_fn=self.collate_fn,
-                drop_last=not self.dataset_confing.streaming,
+                drop_last=not self.dataset_config.streaming,
                 num_workers=self.get_num_workers(),
             )
 
@@ -128,7 +128,7 @@ class LanguageDataModule(LightningDataModule):
                 self.val_dataset,
                 batch_size=self.args.eval_batch_size,
                 collate_fn=self.collate_fn,
-                drop_last=not self.dataset_confing.streaming,
+                drop_last=not self.dataset_config.streaming,
                 num_workers=self.get_num_workers(),
             )
 
@@ -146,7 +146,7 @@ class LanguageDataModule(LightningDataModule):
                     self.test_dataset,
                     batch_size=self.args.eval_batch_size,
                     collate_fn=self.collate_fn,
-                    drop_last=not self.dataset_confing.streaming,
+                    drop_last=not self.dataset_config.streaming,
                     num_workers=self.get_num_workers(),
                 )
         return None
