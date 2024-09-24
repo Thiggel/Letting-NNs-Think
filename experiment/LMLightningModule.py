@@ -49,6 +49,12 @@ class LMLightningModule(LightningModule):
             args.baseline_decay if hasattr(args, "baseline_decay") else 0.99
         )
 
+    def get_recurrent_layer(self):
+        if self.args.make_layer_recurrent is None:
+            return None
+
+        return self.model.model.layers[self.args.make_layer_recurrent]
+
     def add_recurrence(self):
         if self.args.make_layer_recurrent is None:
             return
@@ -186,11 +192,31 @@ class LMLightningModule(LightningModule):
 
         return False
 
+    def get_loss_for_intermediate_supervision(self) -> torch.Tensor:
+        layer = self.get_recurrent_layer()
+
+        if (
+            not self.args.use_random_intermediate_supervision
+            or layer is None
+            or len(layer.intermediate_outputs) == 0
+        ):
+            return 0
+
+        loss = 0
+
+        for intermediate_output in layer.intermediate_outputs:
+            loss += F.mse_loss(
+                intermediate_output,
+                torch.randn_like(intermediate_output),
+            )
+
+        return loss
+
     def _step(self, batch, batch_idx, mode="train"):
         if not self.use_reinforce or mode != "train":
             outputs = self.model(**batch)
 
-            loss = outputs.loss
+            loss = outputs.loss + self.get_loss_for_intermediate_supervision()
 
             self.log(
                 f"{mode}_loss",
@@ -259,7 +285,10 @@ class LMLightningModule(LightningModule):
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         # Calculate loss
-        loss = -(log_probs * advantages).mean()
+        loss = (
+            -(log_probs * advantages).mean()
+            + self.get_loss_for_intermediate_supervision()
+        )
 
         self.log(
             f"{mode}_rl_loss",

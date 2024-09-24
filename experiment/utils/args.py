@@ -27,3 +27,4 @@ class Args:
     temperature: float
     max_grad_norm: float
     baseline_decay: float
+    use_random_intermediate_supervision: bool

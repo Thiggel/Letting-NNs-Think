@@ -137,6 +137,12 @@ def get_training_args(get_defaults: bool = False) -> Args:
     parser.set_defaults(logger=True, evaluate=True, time_embedding=False, gating=False)
 
     parser.add_argument(
+        "--use_random_intermediate_supervision",
+        action="store_true",
+        help="Whether to use random intermediate supervision",
+    )
+
+    parser.add_argument(
         "--use_reinforce",
         action="store_true",
         help="Whether to use the REINFORCE algorithm",

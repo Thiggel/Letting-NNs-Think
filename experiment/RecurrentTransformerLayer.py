@@ -3,7 +3,6 @@ import random
 from torch import nn
 from torchdeq import get_deq, reset_deq
 from typing import Any
-from transformers.models.gemma.configuration_gemma import GemmaConfig
 
 
 class RecurrentTransformerLayer(nn.Module):
@@ -23,6 +22,8 @@ class RecurrentTransformerLayer(nn.Module):
         self.use_random_num_steps = use_random_num_steps
         self.num_steps = num_steps
         self.use_time_embedding = use_time_embedding
+
+        self.intermediate_outputs: list[torch.Tensor] = []
 
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
@@ -57,6 +58,9 @@ class RecurrentTransformerLayer(nn.Module):
                     x, attention_mask=attention_mask, *args, **kwargs
                 )
                 x = self.outputs[0]
+
+                if step < num_steps - 1:
+                    self.intermediate_outputs.append(x)
 
             output = x
 
