@@ -202,13 +202,12 @@ class LMLightningModule(LightningModule):
         ):
             return 0
 
-        loss = 0
+        intermediate_outputs = torch.stack(layer.intermediate_outputs)
 
-        for intermediate_output in layer.intermediate_outputs:
-            loss += F.mse_loss(
-                intermediate_output,
-                torch.randn_like(intermediate_output),
-            )
+        loss = F.mse_loss(
+            intermediate_outputs,
+            torch.randn_like(intermediate_outputs),
+        )
 
         return loss
 
