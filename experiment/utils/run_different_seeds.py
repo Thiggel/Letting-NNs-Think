@@ -1,7 +1,7 @@
 import time
 
-from experiment.utils.args import Args
-from experiment.utils.run import run
+from experiment.utils import Args
+from experiment.utils import run
 
 
 def run_different_seeds(args: Args) -> list[dict]:

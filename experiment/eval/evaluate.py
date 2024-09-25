@@ -5,7 +5,7 @@ from lm_eval.models.huggingface import HFLM
 import os
 import json
 
-from experiment.utils.args import Args
+from experiment.utils import Args
 
 
 def evaluate(
@@ -46,7 +46,9 @@ def evaluate(
     try:
         sample_dir = os.environ["BASE_CACHE_DIR"] + "/samples"
         os.makedirs(sample_dir, exist_ok=True)
-        with open(f"{sample_dir}/{args.experiment_name}_{seed}{filename_suffix}.json", "w") as f:
+        with open(
+            f"{sample_dir}/{args.experiment_name}_{seed}{filename_suffix}.json", "w"
+        ) as f:
             json.dump(output["samples"], f)
     except Exception as e:
         print(e)

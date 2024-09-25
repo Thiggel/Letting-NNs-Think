@@ -1,3 +1,6 @@
+from typing import Optional
+
+
 class Args:
     model_name: str
     dataset: str
@@ -18,7 +21,7 @@ class Args:
     experiment_name: str
     max_epochs: int
     warmup_steps: int
-    checkpoint: str
+    checkpoint: Optional[str]
     evaluate: bool
     time_embedding: bool
     gating: bool

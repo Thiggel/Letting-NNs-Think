@@ -9,12 +9,12 @@ from pytorch_lightning.utilities.deepspeed import (
 )
 import wandb
 
-from experiment.utils.set_seed import set_seed
-from experiment.utils.add_pad_token import add_pad_token
-from experiment.LanguageDataModule import LanguageDataModule
-from experiment.utils.args import Args
-from experiment.LMLightningModule import LMLightningModule
-from experiment.eval.evaluate import evaluate
+from experiment.datasets import LanguageDataModule
+from experiment.utils import set_seed
+from experiment.utils import add_pad_token
+from experiment.utils import Args
+from experiment.lightning_modules import DefaultLightningModule
+from experiment.eval import evaluate
 
 
 def run(args: Args, seed: int) -> dict:
@@ -27,7 +27,7 @@ def run(args: Args, seed: int) -> dict:
     wandb_logger = None
 
     if args.checkpoint is None:
-        model = LMLightningModule(args, tokenizer)
+        model = DefaultLightningModule(args, tokenizer)
 
         model_checkpoint = ModelCheckpoint(
             monitor="val_loss",
@@ -94,8 +94,12 @@ def run(args: Args, seed: int) -> dict:
     output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}"
 
     if args.finetune_layers is not None:
-        model = LMLightningModule.load_from_checkpoint(
-            output_path, args=args, data_module=data_module, tokenizer=tokenizer,  strict=False
+        model = DefaultLightningModule.load_from_checkpoint(
+            output_path,
+            args=args,
+            data_module=data_module,
+            tokenizer=tokenizer,
+            strict=False,
         )
 
     results = evaluate(model.model, tokenizer, seed, args)
@@ -124,7 +128,14 @@ def run(args: Args, seed: int) -> dict:
             print("Changing num_steps to ", new_num_steps)
             model.change_fixed_num_steps(new_num_steps)
 
-            results = evaluate(model.model, tokenizer, seed, args, limit=200, filename_suffix=f"_{new_num_steps}")
+            results = evaluate(
+                model.model,
+                tokenizer,
+                seed,
+                args,
+                limit=200,
+                filename_suffix=f"_{new_num_steps}",
+            )
 
             results = {
                 f"{key}_accuracy": (

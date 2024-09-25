@@ -1,8 +1,8 @@
 import argparse
 from typing import Union, Literal
 
-from experiment.LanguageDataModule import LanguageDataModule
-from experiment.utils.args import Args
+from experiment.datasets import LanguageDataModule
+from experiment.utils import Args
 
 
 def int_list_or_all(value) -> Union[Literal["all"], list[int]]:
@@ -25,6 +25,20 @@ def int_list(value) -> list[int]:
         raise argparse.ArgumentTypeError(
             "Argument must be a comma-separated list of integers."
         )
+
+
+def parse_num_steps(value):
+    try:
+        # Try converting to an integer
+        return int(value)
+    except ValueError:
+        # If not an int, check if it's one of the allowed string literals
+        if value in {"classifier", "fixed_point", "random"}:
+            return value
+        else:
+            raise argparse.ArgumentTypeError(
+                f"Invalid value: {value}. Must be an int or one of ['classifier', 'fixed_point']."
+            )
 
 
 def get_training_args(get_defaults: bool = False) -> Args:
@@ -53,30 +67,14 @@ def get_training_args(get_defaults: bool = False) -> Args:
     parser.add_argument(
         "--recurrent_mode",
         type=str,
-        choices=["ssm", "mamba", "adaptive_transformer"],
+        choices=["mamba", "transformer"],
+        default="transformer",
     )
     parser.add_argument(
         "--num_steps",
-        type=int,
-        default=3,
-        help="The number of steps in the recurrent transformer",
+        type=parse_num_steps,
+        help="Number of steps as an integer or 'classifier'/'fixed_point'/'random'.",
     )
-    parser.add_argument(
-        "--use_skip_connection",
-        action="store_true",
-        help="Whether to use a skip connection in the SSM",
-    )
-    parser.add_argument(
-        "--use_fixed_num_steps",
-        action="store_true",
-        help="Whether to use a fixed number of steps in the recurrent transformer",
-    )
-    parser.add_argument(
-        "--use_random_num_steps",
-        action="store_true",
-        help="Whether to use a random number of steps in the recurrent transformer",
-    )
-    parser.set_defaults(use_skip_connection=False, use_fixed_num_steps=False)
     parser.add_argument(
         "--dataset",
         type=str,
@@ -134,18 +132,18 @@ def get_training_args(get_defaults: bool = False) -> Args:
         action="store_true",
         help="Whether to use a gating in the model",
     )
-    parser.set_defaults(logger=True, evaluate=True, time_embedding=False, gating=False)
-
     parser.add_argument(
         "--use_random_intermediate_supervision",
         action="store_true",
         help="Whether to use random intermediate supervision",
     )
+    parser.set_defaults(logger=True, evaluate=True, time_embedding=False, gating=False)
 
     parser.add_argument(
-        "--use_reinforce",
-        action="store_true",
-        help="Whether to use the REINFORCE algorithm",
+        "--training_procedure",
+        type=str,
+        choices=["default", "reinforce", "uninterrupted", "make_uninterrupted"],
+        help="The training procedure to use",
     )
 
     parser.add_argument("--gamma", type=float, default=0.99, help="The discount factor")

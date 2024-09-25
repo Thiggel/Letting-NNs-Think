@@ -1,9 +1,9 @@
 import torch
 from transformers import AutoTokenizer
 
-from experiment.LanguageDataModule import LanguageDataModule
-from experiment.utils.get_training_args import get_training_args
-from experiment.utils.add_pad_token import add_pad_token
+from experiment.datasets import LanguageDataModule
+from experiment.utils import get_training_args
+from experiment.utils import add_pad_token
 
 
 def test_datamodule():

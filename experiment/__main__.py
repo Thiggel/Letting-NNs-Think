@@ -3,9 +3,9 @@ from dotenv import load_dotenv
 import wandb
 from huggingface_hub import login
 
-from experiment.utils.print_mean_std import print_mean_std
-from experiment.utils.run_different_seeds import run_different_seeds
-from experiment.utils.get_training_args import get_training_args
+from experiment.utils import print_mean_std
+from experiment.utils import run_different_seeds
+from experiment.utils import get_training_args
 
 
 def main():
