@@ -15,11 +15,15 @@ class GatedGemmaDecoderLayer(nn.Module):
         super().__init__()
         self.hidden_size = config.hidden_size
 
-        self.self_attn = GEMMA_ATTENTION_CLASSES[config._attn_implementation](config=config, layer_idx=layer_idx)
+        self.self_attn = GEMMA_ATTENTION_CLASSES[config._attn_implementation](
+            config=config, layer_idx=layer_idx
+        )
 
         self.mlp = GemmaMLP(config)
         self.input_layernorm = GemmaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = GemmaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = GemmaRMSNorm(
+            config.hidden_size, eps=config.rms_norm_eps
+        )
 
         self.attn_gate = nn.Linear(config.hidden_size, config.hidden_size)
         self.mlp_gate = nn.Linear(config.hidden_size, config.hidden_size)
@@ -34,7 +38,9 @@ class GatedGemmaDecoderLayer(nn.Module):
         use_cache: Optional[bool] = False,
         cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
-    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
+    ) -> Tuple[
+        torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]
+    ]:
         """
         Args:
             hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
@@ -70,7 +76,7 @@ class GatedGemmaDecoderLayer(nn.Module):
             **kwargs,
         )
         gate = torch.sigmoid(self.attn_gate(hidden_states))
-        hidden_states = gate * attn_output + residual
+        hidden_states = gate * attn_output + (1 - gate) * residual
 
         # Fully Connected
         residual = hidden_states
@@ -78,7 +84,7 @@ class GatedGemmaDecoderLayer(nn.Module):
         mlp_output = self.mlp(hidden_states)
 
         gate = torch.sigmoid(self.mlp_gate(hidden_states))
-        hidden_states = gate * mlp_output + residual
+        hidden_states = gate * mlp_output + (1 - gate) * residual
 
         outputs = (hidden_states,)
 
