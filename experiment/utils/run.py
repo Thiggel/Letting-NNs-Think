@@ -10,11 +10,11 @@ from pytorch_lightning.utilities.deepspeed import (
 import wandb
 
 from experiment.datasets import LanguageDataModule
-from experiment.utils import set_seed
-from experiment.utils import add_pad_token
-from experiment.utils import Args
 from experiment.lightning_modules import DefaultLightningModule
 from experiment.eval import evaluate
+from .set_seed import set_seed
+from .add_pad_token import add_pad_token
+from .args import Args
 
 
 def run(args: Args, seed: int) -> dict:

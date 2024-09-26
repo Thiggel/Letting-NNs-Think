@@ -14,6 +14,7 @@ class RecurrentTransformerLayer(nn.Module):
         args: Args,
         max_steps: int = 20,
         hidden_size: int = 768,
+        inference_mode=False,
     ):
         super().__init__()
 
@@ -32,6 +33,10 @@ class RecurrentTransformerLayer(nn.Module):
 
         self.exit_classifier = nn.Linear(hidden_size, 1)
 
+        self.exit_probs = None
+
+        self.inference_mode = inference_mode
+
     def _add_exit_tokens(self, x: torch.Tensor) -> torch.Tensor:
         if not self.use_classifier:
             return x
@@ -47,14 +52,14 @@ class RecurrentTransformerLayer(nn.Module):
         if not self.use_classifier:
             return attention_mask
 
-        batch_size, seq_len = attention_mask.shape
-        new_seq_len = seq_len * 2 if self.training else seq_len + 1
+        batch_size, _, seq_len, _ = attention_mask.shape
+        new_seq_len = seq_len * 2 if not self.inference_mode else seq_len + 1
 
         new_mask = torch.zeros(
             batch_size, new_seq_len, new_seq_len, device=attention_mask.device
         )
 
-        if self.training:
+        if not self.inference_mode:
             for i in range(0, new_seq_len, 2):
                 new_mask[:, i, : i + 1] = (
                     1  # Normal token attends to all previous tokens
@@ -66,13 +71,13 @@ class RecurrentTransformerLayer(nn.Module):
             new_mask[:, :-1, :-1] = attention_mask
             new_mask[:, -1, :-1] = 1  # Exit token attends to all previous tokens
 
-        return new_mask
+        return new_mask.unsqueeze(1)
 
     def _remove_exit_tokens(self, x: torch.Tensor) -> torch.Tensor:
         if not self.use_classifier:
             return x
 
-        if self.training:
+        if not self.inference_mode:
             return x[:, ::2, :]  # Remove odd-indexed tokens (exit tokens)
         else:
             return x[:, :-1, :]  # Remove the last token (exit token)
@@ -102,21 +107,28 @@ class RecurrentTransformerLayer(nn.Module):
         self,
         x_with_exit: torch.Tensor,
         new_attention_mask: torch.Tensor,
+        position_ids: torch.Tensor,
         *args,
         **kwargs
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         num_steps = (
-            self.num_steps if self.use_fixed_num_steps else random.randint(1, 10)
+            self.num_steps if not self.use_random_num_steps else random.randint(1, 10)
         )
         self.intermediate_outputs = []
         exit_probs = []
+
+        position_ids = torch.repeat_interleave(position_ids, repeats=2).unsqueeze(0)
 
         for step in range(num_steps):
             if self.use_time_embedding:
                 x_with_exit = x_with_exit + step + 1
 
             self.outputs = self.layer(
-                x_with_exit, attention_mask=new_attention_mask, *args, **kwargs
+                x_with_exit,
+                attention_mask=new_attention_mask,
+                position_ids=position_ids,
+                *args,
+                **kwargs,
             )
             x_with_exit = self.outputs[0]
 
@@ -143,7 +155,7 @@ class RecurrentTransformerLayer(nn.Module):
         """
         Inference mode (one token at a time)
         """
-        exit_prob = 0.0
+        exit_prob = torch.Tensor(0.0)
 
         for step in range(self.num_steps):
             if self.use_time_embedding:
@@ -153,6 +165,7 @@ class RecurrentTransformerLayer(nn.Module):
                 x_with_exit, attention_mask=new_attention_mask, *args, **kwargs
             )
             x_with_exit = self.outputs[0]
+            print(x_with_exit.shape)
 
             exit_logits = self.exit_classifier(x_with_exit[:, -1:])
             exit_prob = torch.sigmoid(exit_logits)
@@ -170,7 +183,7 @@ class RecurrentTransformerLayer(nn.Module):
         x_with_exit = self._add_exit_tokens(x)
         new_attention_mask = self._create_exit_attention_mask(attention_mask)
 
-        if self.training:
+        if not self.inference_mode:
             output, exit_probs = self.recurrent_forward_train(
                 x_with_exit, new_attention_mask, *args, **kwargs
             )
@@ -207,4 +220,6 @@ class RecurrentTransformerLayer(nn.Module):
         if hasattr(self.layer, "unsqueeze_seq_len"):
             output = self.layer.unsqueeze_seq_len(output)
 
-        return output, past_key_value, exit_probs
+        self.exit_probs = exit_probs
+
+        return output, past_key_value

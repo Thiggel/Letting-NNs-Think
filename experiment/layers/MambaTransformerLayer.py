@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from typing import Any
-from experiment.S6 import S6
+from experiment.layers.S6 import S6
 
 
 class MambaTransformerLayer(nn.Module):
@@ -35,9 +35,9 @@ class MambaTransformerLayer(nn.Module):
         return x.reshape(self.batch_size, -1, self.d_model)
 
     def reset_state(self, x: torch.Tensor):
-        self.state = self.initial_state_proj(
-            x
-        ).unsqueeze(-1).repeat(1, 1, self.state_dimension)
+        self.state = (
+            self.initial_state_proj(x).unsqueeze(-1).repeat(1, 1, self.state_dimension)
+        )
 
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
