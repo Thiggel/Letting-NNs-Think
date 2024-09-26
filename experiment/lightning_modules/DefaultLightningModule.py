@@ -28,9 +28,8 @@ class DefaultLightningModule(LightningModule):
         self.model.train()
         self.tokenizer = tokenizer
 
-        self.old_log_exit_probs = (
-            None  # To store log probabilities from the previous step for PPO
-        )
+        # Baseline for REINFORCE (initialized as 0, updated during training)
+        self.baseline = torch.tensor(0.0, requires_grad=False)
 
         print(self.model)
 
@@ -148,24 +147,23 @@ class DefaultLightningModule(LightningModule):
 
         return loss
 
-    def compute_ppo_loss(self, old_log_probs, new_log_probs, reward, clip_epsilon=0.2):
+    def compute_reinforce_loss(self, log_probs, reward, baseline):
         """
-        Computes the PPO loss using clipped objective.
-
-        old_log_probs: Log probabilities from the old policy
-        new_log_probs: Log probabilities from the current policy
-        reward: Advantage estimate (for simplicity, using negative of token prediction loss)
-        clip_epsilon: PPO clipping parameter
+        Computes the REINFORCE loss with a baseline.
+        log_probs: Log probabilities of the actions (exit decisions in this case).
+        reward: Advantage estimate (reward - baseline).
+        baseline: The baseline value to subtract from the reward.
         """
-        # Calculate the probability ratio (new / old)
-        ratio = torch.exp(new_log_probs - old_log_probs)
+        advantage = reward - baseline  # Subtract the baseline
+        reinforce_loss = -(log_probs * advantage.detach()).mean()  # REINFORCE loss
+        return reinforce_loss
 
-        # Surrogate objective
-        surrogate_1 = ratio * reward
-        surrogate_2 = torch.clamp(ratio, 1 - clip_epsilon, 1 + clip_epsilon) * reward
-
-        # PPO loss: Take the minimum of the clipped and unclipped surrogate objectives
-        return -torch.min(surrogate_1, surrogate_2).mean()
+    def update_baseline(self, reward, alpha=0.9):
+        """
+        Update the running baseline for REINFORCE using an exponential moving average.
+        alpha: The weight for the moving average (higher values make the baseline update slower).
+        """
+        self.baseline = alpha * self.baseline + (1 - alpha) * reward.mean().item()
 
     def get_exit_probs(self):
         recurrent_layer = self.get_recurrent_layer()
@@ -217,29 +215,25 @@ class DefaultLightningModule(LightningModule):
                 -loss.detach()
             )  # Detach to avoid backpropagating through the reward
 
-            # Compute log probabilities of exit decisions (for PPO)
-            new_log_exit_probs = torch.log(
+            # Compute log probabilities of exit decisions
+            log_exit_probs = torch.log(
                 exit_probs + 1e-8
             )  # Add small epsilon to avoid log(0)
 
-            # On the first step, initialize old_log_exit_probs
-            if self.old_log_exit_probs is None:
-                self.old_log_exit_probs = new_log_exit_probs.detach()
+            # Update baseline using a moving average
+            self.update_baseline(reward)
 
-            # Compute PPO loss using old and new log probabilities
-            ppo_loss = self.compute_ppo_loss(
-                self.old_log_exit_probs, new_log_exit_probs, reward
+            # Compute REINFORCE loss
+            reinforce_loss = self.compute_reinforce_loss(
+                log_exit_probs, reward, self.baseline
             )
 
-            # Combine token prediction loss with PPO loss
-            loss = loss + ppo_loss
-
-            # Update old log probabilities for the next iteration
-            self.old_log_exit_probs = new_log_exit_probs.detach()
+            # Combine token prediction loss with REINFORCE loss
+            loss = loss + reinforce_loss
 
             self.log(
-                f"{mode}_ppo_loss",
-                ppo_loss,
+                f"{mode}_reinforce_loss",
+                reinforce_loss,
                 on_step=(mode == "train"),
                 on_epoch=True,
                 prog_bar=True,
@@ -249,6 +243,15 @@ class DefaultLightningModule(LightningModule):
             self.log(
                 f"{mode}_reward",
                 reward,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                sync_dist=True,
+            )
+
+            self.log(
+                f"{mode}_baseline",
+                self.baseline,
                 on_step=False,
                 on_epoch=True,
                 prog_bar=True,

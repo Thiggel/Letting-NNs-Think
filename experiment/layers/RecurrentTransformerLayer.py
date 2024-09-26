@@ -36,7 +36,6 @@ class RecurrentTransformerLayer(nn.Module):
         self.exit_probs = None
 
         self.inference_mode = inference_mode
-        torch.autograd.set_detect_anomaly(True)
 
     def _add_exit_tokens(self, x: torch.Tensor) -> torch.Tensor:
         if not self.use_classifier:
@@ -110,7 +109,7 @@ class RecurrentTransformerLayer(nn.Module):
         new_attention_mask: torch.Tensor,
         position_ids: torch.Tensor,
         *args,
-        **kwargs
+        **kwargs,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         num_steps = (
             self.num_steps if not self.use_random_num_steps else random.randint(1, 10)
@@ -177,11 +176,28 @@ class RecurrentTransformerLayer(nn.Module):
             )
 
             # Update x_with_exit only for the tokens that haven't exited
-            x_with_exit = torch.where(
+            new_x_with_exit = torch.where(
                 exit_mask.unsqueeze(-1),
                 frozen_hidden_states,  # Replace the exited tokens with their detached states
                 x_with_exit,  # Continue updating tokens that haven't exited
             )
+
+            # print which tokens have exited
+            print(f"step {step}: {exit_mask}")
+            # print which tokens still have gradients
+            print(f"step {step}: {new_x_with_exit.requires_grad}")
+            # print which tokens have changed
+            print(f"step {step}: {new_x_with_exit != x_with_exit}")
+
+            assert (
+                exit_mask == ~new_x_with_exit.requires_grad
+            ).all(), "exited tokens have gradients"
+
+            assert torch.logical_xor(
+                exit_mask, new_x_with_exit != x_with_exit
+            ).all(), "exited tokens have changed"
+
+            x_with_exit = new_x_with_exit
 
             if step < num_steps - 1:
                 self.intermediate_outputs.append(x_with_exit.clone())
@@ -196,7 +212,7 @@ class RecurrentTransformerLayer(nn.Module):
         x_with_exit: torch.Tensor,
         new_attention_mask: torch.Tensor,
         *args,
-        **kwargs
+        **kwargs,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Inference mode (one token at a time)
