@@ -4,30 +4,38 @@ from torch import nn
 from torchdeq import get_deq, reset_deq
 from typing import Any, Tuple, Optional
 
+from experiment.utils import Args
+
 
 class RecurrentTransformerLayer(nn.Module):
     def __init__(
         self,
         layer: nn.Module,
-        use_fixed_num_steps: bool = False,
-        use_random_num_steps: bool = False,
-        num_steps: int = 10,
-        use_time_embedding: bool = False,
-        hidden_size: int = 768,  # Adjust this to match your model's hidden size
+        args: Args,
+        max_steps: int = 20,
+        hidden_size: int = 768,
     ):
         super().__init__()
+
         self.layer = layer
-        self.recurrence = get_deq(f_solver="fixed_point_iter")
-        self.use_fixed_num_steps = use_fixed_num_steps
-        self.use_random_num_steps = use_random_num_steps
-        self.num_steps = num_steps
-        self.use_time_embedding = use_time_embedding
+
+        self.use_fixed_num_steps = type(args.num_steps) == int
+        self.use_random_num_steps = args.num_steps == "random"
+        self.use_classifier = args.num_steps == "classifier"
+        self.use_fixed_point = args.num_steps == "fixed_point"
+        self.num_steps = args.num_steps if self.use_fixed_num_steps else max_steps
+        self.use_time_embedding = args.use_time_embedding
+
         self.intermediate_outputs: list[torch.Tensor] = []
 
-        # Exit token classifier
+        self.recurrence = get_deq(f_solver="fixed_point_iter")
+
         self.exit_classifier = nn.Linear(hidden_size, 1)
 
     def _add_exit_tokens(self, x: torch.Tensor) -> torch.Tensor:
+        if not self.use_classifier:
+            return x
+
         batch_size, seq_len, hidden_size = x.shape
         exit_tokens = torch.zeros(batch_size, seq_len, hidden_size, device=x.device)
         interleaved = torch.stack((x, exit_tokens), dim=2).view(
@@ -35,17 +43,18 @@ class RecurrentTransformerLayer(nn.Module):
         )
         return interleaved
 
-    def _create_exit_attention_mask(
-        self, attention_mask: torch.Tensor, is_training: bool
-    ) -> torch.Tensor:
+    def _create_exit_attention_mask(self, attention_mask: torch.Tensor) -> torch.Tensor:
+        if not self.use_classifier:
+            return attention_mask
+
         batch_size, seq_len = attention_mask.shape
-        new_seq_len = seq_len * 2 if is_training else seq_len + 1
+        new_seq_len = seq_len * 2 if self.training else seq_len + 1
 
         new_mask = torch.zeros(
             batch_size, new_seq_len, new_seq_len, device=attention_mask.device
         )
 
-        if is_training:
+        if self.training:
             for i in range(0, new_seq_len, 2):
                 new_mask[:, i, : i + 1] = (
                     1  # Normal token attends to all previous tokens
@@ -59,17 +68,124 @@ class RecurrentTransformerLayer(nn.Module):
 
         return new_mask
 
-    def _remove_exit_tokens(self, x: torch.Tensor, is_training: bool) -> torch.Tensor:
-        if is_training:
+    def _remove_exit_tokens(self, x: torch.Tensor) -> torch.Tensor:
+        if not self.use_classifier:
+            return x
+
+        if self.training:
             return x[:, ::2, :]  # Remove odd-indexed tokens (exit tokens)
         else:
             return x[:, :-1, :]  # Remove the last token (exit token)
 
+    def deq_forward(
+        self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
+    ) -> torch.Tensor:
+        reset_deq(self.recurrence)
+
+        def f(prev_hidden_states: torch.Tensor) -> torch.Tensor:
+            self.outputs = self.layer(
+                prev_hidden_states,
+                attention_mask=attention_mask,
+                *args,
+                **kwargs,
+            )
+            hidden_states = self.outputs[0]
+            hidden_states[torch.isnan(hidden_states)] = 0
+            return hidden_states
+
+        fixed_points, _ = self.recurrence(f, x, tol=1e-2)
+        output = fixed_points[-1]
+
+        return output
+
+    def recurrent_forward_train(
+        self,
+        x_with_exit: torch.Tensor,
+        new_attention_mask: torch.Tensor,
+        *args,
+        **kwargs
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        num_steps = (
+            self.num_steps if self.use_fixed_num_steps else random.randint(1, 10)
+        )
+        self.intermediate_outputs = []
+        exit_probs = []
+
+        for step in range(num_steps):
+            if self.use_time_embedding:
+                x_with_exit = x_with_exit + step + 1
+
+            self.outputs = self.layer(
+                x_with_exit, attention_mask=new_attention_mask, *args, **kwargs
+            )
+            x_with_exit = self.outputs[0]
+
+            if self.use_classifier:
+                exit_logits = self.exit_classifier(x_with_exit[:, 1::2])
+                exit_prob = torch.sigmoid(exit_logits)
+                exit_probs.append(exit_prob)
+
+            if step < num_steps - 1:
+                self.intermediate_outputs.append(x_with_exit.clone())
+
+        output = x_with_exit
+        exit_probs = torch.cat(exit_probs, dim=1)
+
+        return output, exit_probs
+
+    def recurrent_forward_inference(
+        self,
+        x_with_exit: torch.Tensor,
+        new_attention_mask: torch.Tensor,
+        *args,
+        **kwargs
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Inference mode (one token at a time)
+        """
+        exit_prob = 0.0
+
+        for step in range(self.num_steps):
+            if self.use_time_embedding:
+                x_with_exit = x_with_exit + step + 1
+
+            self.outputs = self.layer(
+                x_with_exit, attention_mask=new_attention_mask, *args, **kwargs
+            )
+            x_with_exit = self.outputs[0]
+
+            exit_logits = self.exit_classifier(x_with_exit[:, -1:])
+            exit_prob = torch.sigmoid(exit_logits)
+
+            if exit_prob > 0.5:
+                break
+
+        output = x_with_exit
+
+        return output, exit_prob
+
+    def recurrent_forward(
+        self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        x_with_exit = self._add_exit_tokens(x)
+        new_attention_mask = self._create_exit_attention_mask(attention_mask)
+
+        if self.training:
+            output, exit_probs = self.recurrent_forward_train(
+                x_with_exit, new_attention_mask, *args, **kwargs
+            )
+        else:
+            output, exit_probs = self.recurrent_forward_inference(
+                x_with_exit, new_attention_mask, *args, **kwargs
+            )
+
+        output = self._remove_exit_tokens(output)
+
+        return output, exit_probs
+
     def forward(
         self, x: torch.Tensor, attention_mask: torch.Tensor, *args, **kwargs
     ) -> Tuple[torch.Tensor, Any, Optional[torch.Tensor]]:
-        is_training = self.training
-
         if hasattr(self.layer, "squeeze_seq_len"):
             x = self.layer.squeeze_seq_len(x)
         if hasattr(self.layer, "reset_state"):
@@ -79,82 +195,14 @@ class RecurrentTransformerLayer(nn.Module):
         kwargs["past_key_value"] = None
         kwargs["use_cache"] = False
 
-        x_with_exit = self._add_exit_tokens(x)
-        new_attention_mask = self._create_exit_attention_mask(
-            attention_mask, is_training
-        )
+        exit_probs = None
 
-        if is_training:
-            if self.use_fixed_num_steps or self.use_random_num_steps:
-                num_steps = (
-                    self.num_steps
-                    if self.use_fixed_num_steps
-                    else random.randint(1, 10)
-                )
-                self.intermediate_outputs = []
-                exit_probs = []
-
-                for step in range(num_steps):
-                    if self.use_time_embedding:
-                        x_with_exit = x_with_exit + step + 1
-
-                    self.outputs = self.layer(
-                        x_with_exit, attention_mask=new_attention_mask, *args, **kwargs
-                    )
-                    x_with_exit = self.outputs[0]
-
-                    # Compute exit probabilities
-                    exit_logits = self.exit_classifier(x_with_exit[:, 1::2])
-                    exit_prob = torch.sigmoid(exit_logits)
-                    exit_probs.append(exit_prob)
-
-                    if step < num_steps - 1:
-                        self.intermediate_outputs.append(x_with_exit.clone())
-
-                output = x_with_exit
-                exit_probs = torch.cat(exit_probs, dim=1)
-            else:
-                reset_deq(self.recurrence)
-
-                def f(prev_hidden_states: torch.Tensor) -> torch.Tensor:
-                    self.outputs = self.layer(
-                        prev_hidden_states,
-                        attention_mask=new_attention_mask,
-                        *args,
-                        **kwargs,
-                    )
-                    hidden_states = self.outputs[0]
-                    hidden_states[torch.isnan(hidden_states)] = 0
-                    return hidden_states
-
-                fixed_points, _ = self.recurrence(f, x_with_exit, tol=1e-2)
-                output = fixed_points[-1]
-
-                # Compute exit probabilities for the fixed point iteration case
-                exit_logits = self.exit_classifier(output[:, 1::2])
-                exit_probs = torch.sigmoid(exit_logits)
+        if self.use_fixed_point:
+            output = self.deq_forward(x, attention_mask, *args, **kwargs)
         else:
-            # Inference mode (one token at a time)
-            for step in range(self.num_steps):
-                if self.use_time_embedding:
-                    x_with_exit = x_with_exit + step + 1
-
-                self.outputs = self.layer(
-                    x_with_exit, attention_mask=new_attention_mask, *args, **kwargs
-                )
-                x_with_exit = self.outputs[0]
-
-                # Compute exit probability for the last token
-                exit_logits = self.exit_classifier(x_with_exit[:, -1:])
-                exit_prob = torch.sigmoid(exit_logits)
-
-                if exit_prob > 0.5:
-                    break
-
-            output = x_with_exit
-            exit_probs = exit_prob
-
-        output = self._remove_exit_tokens(output, is_training)
+            output, exit_probs = self.recurrent_forward(
+                x, attention_mask, *args, **kwargs
+            )
 
         if hasattr(self.layer, "unsqueeze_seq_len"):
             output = self.layer.unsqueeze_seq_len(output)

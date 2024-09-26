@@ -55,7 +55,7 @@ class DefaultLightningModule(LightningModule):
                 self.model.config.hidden_size,
                 self.model.config.num_attention_heads,
             )
-        elif self.args.gating:
+        elif self.args.use_gating:
             old_layer = layer
             layer = GatedGemmaDecoderLayer(
                 self.model.config, self.args.make_layer_recurrent
@@ -65,10 +65,8 @@ class DefaultLightningModule(LightningModule):
 
         layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
             layer,
-            use_fixed_num_steps=self.args.use_fixed_num_steps,
-            use_random_num_steps=self.args.use_random_num_steps,
-            use_time_embedding=self.args.time_embedding,
-            num_steps=self.args.num_steps,
+            self.args,
+            self.model.config.hidden_size,
         )
 
     def change_fixed_num_steps(self, new_num_steps: int):
@@ -97,7 +95,6 @@ class DefaultLightningModule(LightningModule):
                         param.requires_grad = True
 
     def forward(self, input_ids, attention_mask=None, labels=None):
-        # Forward pass through the model
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
     def configure_optimizers(self):
@@ -206,11 +203,28 @@ class DefaultLightningModule(LightningModule):
         # Update old log probabilities for the next iteration
         self.old_log_exit_probs = new_log_exit_probs.detach()
 
-        # Log the loss
         self.log(
             f"{mode}_loss",
-            loss,
+            token_prediction_loss,
             on_step=(mode == "train"),
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
+
+        self.log(
+            f"{mode}_ppo_loss",
+            ppo_loss,
+            on_step=(mode == "train"),
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
+
+        self.log(
+            f"{mode}_reward",
+            reward,
+            on_step=False,
             on_epoch=True,
             prog_bar=True,
             sync_dist=True,

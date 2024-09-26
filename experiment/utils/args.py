@@ -23,8 +23,8 @@ class Args:
     warmup_steps: int
     checkpoint: Optional[str]
     evaluate: bool
-    time_embedding: bool
-    gating: bool
+    use_time_embedding: bool
+    use_gating: bool
     use_reinforce: bool
     gamma: float
     temperature: float

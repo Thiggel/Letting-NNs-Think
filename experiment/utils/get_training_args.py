@@ -123,12 +123,12 @@ def get_training_args(get_defaults: bool = False) -> Args:
     )
     parser.set_defaults(logger=True, evaluate=True)
     parser.add_argument(
-        "--time_embedding",
+        "--use_time_embedding",
         action="store_true",
         help="Whether to use a time embedding in the model",
     )
     parser.add_argument(
-        "--gating",
+        "--use_gating",
         action="store_true",
         help="Whether to use a gating in the model",
     )
