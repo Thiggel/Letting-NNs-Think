@@ -117,7 +117,8 @@ class RecurrentTransformerLayer(nn.Module):
         self.intermediate_outputs = []
         exit_probs = []
 
-        position_ids = torch.repeat_interleave(position_ids, repeats=2).unsqueeze(0)
+        if self.use_classifier:
+            position_ids = torch.repeat_interleave(position_ids, repeats=2).unsqueeze(0)
 
         # Create an exit mask initialized to all False (i.e., no tokens have exited yet)
         batch_size, seq_len, hidden_size = x_with_exit.shape
@@ -182,20 +183,9 @@ class RecurrentTransformerLayer(nn.Module):
                 x_with_exit,  # Continue updating tokens that haven't exited
             )
 
-            # print which tokens have exited
-            print(f"step {step}: {exit_mask}")
-            # print which tokens still have gradients
-            print(f"step {step}: {new_x_with_exit.requires_grad}")
-            # print which tokens have changed
-            print(f"step {step}: {new_x_with_exit != x_with_exit}")
-
-            assert (
-                exit_mask == ~new_x_with_exit.requires_grad
-            ).all(), "exited tokens have gradients"
-
-            assert torch.logical_xor(
-                exit_mask, new_x_with_exit != x_with_exit
-            ).all(), "exited tokens have changed"
+            assert not (new_x_with_exit != x_with_exit)[
+                exit_mask
+            ].any(), "exited tokens have changed"
 
             x_with_exit = new_x_with_exit
 

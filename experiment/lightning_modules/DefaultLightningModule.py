@@ -249,15 +249,6 @@ class DefaultLightningModule(LightningModule):
                 sync_dist=True,
             )
 
-            self.log(
-                f"{mode}_baseline",
-                self.baseline,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                sync_dist=True,
-            )
-
         return loss
 
     def training_step(self, batch, batch_idx):
