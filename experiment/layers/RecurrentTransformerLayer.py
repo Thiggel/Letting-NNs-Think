@@ -36,6 +36,7 @@ class RecurrentTransformerLayer(nn.Module):
         self.exit_probs = None
 
         self.inference_mode = inference_mode
+        torch.autograd.set_detect_anomaly(True)
 
     def _add_exit_tokens(self, x: torch.Tensor) -> torch.Tensor:
         if not self.use_classifier:
@@ -119,10 +120,21 @@ class RecurrentTransformerLayer(nn.Module):
 
         position_ids = torch.repeat_interleave(position_ids, repeats=2).unsqueeze(0)
 
+        # Create an exit mask initialized to all False (i.e., no tokens have exited yet)
+        batch_size, seq_len, hidden_size = x_with_exit.shape
+        exit_mask = torch.zeros(
+            batch_size, seq_len, dtype=torch.bool, device=x_with_exit.device
+        )
+
+        # Store the hidden states of tokens that have already exited (detached)
+        frozen_hidden_states = torch.zeros_like(x_with_exit)
+
         for step in range(num_steps):
             if self.use_time_embedding:
-                x_with_exit = x_with_exit + step + 1
+                # Avoid in-place operation by reassigning instead of +=
+                x_with_exit = x_with_exit + (step + 1)
 
+            # Process the current step's forward pass
             self.outputs = self.layer(
                 x_with_exit,
                 attention_mask=new_attention_mask,
@@ -132,10 +144,44 @@ class RecurrentTransformerLayer(nn.Module):
             )
             x_with_exit = self.outputs[0]
 
+            # Compute exit probabilities for classifier tokens (every second token)
             if self.use_classifier:
-                exit_logits = self.exit_classifier(x_with_exit[:, 1::2])
+                exit_logits = self.exit_classifier(
+                    x_with_exit[:, 1::2]
+                )  # Classifier tokens
                 exit_prob = torch.sigmoid(exit_logits)
                 exit_probs.append(exit_prob)
+
+                # Sample exit decisions from Bernoulli distribution based on the probabilities
+                exit_decisions = torch.bernoulli(exit_prob).bool()
+
+                # Create a new exit mask instead of modifying it in place
+                new_exit_mask = exit_mask.clone()
+                new_exit_mask[:, 1::2] = new_exit_mask[
+                    :, 1::2
+                ] | exit_decisions.squeeze(-1)
+                new_exit_mask[:, ::2] = new_exit_mask[
+                    :, 1::2
+                ]  # Update corresponding original tokens
+
+                # Assign back to the original mask (this is safe)
+                exit_mask = new_exit_mask
+
+            # Detach the hidden states of exited tokens to stop further gradient updates
+            frozen_hidden_states = torch.where(
+                exit_mask.unsqueeze(
+                    -1
+                ),  # Mask applies to both original and exit tokens
+                x_with_exit.detach(),  # Detach the hidden states of exited tokens
+                frozen_hidden_states,  # Continue using the previous frozen states
+            )
+
+            # Update x_with_exit only for the tokens that haven't exited
+            x_with_exit = torch.where(
+                exit_mask.unsqueeze(-1),
+                frozen_hidden_states,  # Replace the exited tokens with their detached states
+                x_with_exit,  # Continue updating tokens that haven't exited
+            )
 
             if step < num_steps - 1:
                 self.intermediate_outputs.append(x_with_exit.clone())
@@ -157,21 +203,39 @@ class RecurrentTransformerLayer(nn.Module):
         """
         exit_prob = torch.Tensor(0.0)
 
+        batch_size, seq_len, hidden_size = x_with_exit.shape
+        exit_mask = torch.zeros(
+            batch_size, seq_len, dtype=torch.bool, device=x_with_exit.device
+        )
+
         for step in range(self.num_steps):
             if self.use_time_embedding:
                 x_with_exit = x_with_exit + step + 1
 
+            # Forward pass
             self.outputs = self.layer(
                 x_with_exit, attention_mask=new_attention_mask, *args, **kwargs
             )
             x_with_exit = self.outputs[0]
-            print(x_with_exit.shape)
 
+            # Compute exit probabilities for the last token (exit token)
             exit_logits = self.exit_classifier(x_with_exit[:, -1:])
             exit_prob = torch.sigmoid(exit_logits)
 
-            if exit_prob > 0.5:
+            # Sample exit decision from the classifier's probability distribution
+            exit_decision = torch.bernoulli(exit_prob).bool()
+
+            # If the token exits, mark it and its corresponding exit token
+            if exit_decision:
+                exit_mask[:, -1] = True  # Mark both token and exit token as exited
                 break
+
+            # Keep exited tokens and their exit tokens unchanged in the sequence
+            x_with_exit = torch.where(
+                exit_mask.unsqueeze(-1),
+                x_with_exit.detach(),  # Keep exited tokens' states unchanged
+                x_with_exit,  # Continue updating the rest
+            )
 
         output = x_with_exit
 
@@ -222,4 +286,4 @@ class RecurrentTransformerLayer(nn.Module):
 
         self.exit_probs = exit_probs
 
-        return output, past_key_value
+        return output, past_key_value, exit_probs
