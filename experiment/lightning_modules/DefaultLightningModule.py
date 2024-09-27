@@ -3,14 +3,17 @@ from lightning import LightningModule
 from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
 import torch
+from torch import nn
 import torch.nn.functional as F
 from deepspeed.utils import safe_get_full_grad
+from typing import Optional
 
 from experiment.utils import Args
 from experiment.utils import accuracy
 from experiment.layers import RecurrentTransformerLayer
 from experiment.layers import MambaTransformerLayer
 from experiment.layers import GatedGemmaDecoderLayer
+from experiment.layers import SequentialTransformerLayer
 
 
 class DefaultLightningModule(LightningModule):
@@ -29,44 +32,61 @@ class DefaultLightningModule(LightningModule):
         self.tokenizer = tokenizer
 
         # Baseline for REINFORCE (initialized as 0, updated during training)
-        self.baseline = torch.tensor(0.0, requires_grad=False)
-
-        print(self.model)
+        if self.args.num_steps == "classifier":
+            self.baseline = torch.tensor(0.0, requires_grad=False)
 
         self.make_layers_finetunable()
         self.add_recurrence()
 
-    def get_recurrent_layer(self):
-        if self.args.make_layer_recurrent is None:
+        print(self.model)
+
+    def get_recurrent_layer(self) -> Optional[list[RecurrentTransformerLayer]]:
+        if self.recurrent_layer_idx is None:
             return None
 
-        return self.model.model.layers[self.args.make_layer_recurrent]
+        return self.model.model.layers[self.recurrent_layer_idx]
 
     def add_recurrence(self):
-        if self.args.make_layer_recurrent is None:
-            return
+        if type(self.args.make_layers_recurrent) == int:
+            start = self.args.make_layers_recurrent
+            end = start + 1
+        else:
+            start, end = self.args.make_layers_recurrent
 
-        layers = self.model.model.layers
-        layer = layers[self.args.make_layer_recurrent]
+        layers = self.model.model.layers[start:end]
+
+        layer = SequentialTransformerLayer(*layers)
 
         if self.args.recurrent_mode == "mamba":
-            layer = MambaTransformerLayer(
-                self.model.config.hidden_size,
-                self.model.config.num_attention_heads,
+            layer = SequentialTransformerLayer(
+                *[
+                    MambaTransformerLayer(
+                        self.model.config.hidden_size,
+                        self.model.config.num_attention_heads,
+                    )
+                    for _ in range(len(layers))
+                ]
             )
         elif self.args.use_gating:
-            old_layer = layer
-            layer = GatedGemmaDecoderLayer(
-                self.model.config, self.args.make_layer_recurrent
-            )
-            layer.self_attn.load_state_dict(old_layer.self_attn.state_dict())
-            layer.mlp.load_state_dict(old_layer.mlp.state_dict())
+            new_layers = []
+            for idx, layer in enumerate(layers):
+                new_layer = GatedGemmaDecoderLayer(self.model.config, idx)
+                new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
+                new_layer.mlp.load_state_dict(layer.mlp.state_dict())
+                new_layers.append(new_layer)
 
-        layers[self.args.make_layer_recurrent] = RecurrentTransformerLayer(
+            layer = SequentialTransformerLayer(*new_layers)
+
+        self.model.model.layers[start] = RecurrentTransformerLayer(
             layer,
             args=self.args,
             hidden_size=self.model.config.hidden_size,
         )
+
+        for i in range(start + 1, end):
+            self.model.model.layers.pop(i)
+
+        self.recurrent_layer_idx = start
 
     def change_fixed_num_steps(self, new_num_steps: int):
         if self.args.make_layer_recurrent is None or self.args.use_fixed_num_steps in [
@@ -209,7 +229,7 @@ class DefaultLightningModule(LightningModule):
                 sync_dist=True,
             )
 
-        if exit_probs is not None:
+        if self.args.num_steps == "classifier" and exit_probs is not None:
             # Calculate reward as the negative of the token prediction loss (minimizing loss is good)
             reward = (
                 -loss.detach()

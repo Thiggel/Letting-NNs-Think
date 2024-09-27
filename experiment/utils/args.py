@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 
 class Args:
@@ -10,13 +10,12 @@ class Args:
     seeds: list[int]
     num_runs: int
     finetune_layers: list[int]
-    make_layer_recurrent: int
+    make_layers_recurrent: Union[int, Tuple[int, int]]
     recurrent_mode: str
     num_steps: int
     use_skip_connection: bool
     use_fixed_num_steps: bool
     use_random_num_steps: bool
-    remove_layers: list[int]
     logger: bool
     experiment_name: str
     max_epochs: int

@@ -2,3 +2,4 @@ from .GatedGemmaDecoderLayer import GatedGemmaDecoderLayer
 from .MambaTransformerLayer import MambaTransformerLayer
 from .RecurrentTransformerLayer import RecurrentTransformerLayer
 from .S6 import S6
+from .SequentialTransformerLayer import SequentialTransformerLayer
