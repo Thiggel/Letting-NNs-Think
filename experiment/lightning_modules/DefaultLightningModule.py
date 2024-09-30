@@ -1,6 +1,6 @@
 import math
 from lightning import LightningModule
-from transformers import AutoModelForCausalLM, PreTrainedTokenizer
+from transformers import AutoModelForCausalLM
 from torch.optim import AdamW
 import torch
 from torch import nn
@@ -20,7 +20,6 @@ class DefaultLightningModule(LightningModule):
     def __init__(
         self,
         args: Args,
-        tokenizer: PreTrainedTokenizer,
     ):
         super().__init__()
         self.args = args
@@ -29,7 +28,6 @@ class DefaultLightningModule(LightningModule):
         )
         self.model.use_cache = False
         self.model.train()
-        self.tokenizer = tokenizer
 
         # Baseline for REINFORCE (initialized as 0, updated during training)
         if self.args.num_steps == "classifier":

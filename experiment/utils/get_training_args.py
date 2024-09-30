@@ -126,6 +126,12 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="The path to the checkpoint to load",
     )
     parser.add_argument(
+        "--save_to_checkpoint",
+        type=str,
+        default=None,
+        help="The path to the checkpoint to save to",
+    )
+    parser.add_argument(
         "--no_evaluate",
         action="store_false",
         dest="evaluate",

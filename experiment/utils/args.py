@@ -9,7 +9,7 @@ class Args:
     eval_batch_size: int
     seeds: list[int]
     num_runs: int
-    finetune_layers: list[int]
+    finetune_layers: Optional[list[int]]
     make_layers_recurrent: Union[int, Tuple[int, int]]
     recurrent_mode: str
     num_steps: int
@@ -21,6 +21,7 @@ class Args:
     max_epochs: int
     warmup_steps: int
     checkpoint: Optional[str]
+    load_from_checkpoint: Optional[str]
     evaluate: bool
     use_time_embedding: bool
     use_gating: bool
