@@ -1,0 +1,30 @@
+import torch.nn as nn
+
+
+class SequentialTransformerLayer(nn.Module):
+    def __init__(self, *layers):
+        super().__init__()
+        self.layers = nn.ModuleList(layers)
+
+    def forward(self, x, *args, **kwargs):
+        for layer in self.layers:
+            x = layer(x, *args, **kwargs)
+            if type(x) == tuple:
+                x = x[0]
+
+        return x
+
+    def __getitem__(self, idx):
+        return self.layers[idx]
+
+    def __len__(self):
+        return len(self.layers)
+
+    def append(self, layer):
+        self.layers.append(layer)
+
+    def extend(self, layers):
+        self.layers.extend(layers)
+
+    def insert(self, index, layer):
+        self.layers.insert(index, layer)

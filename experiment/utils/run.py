@@ -10,11 +10,11 @@ from pytorch_lightning.utilities.deepspeed import (
 import wandb
 
 from experiment.datasets import LanguageDataModule
-from experiment.utils import set_seed
-from experiment.utils import add_pad_token
-from experiment.utils import Args
 from experiment.lightning_modules import DefaultLightningModule
-from experiment.eval import evaluate
+from experiment.eval import run_distributed_evaluation
+from .set_seed import set_seed
+from .add_pad_token import add_pad_token
+from .args import Args
 
 
 def run(args: Args, seed: int) -> dict:
@@ -26,7 +26,7 @@ def run(args: Args, seed: int) -> dict:
     data_module = LanguageDataModule(tokenizer, args, seed)
     wandb_logger = None
 
-    if args.checkpoint is None:
+    if not args.evaluate:
         model = DefaultLightningModule(args, tokenizer)
 
         model_checkpoint = ModelCheckpoint(
@@ -60,6 +60,11 @@ def run(args: Args, seed: int) -> dict:
             max_time={"hours": 18},
         )
 
+        if args.checkpoint is not None:
+            trainer_args["resume_from_checkpoint"] = (
+                os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}"
+            )
+
         if torch.cuda.is_available():
             trainer_args["strategy"] = "deepspeed_stage_3_offload"
             trainer_args["default_root_dir"] = os.environ["PYTORCH_LIGHTNING_HOME"]
@@ -75,7 +80,7 @@ def run(args: Args, seed: int) -> dict:
             )
 
             output_path = (
-                os.environ["BASE_CACHE_DIR"] + f"/model_{args.experiment_name}.pt"
+                os.environ["BASE_CACHE_DIR"] + f"/{args.save_to_checkpoint}_{seed}.pt"
             )
             convert_zero_checkpoint_to_fp32_state_dict(
                 model_checkpoint.best_model_path, output_path
@@ -84,14 +89,14 @@ def run(args: Args, seed: int) -> dict:
     if not args.evaluate:
         return {}
 
-    if args.logger and (args.checkpoint is not None or args.finetune_layers is None):
+    if args.logger:
         wandb.init(
             project="letting-nns-think-FixedEval",
             name=args.experiment_name + f"_{seed}",
             group=args.experiment_name,
         )
 
-    output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}"
+    output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}_{seed}.pt"
 
     if args.finetune_layers is not None:
         model = DefaultLightningModule.load_from_checkpoint(
@@ -101,8 +106,10 @@ def run(args: Args, seed: int) -> dict:
             tokenizer=tokenizer,
             strict=False,
         )
+    else:
+        model = DefaultLightningModule(args, tokenizer)
 
-    results = evaluate(model.model, tokenizer, seed, args)
+    results = run_distributed_evaluation(model.model, tokenizer, seed, args)
 
     results = {
         f"{key}_accuracy": (
@@ -114,44 +121,9 @@ def run(args: Args, seed: int) -> dict:
     }
 
     if args.logger:
-        results["num_steps"] = 3
         wandb.log(results)
 
     print(results)
-
-    if args.use_fixed_num_steps or args.use_random_num_steps:
-        print(
-            "How does this performance change with different numbers of recurrent steps?"
-        )
-
-        for new_num_steps in [1, 5]:
-            print("Changing num_steps to ", new_num_steps)
-            model.change_fixed_num_steps(new_num_steps)
-
-            results = evaluate(
-                model.model,
-                tokenizer,
-                seed,
-                args,
-                limit=200,
-                filename_suffix=f"_{new_num_steps}",
-            )
-
-            results = {
-                f"{key}_accuracy": (
-                    value["acc,none"]
-                    if "acc,none" in value
-                    else value["exact_match,flexible-extract"]
-                )
-                for key, value in results.items()
-            }
-
-            if args.logger:
-                log_data = {"num_steps": new_num_steps}
-                log_data.update(results)
-                wandb.log(log_data)
-
-            print(results)
 
     if args.logger and wandb_logger is not None:
         wandb_logger.experiment.unwatch()

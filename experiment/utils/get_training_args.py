@@ -41,6 +41,19 @@ def parse_num_steps(value):
             )
 
 
+def parse_index_or_interval(value):
+    # it's either a number, or two numbers separated by a colon
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return tuple(map(int, value.split(":")))
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                f"Invalid value: {value}. Must be an int or two ints separated by a colon."
+            )
+
+
 def get_training_args(get_defaults: bool = False) -> Args:
     parser = argparse.ArgumentParser(description="Training arguments")
     parser.add_argument(
@@ -56,11 +69,8 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="The layers to fine-tune",
     )
     parser.add_argument(
-        "--remove_layers", type=int_list, default=[], help="The layers to remove"
-    )
-    parser.add_argument(
-        "--make_layer_recurrent",
-        type=int,
+        "--make_layers_recurrent",
+        type=parse_index_or_interval,
         default=None,
         help="The layer to make recurrent",
     )
@@ -114,6 +124,12 @@ def get_training_args(get_defaults: bool = False) -> Args:
         type=str,
         default=None,
         help="The path to the checkpoint to load",
+    )
+    parser.add_argument(
+        "--save_to_checkpoint",
+        type=str,
+        default=None,
+        help="The path to the checkpoint to save to",
     )
     parser.add_argument(
         "--no_evaluate",

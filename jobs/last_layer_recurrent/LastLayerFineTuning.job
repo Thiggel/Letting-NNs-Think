@@ -1,0 +1,34 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=4
+#SBATCH --job-name=LastLayerFineTuning_LastLayerRecurrent
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=18
+#SBATCH --time=24:00:00
+#SBATCH --output=job_logs/LastLayerFineTuning_LastLayerRecurrent_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model_name "google/gemma-2-2b" \
+  --finetune_layers -1 \
+  --no_evaluate \
+  --make_layers_recurrent -1 \
+  --num_steps classifier \
+  --train_batch_size 4 \
+  --eval_batch_size 4 \
+  --experiment_name LastLayerRecurrent_LastLayerFineTuning \
+  --save_to_checkpoint LastLayerRecurrent_LastLayerFineTuning
+
+srun python -m experiment \
+  --model_name "google/gemma-2-2b" \
+  --finetune_layers -1 \
+  --make_layers_recurrent -1 \
+  --num_steps classifier \
+  --train_batch_size 4 \
+  --eval_batch_size 4 \
+  --checkpoint LastLayerRecurrent_LastLayerFineTuning \
+  --experiment_name LastLayerRecurrent_LastLayerFineTuning
