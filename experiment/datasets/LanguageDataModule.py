@@ -308,6 +308,14 @@ class LanguageDataModule(LightningDataModule):
                 "validation_field": "validation",  # Add this if The Pile has a validation split
                 "streaming": True,
             },
+            "gsm8k": {
+                "name": "gsm8k",
+                "q_func": lambda x: f"Question: {x['question']}\n\nAnswer:",
+                "ans_func": lambda x: " " + x["answer"],
+                "subset": "main",
+                "train_field": "train",
+                "test_field": "test",
+            },
         }
 
         return configs
