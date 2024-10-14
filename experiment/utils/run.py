@@ -11,7 +11,7 @@ import wandb
 
 from experiment.datasets import LanguageDataModule
 from experiment.lightning_modules import DefaultLightningModule
-from experiment.eval import run_distributed_evaluation
+from experiment.eval import evaluate
 from .set_seed import set_seed
 from .add_pad_token import add_pad_token
 from .args import Args
@@ -27,7 +27,7 @@ def run(args: Args, seed: int) -> dict:
     wandb_logger = None
 
     if not args.evaluate:
-        model = DefaultLightningModule(args, tokenizer)
+        model = DefaultLightningModule(args)
 
         model_checkpoint = ModelCheckpoint(
             monitor="val_loss",
@@ -102,14 +102,12 @@ def run(args: Args, seed: int) -> dict:
         model = DefaultLightningModule.load_from_checkpoint(
             output_path,
             args=args,
-            data_module=data_module,
-            tokenizer=tokenizer,
             strict=False,
         )
     else:
-        model = DefaultLightningModule(args, tokenizer)
+        model = DefaultLightningModule(args)
 
-    results = run_distributed_evaluation(model.model, tokenizer, seed, args)
+    results = evaluate(model.model, tokenizer, seed, args)
 
     results = {
         f"{key}_accuracy": (

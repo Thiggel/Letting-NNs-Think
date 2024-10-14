@@ -1,1 +1,1 @@
-from .evaluate import run_distributed_evaluation
+from .evaluate import evaluate
