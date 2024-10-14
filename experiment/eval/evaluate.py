@@ -24,15 +24,21 @@ def evaluate(
         backend="causal",
     )
 
-    output = evaluator.simple_evaluate(
-        model=wrapped_model,
-        tasks=[
+    evaluation_metrics = (
+        args.evaluation_metrics
+        if args.evaluation_metrics
+        else [
             "commonsense_qa",
             "gsm8k",
             # "mmlu",
             # "truthfulqa",
             "piqa",
-        ],
+        ]
+    )
+
+    output = evaluator.simple_evaluate(
+        model=wrapped_model,
+        tasks=evaluation_metrics,
         num_fewshot=0,
         batch_size=64,
         random_seed=seed,

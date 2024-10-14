@@ -54,6 +54,10 @@ def parse_index_or_interval(value):
             )
 
 
+def parse_list(arg):
+    return [item.strip() for item in arg.split(",")]
+
+
 def get_training_args(get_defaults: bool = False) -> Args:
     parser = argparse.ArgumentParser(description="Training arguments")
     parser.add_argument(
@@ -160,6 +164,12 @@ def get_training_args(get_defaults: bool = False) -> Args:
         type=str,
         choices=["default", "reinforce", "uninterrupted", "make_uninterrupted"],
         help="The training procedure to use",
+    )
+
+    parser.add_argument(
+        "--evaluation_metrics",
+        type=parse_list,
+        help="The evaluation metrics to use",
     )
 
     parser.add_argument("--gamma", type=float, default=0.99, help="The discount factor")

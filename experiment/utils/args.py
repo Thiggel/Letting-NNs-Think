@@ -31,3 +31,4 @@ class Args:
     max_grad_norm: float
     baseline_decay: float
     use_random_intermediate_supervision: bool
+    evaluation_metrics: list[str]
