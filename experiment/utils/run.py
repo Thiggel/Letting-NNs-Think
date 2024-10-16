@@ -88,6 +88,7 @@ def run(args: Args, seed: int) -> dict:
 
             strategy = DeepSpeedStrategy(config=deepspeed_config)
             trainer_args["strategy"] = strategy
+            trainer_args["precision"] = 16
             trainer_args["default_root_dir"] = os.environ["PYTORCH_LIGHTNING_HOME"]
             print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))
             print("GPUs Available: ", torch.cuda.device_count())
