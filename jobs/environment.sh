@@ -34,5 +34,6 @@ export PYTORCH_LIGHTNING_HOME="$BASE_CACHE_DIR/lightning_logs"
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
 
 activate letting_nns_think
+conda activate letting_nns_think
 
 pip install -r requirements.txt

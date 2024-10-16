@@ -137,7 +137,7 @@ class RecurrentTransformerLayer(nn.Module):
                 x_with_exit = x_with_exit + (step + 1)
 
             # Process the current step's forward pass
-            self.outputs = self.layer(
+            x_with_exit = self.layer(
                 x_with_exit,
                 attention_mask=new_attention_mask,
                 position_ids=position_ids,
@@ -229,29 +229,29 @@ class RecurrentTransformerLayer(nn.Module):
                 x_with_exit = x_with_exit + step + 1
 
             # Forward pass
-            self.outputs = self.layer(
+            x_with_exit = self.layer(
                 x_with_exit, attention_mask=new_attention_mask, *args, **kwargs
             )
-            x_with_exit = self.outputs[0]
 
-            # Compute exit probabilities for the last token (exit token)
-            exit_logits = self.exit_classifier(x_with_exit[:, -1:])
-            exit_prob = torch.sigmoid(exit_logits)
+            if self.use_classifier:
+                # Compute exit probabilities for the last token (exit token)
+                exit_logits = self.exit_classifier(x_with_exit[:, -1:])
+                exit_prob = torch.sigmoid(exit_logits)
 
-            # Sample exit decision from the classifier's probability distribution
-            exit_decision = exit_prob > 0.5
+                # Sample exit decision from the classifier's probability distribution
+                exit_decision = exit_prob > 0.5
 
-            # If the token exits, mark it and its corresponding exit token
-            if exit_decision:
-                exit_mask[:, -1] = True  # Mark both token and exit token as exited
-                break
+                # If the token exits, mark it and its corresponding exit token
+                if exit_decision:
+                    exit_mask[:, -1] = True  # Mark both token and exit token as exited
+                    break
 
-            # Keep exited tokens and their exit tokens unchanged in the sequence
-            x_with_exit = torch.where(
-                exit_mask.unsqueeze(-1),
-                x_with_exit.detach(),  # Keep exited tokens' states unchanged
-                x_with_exit,  # Continue updating the rest
-            )
+                # Keep exited tokens and their exit tokens unchanged in the sequence
+                x_with_exit = torch.where(
+                    exit_mask.unsqueeze(-1),
+                    x_with_exit.detach(),  # Keep exited tokens' states unchanged
+                    x_with_exit,  # Continue updating the rest
+                )
 
         output = x_with_exit
 

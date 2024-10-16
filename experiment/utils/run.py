@@ -3,6 +3,7 @@ from transformers import AutoTokenizer
 from lightning import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.strategies import DeepSpeedStrategy
 import torch
 from pytorch_lightning.utilities.deepspeed import (
     convert_zero_checkpoint_to_fp32_state_dict,
@@ -66,7 +67,27 @@ def run(args: Args, seed: int) -> dict:
             )
 
         if torch.cuda.is_available():
-            trainer_args["strategy"] = "deepspeed_stage_3_offload"
+            deepspeed_config = {
+                "zero_optimization": {
+                    "stage": 1,
+                    "offload_optimizer": {
+                        "device": "cpu"  # Offloading optimizer to CPU
+                    },
+                },
+                "optimizer": {
+                    "type": "Adam",
+                    "params": {
+                        "lr": 0.00015,
+                        "betas": [0.9, 0.999],
+                        "eps": 1e-8,
+                        "weight_decay": 0.01,
+                    },
+                },
+                "fp16": {"enabled": True},  # Mixed precision training
+            }
+
+            strategy = DeepSpeedStrategy(config=deepspeed_config)
+            trainer_args["strategy"] = strategy
             trainer_args["default_root_dir"] = os.environ["PYTORCH_LIGHTNING_HOME"]
             print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))
             print("GPUs Available: ", torch.cuda.device_count())
