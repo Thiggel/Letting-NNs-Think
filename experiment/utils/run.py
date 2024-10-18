@@ -121,6 +121,7 @@ def run(args: Args, seed: int) -> dict:
     output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}_{seed}.pt"
 
     if args.finetune_layers is not None:
+        print("LOADING CHECKPOINT ", output_path)
         model = DefaultLightningModule.load_from_checkpoint(
             output_path,
             args=args,

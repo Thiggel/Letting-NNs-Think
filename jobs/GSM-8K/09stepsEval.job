@@ -14,11 +14,13 @@ cd $HOME/Letting-NNs-Think
 
 srun python -m experiment \
   --model_name "google/gemma-2-2b" \
+  --dataset gsm8k \
   --finetune_layers "all" \
-  --make_layers_recurrent -1 \
+  --make_layers_recurrent 11 \
   --num_steps 9 \
-  --train_batch_size 4 \
-  --eval_batch_size 4 \
+  --max_epochs 20 \
+  --train_batch_size 16 \
+  --eval_batch_size 16 \
   --evaluation_metrics gsm8k \
   --checkpoint GSM8K_9Step \
   --experiment_name GSM8K_9Step
