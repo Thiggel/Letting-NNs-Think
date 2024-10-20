@@ -246,15 +246,20 @@ class LanguageDataModule(LightningDataModule):
     ) -> Dict[str, List[Any]]:
         samples = [dict(zip(samples, i)) for i in zip(*samples.values())]
         full_text: List[str] = [
-            config["q_func"](sample) + config["ans_func"](sample) for sample in samples
+            config["q_func"](sample) + config["ans_func"](sample) +
+            self.tokenizer.eos_token
+            for sample in samples
         ]
 
         tokenized = self.tokenize_text(full_text)
 
-        input_ids = tokenized["input_ids"]
+        text = tokenized["input_ids"]
         attention_mask = tokenized["attention_mask"]
 
-        labels = input_ids.copy()
+
+        input_ids = [ids[:-1] for ids in text]
+        labels = [ids[1:] for ids in text]
+        attention_mask = [mask[:-1] for mask in attention_mask]
 
         return {
             "input_ids": input_ids,
