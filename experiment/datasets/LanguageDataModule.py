@@ -253,13 +253,9 @@ class LanguageDataModule(LightningDataModule):
 
         tokenized = self.tokenize_text(full_text)
 
-        text = tokenized["input_ids"]
+        input_ids = tokenized["input_ids"]
         attention_mask = tokenized["attention_mask"]
-
-
-        input_ids = [ids[:-1] for ids in text]
-        labels = [ids[1:] for ids in text]
-        attention_mask = [mask[:-1] for mask in attention_mask]
+        labels = input_ids.copy()
 
         return {
             "input_ids": input_ids,

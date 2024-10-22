@@ -97,7 +97,7 @@ def get_training_args(get_defaults: bool = False) -> Args:
         help="The dataset to use for training",
     )
     parser.add_argument(
-        "--seq_length", type=int, default=128, help="The maximum sequence length"
+        "--seq_length", type=int, default=1024, help="The maximum sequence length"
     )
     parser.add_argument(
         "--train_batch_size", type=int, default=8, help="The training batch size"
