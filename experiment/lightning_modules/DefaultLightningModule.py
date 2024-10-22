@@ -45,6 +45,9 @@ class DefaultLightningModule(LightningModule):
         return self.model.model.layers[self.recurrent_layer_idx]
 
     def add_recurrence(self):
+        if self.args.make_layers_recurrent is None:
+            return
+
         if type(self.args.make_layers_recurrent) == int:
             start = self.args.make_layers_recurrent
             end = start + 1

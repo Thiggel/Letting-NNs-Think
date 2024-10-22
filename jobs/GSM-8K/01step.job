@@ -17,9 +17,7 @@ srun python -m experiment \
   --dataset gsm8k \
   --finetune_layers "all" \
   --no_evaluate \
-  --make_layers_recurrent 11 \
-  --num_steps 1 \
-  --max_epochs 20 \
+  --max_epochs 1 \
   --train_batch_size 16 \
   --eval_batch_size 16 \
   --experiment_name GSM8K_1Step \
