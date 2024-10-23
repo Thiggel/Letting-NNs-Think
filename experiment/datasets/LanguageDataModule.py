@@ -246,8 +246,9 @@ class LanguageDataModule(LightningDataModule):
     ) -> Dict[str, List[Any]]:
         samples = [dict(zip(samples, i)) for i in zip(*samples.values())]
         full_text: List[str] = [
-            config["q_func"](sample) + config["ans_func"](sample) +
-            self.tokenizer.eos_token
+            config["q_func"](sample)
+            + config["ans_func"](sample)
+            + self.tokenizer.eos_token
             for sample in samples
         ]
 
@@ -256,6 +257,9 @@ class LanguageDataModule(LightningDataModule):
         input_ids = tokenized["input_ids"]
         attention_mask = tokenized["attention_mask"]
         labels = input_ids.copy()
+
+        # print max length of input_ids
+        max_len = max(len(i) for i in input_ids)
 
         return {
             "input_ids": input_ids,

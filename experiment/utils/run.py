@@ -46,7 +46,7 @@ def run(args: Args, seed: int) -> dict:
 
         if args.logger:
             wandb_logger = WandbLogger(
-                project="letting-nns-think-FixedEval",
+                project="variable-depth-lms",
                 name=args.experiment_name + f"_{seed}",
                 group=args.experiment_name,
                 save_dir=os.environ["WANDB_DIR"],
@@ -113,7 +113,7 @@ def run(args: Args, seed: int) -> dict:
 
     if args.logger:
         wandb.init(
-            project="letting-nns-think-FixedEval",
+            project="variable-depth-lms",
             name=args.experiment_name + f"_{seed}",
             group=args.experiment_name,
         )

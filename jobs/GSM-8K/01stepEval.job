@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH --partition=gpu
-#SBATCH --gpus=1
+#SBATCH --gpus-per-node=1
 #SBATCH --job-name=GSM8K_1StepEVAL
-#SBATCH --ntasks-per-node=4
+#SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=18
 #SBATCH --time=30:00:00
 #SBATCH --output=job_logs/GSM8K_1Step_Eval_%A.out
