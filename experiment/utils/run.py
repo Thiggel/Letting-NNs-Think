@@ -65,7 +65,6 @@ def run(args: Args, seed: int) -> dict:
             gradient_clip_val=0.5,
             accumulate_grad_batches=grad_acc_steps,
             devices="auto",
-            accumulate_grad_batches=128 if args.train_batch_size == 1 else 1,
             max_time={"hours": 18},
         )
 
@@ -124,9 +123,8 @@ def run(args: Args, seed: int) -> dict:
             group=args.experiment_name,
         )
 
-    output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}_{seed}.pt"
-
-    if args.finetune_layers is not None:
+    if args.finetune_layers is not None and args.checkpoint is not None:
+        output_path = os.environ["BASE_CACHE_DIR"] + f"/{args.checkpoint}_{seed}.pt"
         print("LOADING CHECKPOINT ", output_path)
         model = DefaultLightningModule.load_from_checkpoint(
             output_path,
@@ -135,7 +133,7 @@ def run(args: Args, seed: int) -> dict:
             strict=False,
         )
     else:
-        model = DefaultLightningModule(args)
+        model = DefaultLightningModule(args, tokenizer=tokenizer)
 
     results = evaluate(model, tokenizer, seed, args)
 

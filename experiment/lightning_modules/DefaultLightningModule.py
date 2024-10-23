@@ -125,11 +125,7 @@ class DefaultLightningModule(LightningModule):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
     def generate(self, *args, **kwargs):
-        print("WDIUWHDIUH")
-        output = self.model.generate(*args, **kwargs)
-        print(output)
-        exit()
-        return output
+        return self.model.generate(*args, **kwargs)
 
     def configure_optimizers(self):
         if torch.cuda.is_available():
@@ -211,7 +207,7 @@ class DefaultLightningModule(LightningModule):
     def _step(self, batch, batch_idx, mode="train"):
         outputs = self.model(**batch)
 
-        if self.args.num_steps == 'classifier':
+        if self.args.num_steps == "classifier":
             exit_probs = self.get_exit_probs()
 
         loss = outputs.loss
