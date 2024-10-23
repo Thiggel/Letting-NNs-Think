@@ -9,6 +9,7 @@ from pytorch_lightning.utilities.deepspeed import (
     convert_zero_checkpoint_to_fp32_state_dict,
 )
 import wandb
+from typing import Optional, Dict, Any
 
 from experiment.datasets import LanguageDataModule
 from experiment.lightning_modules import DefaultLightningModule
@@ -16,7 +17,7 @@ from experiment.eval import evaluate
 from .set_seed import set_seed
 from .add_pad_token import add_pad_token
 from .args import Args
-
+import os
 
 def run(args: Args, seed: int) -> dict:
     set_seed(seed)
@@ -28,7 +29,7 @@ def run(args: Args, seed: int) -> dict:
     wandb_logger = None
 
     if not args.evaluate:
-        model = DefaultLightningModule(args)
+        model = DefaultLightningModule(args, tokenizer)
 
         model_checkpoint = ModelCheckpoint(
             monitor="val_loss",
@@ -56,6 +57,7 @@ def run(args: Args, seed: int) -> dict:
             enable_checkpointing=True,
             logger=wandb_logger if args.logger else None,
             max_epochs=args.max_epochs,
+            gradient_clip_val=0.5,
             devices="auto",
             accumulate_grad_batches=128 if args.train_batch_size == 1 else 1,
             max_time={"hours": 18},
@@ -69,18 +71,9 @@ def run(args: Args, seed: int) -> dict:
         if torch.cuda.is_available():
             deepspeed_config = {
                 "zero_optimization": {
-                    "stage": 1,
+                    "stage": 3,
                     "offload_optimizer": {
                         "device": "cpu"  # Offloading optimizer to CPU
-                    },
-                },
-                "optimizer": {
-                    "type": "Adam",
-                    "params": {
-                        "lr": 0.00015,
-                        "betas": [0.9, 0.999],
-                        "eps": 1e-8,
-                        "weight_decay": 0.01,
                     },
                 },
                 "fp16": {"enabled": True},  # Mixed precision training
@@ -104,8 +97,15 @@ def run(args: Args, seed: int) -> dict:
             output_path = (
                 os.environ["BASE_CACHE_DIR"] + f"/{args.save_to_checkpoint}_{seed}.pt"
             )
+            print(
+                "Converting checkpoint at ",
+                model_checkpoint.best_model_path,
+                "and saving at ", 
+                output_path
+            )
             convert_zero_checkpoint_to_fp32_state_dict(
-                model_checkpoint.best_model_path, output_path
+                model_checkpoint.best_model_path, 
+                output_path,
             )
 
     if not args.evaluate:
@@ -125,12 +125,13 @@ def run(args: Args, seed: int) -> dict:
         model = DefaultLightningModule.load_from_checkpoint(
             output_path,
             args=args,
+            tokenizer=tokenizer,
             strict=False,
         )
     else:
         model = DefaultLightningModule(args)
 
-    results = evaluate(model.model, tokenizer, seed, args)
+    results = evaluate(model, tokenizer, seed, args)
 
     results = {
         f"{key}_accuracy": (

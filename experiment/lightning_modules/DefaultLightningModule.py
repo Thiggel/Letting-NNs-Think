@@ -1,6 +1,6 @@
 import math
 from lightning import LightningModule
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from torch.optim import AdamW
 import torch
 from torch import nn
@@ -20,6 +20,7 @@ class DefaultLightningModule(LightningModule):
     def __init__(
         self,
         args: Args,
+        tokenizer: PreTrainedTokenizer = None,
     ):
         super().__init__()
         self.args = args
@@ -28,6 +29,7 @@ class DefaultLightningModule(LightningModule):
         )
         self.model.use_cache = False
         self.model.train()
+        self.config = self.model.config
 
         # Baseline for REINFORCE (initialized as 0, updated during training)
         if self.args.num_steps == "classifier":
@@ -36,7 +38,12 @@ class DefaultLightningModule(LightningModule):
         self.make_layers_finetunable()
         self.add_recurrence()
 
+        self.tokenizer = tokenizer
+
         print(self.model)
+
+    def tie_weights(self):
+        self.model.tie_weights()
 
     def get_recurrent_layer(self) -> Optional[list[RecurrentTransformerLayer]]:
         if self.recurrent_layer_idx is None:
@@ -45,6 +52,9 @@ class DefaultLightningModule(LightningModule):
         return self.model.model.layers[self.recurrent_layer_idx]
 
     def add_recurrence(self):
+        if self.args.make_layers_recurrent is None:
+            return
+
         if type(self.args.make_layers_recurrent) == int:
             start = self.args.make_layers_recurrent
             end = start + 1
@@ -114,13 +124,20 @@ class DefaultLightningModule(LightningModule):
     def forward(self, input_ids, attention_mask=None, labels=None):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
+    def generate(self, *args, **kwargs):
+        print("WDIUWHDIUH")
+        output = self.model.generate(*args, **kwargs)
+        print(output)
+        exit()
+        return output
+
     def configure_optimizers(self):
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(self.parameters(), lr=1e-3, betas=(0.9, 0.95))
+            optimizer = DeepSpeedCPUAdam(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
         else:
-            optimizer = AdamW(self.parameters(), lr=1e-3, betas=(0.9, 0.95))
+            optimizer = AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
 
         return [optimizer]
 
@@ -194,7 +211,8 @@ class DefaultLightningModule(LightningModule):
     def _step(self, batch, batch_idx, mode="train"):
         outputs = self.model(**batch)
 
-        exit_probs = self.get_exit_probs()
+        if self.args.num_steps == 'classifier':
+            exit_probs = self.get_exit_probs()
 
         loss = outputs.loss
 
