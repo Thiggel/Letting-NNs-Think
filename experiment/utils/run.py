@@ -19,6 +19,7 @@ from .add_pad_token import add_pad_token
 from .args import Args
 import os
 
+
 def run(args: Args, seed: int) -> dict:
     set_seed(seed)
 
@@ -52,12 +53,17 @@ def run(args: Args, seed: int) -> dict:
                 save_dir=os.environ["WANDB_DIR"],
             )
 
+        grad_acc_steps = (
+            1 if args.train_batch_size >= 64 else 64 // args.train_batch_size
+        )
+
         trainer_args = dict(
             callbacks=[model_checkpoint, device_stats_monitor],
             enable_checkpointing=True,
             logger=wandb_logger if args.logger else None,
             max_epochs=args.max_epochs,
             gradient_clip_val=0.5,
+            accumulate_grad_batches=grad_acc_steps,
             devices="auto",
             accumulate_grad_batches=128 if args.train_batch_size == 1 else 1,
             max_time={"hours": 18},
@@ -100,11 +106,11 @@ def run(args: Args, seed: int) -> dict:
             print(
                 "Converting checkpoint at ",
                 model_checkpoint.best_model_path,
-                "and saving at ", 
-                output_path
+                "and saving at ",
+                output_path,
             )
             convert_zero_checkpoint_to_fp32_state_dict(
-                model_checkpoint.best_model_path, 
+                model_checkpoint.best_model_path,
                 output_path,
             )
 
