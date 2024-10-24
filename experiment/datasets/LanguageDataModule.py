@@ -258,9 +258,6 @@ class LanguageDataModule(LightningDataModule):
         attention_mask = tokenized["attention_mask"]
         labels = input_ids.copy()
 
-        # print max length of input_ids
-        max_len = max(len(i) for i in input_ids)
-
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
