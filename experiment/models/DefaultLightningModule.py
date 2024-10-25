@@ -3,6 +3,7 @@ from transformers import PreTrainedTokenizer
 from torch.optim import AdamW
 import torch
 from typing import Optional
+from torch.optim.lr_scheduler import LambdaLR
 
 from experiment.layers import RecurrentTransformerLayer
 from experiment.configs import ModelConfig
@@ -35,13 +36,36 @@ class DefaultLightningModule(LightningModule):
         return self.model.generate(*args, **kwargs)
 
     def configure_optimizers(self):
+        # Choose optimizer based on GPU availability
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
             optimizer = DeepSpeedCPUAdam(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
         else:
             optimizer = AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
-        return [optimizer]
+
+        # Define the number of warmup steps (e.g., 10% of total training steps)
+        warmup_steps = 200  # Adjust this value based on your training setup
+        total_steps = 2000  # Total number of training steps (adjust as needed)
+
+        # Create a lambda function for linear warmup
+        def lr_lambda(current_step):
+            if current_step < warmup_steps:
+                return float(current_step) / float(max(1, warmup_steps))
+            return 1.0  # After warmup, keep the learning rate constant
+
+        # Create the scheduler with the lambda function
+        scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda)
+
+        # Return optimizer and scheduler
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "interval": "step",  # or 'epoch' if you prefer to update per epoch
+                "frequency": 1,  # How often to update the learning rate (1 means every step/epoch)
+            },
+        }
 
     def on_before_optimizer_step(self, optimizer):
         """Log gradient norms before optimization step"""
