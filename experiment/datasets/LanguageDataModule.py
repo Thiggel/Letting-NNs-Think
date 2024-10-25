@@ -166,7 +166,9 @@ class LanguageDataModule(LightningDataModule):
     def _split_dataset(
         self, dataset: Dataset, split_size: Union[int, float]
     ) -> Tuple[Dataset, Dataset]:
-        split = dataset.train_test_split(test_size=split_size, shuffle=True, seed=42)
+        split = dataset.train_test_split(
+            test_size=split_size, shuffle=True, seed=self.seed
+        )
         return split["train"], split["test"]
 
     def _create_validation_set(self, train_dataset: IterableDataset) -> IterableDataset:
