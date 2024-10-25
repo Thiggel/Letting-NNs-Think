@@ -1,0 +1,56 @@
+from pathlib import Path
+import json
+from lm_eval import evaluator
+from lm_eval.models.huggingface import HFLM
+import torch
+from transformers import PreTrainedModel, PreTrainedTokenizer
+import os
+
+
+class ModelEvaluator:
+    """Handles model evaluation using lm-eval-harness"""
+
+    def __init__(
+        self,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizer,
+    ):
+        self.model = model
+        self.tokenizer = tokenizer
+
+    def evaluate(
+        self, metrics: list[str], seed: int, experiment_name: str
+    ) -> dict[str, float]:
+        wrapped_model = HFLM(
+            pretrained=self.model,
+            tokenizer=self.tokenizer,
+            batch_size=64,
+            max_length=512,
+            backend="causal",
+        )
+
+        output = evaluator.simple_evaluate(
+            model=wrapped_model,
+            tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
+            num_fewshot=0,
+            batch_size=64,
+            random_seed=seed,
+            numpy_random_seed=seed,
+            torch_random_seed=seed,
+            fewshot_random_seed=seed,
+            device="cuda" if torch.cuda.is_available() else "cpu",
+            log_samples=True,
+        )
+
+        self._save_samples(output["samples"], seed, experiment_name)
+        return output["results"]
+
+    def _save_samples(self, samples: dict, seed, experiment_name):
+        try:
+            sample_dir = Path(os.environ["BASE_CACHE_DIR"]) / "samples"
+            sample_dir.mkdir(exist_ok=True)
+
+            sample_path = sample_dir / f"{experiment_name}_{seed}.json"
+            sample_path.write_text(json.dumps(samples))
+        except Exception as e:
+            print(f"Failed to save samples: {e}")
