@@ -4,7 +4,7 @@ import wandb
 import os
 import time
 import torch
-from typing import Type, TypeVar, Dict, List, Optional
+from typing import Type, TypeVar, Dict, List
 from numbers import Number
 from dotenv import load_dotenv
 from huggingface_hub import login
@@ -40,7 +40,7 @@ class Experiment:
     def __init__(
         self,
         config_classes: List[Type[BaseModel]],
-        runner_class: Type[Runner],
+        runner_class: type[Runner],
     ):
         """
         Initialize experiment with configurations and runner.

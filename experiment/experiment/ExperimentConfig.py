@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field
 
 
+class ExperimentMode(str, Enum):
+    TRAIN = "train"
+    EVALUATE = "evaluate"
+
+
 class ExperimentConfig(BaseModel):
     experiment_name: str = Field("default", description="Name of the experiment")
     seeds: list[int] = Field([1, 2, 3], description="Random seeds to use")
@@ -8,3 +13,4 @@ class ExperimentConfig(BaseModel):
     enable_logging: bool = Field(True, description="Enable wandb logging")
     continue_on_error: bool = Field(False, description="Continue if a run fails")
     save_results: bool = Field(True, description="Save results to disk")
+    mode: ExperimentMode = Field(ExperimentMode.TRAIN, description="Experiment mode")

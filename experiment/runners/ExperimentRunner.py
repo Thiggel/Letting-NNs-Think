@@ -1,39 +1,33 @@
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Dict
 import torch
-from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
-from lightning import Trainer
-from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
-from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.strategies import DeepSpeedStrategy
-from pytorch_lightning.utilities.deepspeed import (
-    convert_zero_checkpoint_to_fp32_state_dict,
-)
-import wandb
-import os
-from abc import ABC, abstractmethod
+from pydantic import BaseModel
+import numpy as np
+import random
 
-from experiment.experiment import Runner
+from experiment.experiment import Runner, ExperimentConfig
+
+from .TrainRunner import TrainRunner
+from .EvaluationRunner import EvaluationRunner
 
 
 class ExperimentRunner(Runner):
     """Main runner that delegates to specific runners based on mode"""
 
-    def __init__(self, configs: dict[str, BaseModel], mode: str):
+    def __init__(self, configs: dict[str, BaseModel]):
         self.configs = configs
-        self.mode = mode
         self.runner = self._create_runner()
 
-    def _create_runner(self) -> BaseRunner:
-        if self.mode == "train":
+    def _create_runner(self) -> Runner:
+        experiment_config: ExperimentConfig = self.configs[ExperimentConfig.__name__]
+
+        if experiment_config.mode == "train":
             return TrainRunner(self.configs)
-        elif self.mode == "evaluate":
+        elif experiment_config.mode == "evaluate":
             return EvaluationRunner(self.configs)
         else:
-            raise ValueError(f"Unknown mode: {self.mode}")
+            raise ValueError(f"Unknown mode: {experiment_config.mode}")
 
-    def set_seed(seed: int):
+    def set_seed(self, seed: int):
         np.random.seed(seed)
         random.seed(seed)
         torch.manual_seed(seed)
