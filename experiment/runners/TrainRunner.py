@@ -38,7 +38,13 @@ class TrainRunner(Runner, HasTokenizer):
         ]
 
     def run(self, seed: int) -> dict[str, float]:
-        data_module = LanguageDataModule(self.data_config, self.tokenizer, seed)
+        data_module = LanguageDataModule(
+            self.data_config,
+            self.model_config,
+            self.training_config,
+            self.tokenizer,
+            seed,
+        )
         model = DefaultLightningModule(self.model_config, self.tokenizer)
         trainer = self._setup_trainer(seed)
 
@@ -91,8 +97,8 @@ class TrainRunner(Runner, HasTokenizer):
 
         grad_acc_steps = (
             1
-            if self.training_config.batch_size >= 64
-            else 64 // self.training_config.batch_size
+            if self.data_config.batch_size >= 64
+            else 64 // self.data_config.batch_size
         )
 
         return {

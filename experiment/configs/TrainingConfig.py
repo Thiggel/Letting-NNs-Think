@@ -14,7 +14,6 @@ class TrainingConfig(BaseModel):
     """Configuration for training parameters"""
 
     max_epochs: int = Field(5, description="The maximum number of epochs")
-    batch_size: int = Field(8, description="The batch size")
     warmup_steps: int = Field(1000, description="The number of warmup steps")
     max_grad_norm: float = Field(
         1.0, description="The maximum gradient norm for gradient clipping"

@@ -8,3 +8,4 @@ class DataConfig(BaseModel):
         ..., description="The dataset to use for training"
     )  # Required field
     seq_length: int = Field(1024, description="The maximum sequence length")
+    batch_size: int = Field(8, description="The batch size")
