@@ -36,5 +36,7 @@ class ExperimentRunner(Runner):
             torch.cuda.manual_seed_all(seed)
 
     def run(self, seed: int) -> Dict[str, float]:
+        print(self.configs)
+        exit()
         self.set_seed(seed)
         return self.runner.run(seed)

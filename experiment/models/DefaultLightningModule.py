@@ -5,7 +5,7 @@ import torch
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
-from experiment.layers import RecurrentTransformerLayer
+from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import ModelConfig
 
 from .ModelAdapter import ModelAdapter

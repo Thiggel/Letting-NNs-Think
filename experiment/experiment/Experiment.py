@@ -2,23 +2,21 @@ from dataclasses import dataclass
 from pathlib import Path
 import wandb
 import os
-import time
-import torch
-from typing import Type, TypeVar, Dict, List
+from typing import Type, TypeVar, Callable, Optional
 from numbers import Number
 from dotenv import load_dotenv
 from huggingface_hub import login
 from pydantic import BaseModel
 from logging import getLogger, Logger
+import time
 
-from cli_manager import CLIManager
-
+from experiment.cli_manager import CLIManager
 from .Runner import Runner
 from .ExperimentConfig import ExperimentConfig
 
 
 T = TypeVar("T", bound=BaseModel)
-ResultType = Dict[str, float]
+ResultType = dict[str, float]
 
 
 @dataclass
@@ -39,7 +37,7 @@ class Experiment:
 
     def __init__(
         self,
-        config_classes: List[Type[BaseModel]],
+        config_classes: list[Type[BaseModel]],
         runner_class: type[Runner],
     ):
         """
@@ -50,36 +48,28 @@ class Experiment:
             runner_class: Class responsible for running individual experiments
         """
         self.logger = self._setup_logger()
-        self.configs = self._initialize_experiment(config_classes)
-        self.experiment_config: ExperimentConfig = self.configs[
-            ExperimentConfig.__name__
-        ]
+        self.config_classes = config_classes
+        self.configs: Optional[list[BaseModel]] = None
+        self.experiment_config: Optional[ExperimentConfig] = None
         self.runner_class = runner_class
         self.log_dir = Path(os.getenv("BASE_CACHE_DIR") or "") / "logs" or Path("logs")
         self.log_dir.mkdir(exist_ok=True)
 
-        # Validate configuration
-        self._validate_experiment_setup()
-
     def _setup_logger(self) -> Logger:
         """Set up logging for the experiment"""
         logger = getLogger(__name__)
-        # Add logging configuration here if needed
         return logger
 
-    def _initialize_experiment(
-        self, config_classes: List[Type[BaseModel]]
-    ) -> Dict[str, BaseModel]:
+    def _initialize_experiment(self) -> None:
         """Initialize experiment configuration and external services"""
         load_dotenv()
 
-        # Parse command line arguments
-        configs = self._parse_args(config_classes)
+        # Initialize external services if experiment config is available
+        if self.experiment_config:
+            self._setup_external_services()
 
-        # Initialize external services
-        self._setup_external_services()
-
-        return configs
+        # Validate configuration
+        self._validate_experiment_setup()
 
     def _setup_external_services(self) -> None:
         """Set up external services like HuggingFace and WandB"""
@@ -100,24 +90,46 @@ class Experiment:
             self.logger.error(f"Failed to initialize external services: {str(e)}")
             raise
 
-    def _parse_args(
-        self, config_classes: List[Type[BaseModel]]
-    ) -> Dict[str, BaseModel]:
-        """Parse command line arguments using CLIManager"""
-        cli_manager = CLIManager(*[*config_classes, ExperimentConfig])
-        cli_manager.register_command()
-        cli_manager.run()
-        return cli_manager.get_all_configs()
+    def cli(self, main_function: Callable = None) -> Callable:
+        """Decorator to setup CLI and run the experiment."""
+        cli_manager = CLIManager(*[*self.config_classes, ExperimentConfig])
+
+        @cli_manager.register_command()
+        def run_experiment():
+            # Store configs from CLI
+            self.configs = cli_manager.get_all_configs()
+            self.experiment_config = self.configs[ExperimentConfig.__name__]
+
+            # Initialize experiment
+            self._initialize_experiment()
+
+            # Run main function if provided
+            if main_function:
+                return main_function(self)
+
+            # Otherwise run the default experiment
+            return self.run()
+
+        def main_with_run(*args, **kwargs):
+            # Ensures that the Typer CLI runs
+            cli_manager.run()
+
+        return main_with_run
 
     def _validate_experiment_setup(self) -> None:
         """Validate experiment configuration"""
+        if not self.experiment_config:
+            raise ValueError(
+                "Experiment config not initialized. Did you use the @cli decorator?"
+            )
+
         if self.experiment_config.num_runs != len(self.experiment_config.seeds):
             raise ValueError(
                 f"Number of runs ({self.experiment_config.num_runs}) must match "
                 f"number of seeds ({len(self.experiment_config.seeds)})"
             )
 
-    def run(self) -> Dict[str, Dict[str, Number]]:
+    def run(self) -> dict[str, dict[str, Number]]:
         """
         Run the complete experiment with multiple seeds and return aggregated results.
 
@@ -139,16 +151,14 @@ class Experiment:
             self.logger.error(f"Experiment failed: {str(e)}")
             raise
 
-    def run_different_seeds(self) -> List[ExperimentResult]:
+    def run_different_seeds(self) -> list[ExperimentResult]:
         """Run experiment with different seeds and collect results"""
         all_results = []
-
         for run_idx in range(self.experiment_config.num_runs):
             seed = self.experiment_config.seeds[run_idx]
             self.logger.info(
                 f"Starting run {run_idx + 1}/{self.experiment_config.num_runs} with seed {seed}"
             )
-
             try:
                 result = self._run_single_experiment(run_idx, seed)
                 all_results.append(result)
@@ -157,38 +167,32 @@ class Experiment:
                 self.logger.error(f"Run {run_idx + 1} failed: {str(e)}")
                 if not self.experiment_config.continue_on_error:
                     raise
-
         return all_results
 
     def _run_single_experiment(self, run_idx: int, seed: int) -> ExperimentResult:
         """Run a single experiment with given seed"""
         start_time = time.time()
-
         runner = self.runner_class(self.configs)
         metrics = runner.run(seed=seed)
-
         training_time = (time.time() - start_time) / 3600  # Convert to hours
-
         return ExperimentResult(
             metrics=metrics, training_time=training_time, seed=seed, run_idx=run_idx
         )
 
     def get_mean_std(
-        self, results: List[ExperimentResult]
-    ) -> Dict[str, Dict[str, Number]]:
+        self, results: list[ExperimentResult]
+    ) -> dict[str, dict[str, Number]]:
         """Calculate mean and standard deviation of results"""
         metrics_list = [result.metrics for result in results]
         tensor_data = torch.tensor([list(d.values()) for d in metrics_list])
-
         mean = tensor_data.mean(dim=0)
         std_dev = tensor_data.std(dim=0)
-
         return {
             str(key): {"mean": m.item(), "std": s.item()}
             for key, m, s in zip(metrics_list[0].keys(), mean, std_dev)
         }
 
-    def print_mean_std(self, mean_std: Dict[str, Dict[str, Number]]) -> None:
+    def print_mean_std(self, mean_std: dict[str, dict[str, Number]]) -> None:
         """Print aggregated results"""
         self.logger.info("Final Results:")
         for key, values in mean_std.items():
@@ -198,8 +202,8 @@ class Experiment:
 
     def _save_results(
         self,
-        all_results: List[ExperimentResult],
-        aggregated_results: Dict[str, Dict[str, Number]],
+        all_results: list[ExperimentResult],
+        aggregated_results: dict[str, dict[str, Number]],
     ) -> None:
         """Save experiment results to disk"""
         if self.experiment_config.save_results:
@@ -207,7 +211,6 @@ class Experiment:
                 self.log_dir / f"{self.experiment_config.experiment_name}_results.pt"
             )
             save_path.parent.mkdir(parents=True, exist_ok=True)
-
             torch.save(
                 {
                     "individual_results": all_results,
@@ -216,5 +219,4 @@ class Experiment:
                 },
                 save_path,
             )
-
             self.logger.info(f"Results saved to {save_path}")

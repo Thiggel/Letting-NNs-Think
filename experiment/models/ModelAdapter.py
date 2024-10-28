@@ -2,11 +2,11 @@ from transformers import AutoModelForCausalLM
 from torch import nn
 
 from experiment.layers import (
-    RecurrentTransformerLayer,
     MambaTransformerLayer,
     GatedGemmaDecoderLayer,
     SequentialTransformerLayer,
 )
+from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import ModelConfig
 
 

@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from enum import Enum
 
 
 class ExperimentMode(str, Enum):

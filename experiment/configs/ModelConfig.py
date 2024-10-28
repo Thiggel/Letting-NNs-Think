@@ -8,41 +8,7 @@ class RecurrentMode(str, Enum):
     TRANSFORMER = "transformer"
 
 
-class LayerIndex:
-    def __init__(self, value: Union[int, tuple[int, int]]):
-        self.value = value
-
-    @classmethod
-    def validate(cls, value: Union[int, str]) -> "LayerIndex":
-        if isinstance(value, int):
-            return cls(value)
-        try:
-            if ":" in value:
-                start, end = map(int, value.split(":"))
-                return cls((start, end))
-            return cls(int(value))
-        except ValueError:
-            raise ValueError("Must be an int or two ints separated by a colon")
-
-
-class NumSteps:
-    def __init__(
-        self, value: Union[int, Literal["classifier", "fixed_point", "random"]]
-    ):
-        self.value = value
-
-    @classmethod
-    def validate(cls, value: Union[int, str]) -> "NumSteps":
-        if isinstance(value, int):
-            return cls(value)
-        if value in {"classifier", "fixed_point", "random"}:
-            return cls(value)
-        try:
-            return cls(int(value))
-        except ValueError:
-            raise ValueError(
-                "Must be an int or one of ['classifier', 'fixed_point', 'random']"
-            )
+IndexOrRange = Field(pattern=r"^\d+$|^\d+:\d+$")
 
 
 class ModelConfig(BaseModel):
@@ -52,15 +18,17 @@ class ModelConfig(BaseModel):
     finetune_layers: Optional[Union[Literal["all"], list[int]]] = Field(
         None, description="The layers to fine-tune"
     )
-    make_layers_recurrent: Optional[LayerIndex] = Field(
-        None, description="The layer to make recurrent"
+    make_layers_recurrent: Optional[str] = Field(
+        None, pattern=r"^\d+$|^\d+:\d+$", description="The layers to make recurrent"
     )
     recurrent_mode: RecurrentMode = Field(
         RecurrentMode.TRANSFORMER, description="The recurrent mode to use"
     )
-    num_steps: Optional[NumSteps] = Field(
-        None,
-        description="Number of steps as an integer or 'classifier'/'fixed_point'/'random'",
+    num_steps: Optional[Union[int, Literal["classifier", "fixed_point", "random"]]] = (
+        Field(
+            None,
+            description="Number of steps as an integer or 'classifier'/'fixed_point'/'random'",
+        )
     )
     max_steps: int = Field(20, description="The maximum number of steps to take")
     use_exit_tokens: bool = Field(

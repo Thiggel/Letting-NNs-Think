@@ -4,7 +4,7 @@ import wandb
 import os
 from pydantic import BaseModel
 
-from experiment.lightning_modules import DefaultLightningModule
+from experiment.models import DefaultLightningModule
 from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
