@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=4
+#SBATCH --job-name=GSM8K_5Steps
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=18
+#SBATCH --time=30:00:00
+#SBATCH --output=job_logs/GSM8K_5Steps_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "google/gemma-2-2b" \
+  --dataset gsm8k \
+  --finetune-layers "all" \
+  --use_time_embedding \
+  --make-layers-recurrent 11 \
+  --max-epochs 3 \
+  --num-steps 5 \
+  --batch-size 1 \
+  --experiment-name GSM8K_5Step \
+  --save-to-checkpoint GSM8K_5Step
