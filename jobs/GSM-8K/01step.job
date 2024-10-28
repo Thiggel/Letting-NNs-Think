@@ -13,12 +13,10 @@ cd $HOME/Letting-NNs-Think
 . jobs/environment.sh
 
 srun python -m experiment \
-  --model_name "google/gemma-2-2b" \
+  --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
-  --finetune_layers "all" \
-  --no_evaluate \
-  --max_epochs 1 \
-  --train_batch_size 16 \
-  --eval_batch_size 16 \
-  --experiment_name GSM8K_1Step \
-  --save_to_checkpoint GSM8K_1Step
+  --finetune-layers "all" \
+  --max-epochs 3 \
+  --batch-size 1 \
+  --experiment-name GSM8K_1Step \
+  --save-to-checkpoint GSM8K_1Step

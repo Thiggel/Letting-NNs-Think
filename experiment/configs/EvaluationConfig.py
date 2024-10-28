@@ -6,7 +6,6 @@ from typing import Optional
 class EvaluationConfig(BaseModel):
     """Configuration for model evaluation and checkpointing"""
 
-    evaluate: bool = Field(True, description="Whether to evaluate the model")
     evaluation_metrics: Optional[list[str]] = Field(
         None, description="The evaluation metrics to use"
     )
