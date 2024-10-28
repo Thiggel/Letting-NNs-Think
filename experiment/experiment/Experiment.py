@@ -1,32 +1,31 @@
-from dataclasses import dataclass
 from pathlib import Path
-import wandb
 import os
-from typing import Type, TypeVar, Callable, Optional
-from numbers import Number
-from dotenv import load_dotenv
+import wandb
+from typing import Type, TypeVar, Union, cast
 from huggingface_hub import login
 from pydantic import BaseModel
 from logging import getLogger, Logger
-import time
-
+from dotenv import load_dotenv
 from experiment.cli_manager import CLIManager
+import time
+import torch
+
 from .Runner import Runner
 from .ExperimentConfig import ExperimentConfig
 
-
 T = TypeVar("T", bound=BaseModel)
-ResultType = dict[str, float]
 
 
-@dataclass
 class ExperimentResult:
     """Container for experiment results with metrics and metadata"""
 
-    metrics: ResultType
-    training_time: float
-    seed: int
-    run_idx: int
+    def __init__(
+        self, metrics: dict[str, float], training_time: float, seed: int, run_idx: int
+    ):
+        self.metrics = metrics
+        self.training_time = training_time
+        self.seed = seed
+        self.run_idx = run_idx
 
 
 class Experiment:
@@ -36,9 +35,7 @@ class Experiment:
     """
 
     def __init__(
-        self,
-        config_classes: list[Type[BaseModel]],
-        runner_class: type[Runner],
+        self, config_classes: list[Type[BaseModel]], runner_class: Type[Runner]
     ):
         """
         Initialize experiment with configurations and runner.
@@ -48,27 +45,47 @@ class Experiment:
             runner_class: Class responsible for running individual experiments
         """
         self.logger = self._setup_logger()
-        self.config_classes = config_classes
-        self.configs: Optional[list[BaseModel]] = None
-        self.experiment_config: Optional[ExperimentConfig] = None
+        self.config_classes = config_classes + [ExperimentConfig]
+        self.configs = cast(dict[str, BaseModel], None)
+        self.experiment_config = cast(ExperimentConfig, None)
         self.runner_class = runner_class
         self.log_dir = Path(os.getenv("BASE_CACHE_DIR") or "") / "logs" or Path("logs")
         self.log_dir.mkdir(exist_ok=True)
+
+        # Initialize CLIManager
+        self.cli_manager = CLIManager(*self.config_classes)
 
     def _setup_logger(self) -> Logger:
         """Set up logging for the experiment"""
         logger = getLogger(__name__)
         return logger
 
+    def run(self) -> dict[str, dict[str, Union[float, int]]]:
+        """
+        Run the complete experiment with CLI parsing and configuration setup.
+
+        Returns:
+            Dictionary containing mean and standard deviation for each metric
+        """
+        self.cli_manager.parse_args()
+        self.configs = self.cli_manager.get_all_configs()
+
+        experiment_config = self.configs.get(ExperimentConfig.__name__)
+
+        assert isinstance(experiment_config, ExperimentConfig)
+        self.experiment_config = experiment_config
+
+        self._initialize_experiment()
+
+        return self._run_experiment()
+
     def _initialize_experiment(self) -> None:
         """Initialize experiment configuration and external services"""
         load_dotenv()
 
-        # Initialize external services if experiment config is available
         if self.experiment_config:
             self._setup_external_services()
 
-        # Validate configuration
         self._validate_experiment_setup()
 
     def _setup_external_services(self) -> None:
@@ -90,32 +107,6 @@ class Experiment:
             self.logger.error(f"Failed to initialize external services: {str(e)}")
             raise
 
-    def cli(self, main_function: Callable = None) -> Callable:
-        """Decorator to setup CLI and run the experiment."""
-        cli_manager = CLIManager(*[*self.config_classes, ExperimentConfig])
-
-        @cli_manager.register_command()
-        def run_experiment():
-            # Store configs from CLI
-            self.configs = cli_manager.get_all_configs()
-            self.experiment_config = self.configs[ExperimentConfig.__name__]
-
-            # Initialize experiment
-            self._initialize_experiment()
-
-            # Run main function if provided
-            if main_function:
-                return main_function(self)
-
-            # Otherwise run the default experiment
-            return self.run()
-
-        def main_with_run(*args, **kwargs):
-            # Ensures that the Typer CLI runs
-            cli_manager.run()
-
-        return main_with_run
-
     def _validate_experiment_setup(self) -> None:
         """Validate experiment configuration"""
         if not self.experiment_config:
@@ -129,9 +120,9 @@ class Experiment:
                 f"number of seeds ({len(self.experiment_config.seeds)})"
             )
 
-    def run(self) -> dict[str, dict[str, Number]]:
+    def _run_experiment(self) -> dict[str, dict[str, Union[float, int]]]:
         """
-        Run the complete experiment with multiple seeds and return aggregated results.
+        Run the experiment with multiple seeds and return aggregated results.
 
         Returns:
             Dictionary containing mean and standard deviation for each metric
@@ -153,6 +144,8 @@ class Experiment:
 
     def run_different_seeds(self) -> list[ExperimentResult]:
         """Run experiment with different seeds and collect results"""
+        assert self.experiment_config is not None
+
         all_results = []
         for run_idx in range(self.experiment_config.num_runs):
             seed = self.experiment_config.seeds[run_idx]
@@ -181,7 +174,7 @@ class Experiment:
 
     def get_mean_std(
         self, results: list[ExperimentResult]
-    ) -> dict[str, dict[str, Number]]:
+    ) -> dict[str, dict[str, Union[float, int]]]:
         """Calculate mean and standard deviation of results"""
         metrics_list = [result.metrics for result in results]
         tensor_data = torch.tensor([list(d.values()) for d in metrics_list])
@@ -192,7 +185,7 @@ class Experiment:
             for key, m, s in zip(metrics_list[0].keys(), mean, std_dev)
         }
 
-    def print_mean_std(self, mean_std: dict[str, dict[str, Number]]) -> None:
+    def print_mean_std(self, mean_std: dict[str, dict[str, Union[float, int]]]) -> None:
         """Print aggregated results"""
         self.logger.info("Final Results:")
         for key, values in mean_std.items():
@@ -203,7 +196,7 @@ class Experiment:
     def _save_results(
         self,
         all_results: list[ExperimentResult],
-        aggregated_results: dict[str, dict[str, Number]],
+        aggregated_results: dict[str, dict[str, Union[float, int]]],
     ) -> None:
         """Save experiment results to disk"""
         if self.experiment_config.save_results:

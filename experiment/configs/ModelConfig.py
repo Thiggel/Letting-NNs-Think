@@ -1,14 +1,31 @@
 from enum import Enum
-from typing import Optional, Union, Literal
+import argparse
+from typing import Optional, Union, Literal, Annotated
 from pydantic import BaseModel, Field
+
+
+class LayerRange:
+    """Custom type for layer ranges that can be a single number or range"""
+
+    @staticmethod
+    def parse(value: str) -> Union[int, tuple[int, int]]:
+        if ":" in value:
+            try:
+                start, end = map(int, value.split(":"))
+                if start >= end:
+                    raise ValueError("Start must be less than end")
+                return (start, end)
+            except ValueError as e:
+                raise argparse.ArgumentTypeError(f"Invalid range format: {e}")
+        try:
+            return int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"Invalid integer: {value}")
 
 
 class RecurrentMode(str, Enum):
     MAMBA = "mamba"
     TRANSFORMER = "transformer"
-
-
-IndexOrRange = Field(pattern=r"^\d+$|^\d+:\d+$")
 
 
 class ModelConfig(BaseModel):
@@ -18,11 +35,11 @@ class ModelConfig(BaseModel):
     finetune_layers: Optional[Union[Literal["all"], list[int]]] = Field(
         None, description="The layers to fine-tune"
     )
-    make_layers_recurrent: Optional[str] = Field(
-        None, pattern=r"^\d+$|^\d+:\d+$", description="The layers to make recurrent"
+    make_layers_recurrent: Optional[Annotated[str, LayerRange]] = Field(
+        None, description="The layers to make recurrent (e.g., '5' or '2:4')"
     )
     recurrent_mode: RecurrentMode = Field(
-        RecurrentMode.TRANSFORMER, description="The recurrent mode to use"
+        "transformer", description="The recurrent mode to use"
     )
     num_steps: Optional[Union[int, Literal["classifier", "fixed_point", "random"]]] = (
         Field(

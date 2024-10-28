@@ -1,150 +1,175 @@
-from enum import Enum
-from typing import Type, Any, Optional, get_origin, get_args, Union
-import typer
-from typer.models import OptionInfo
+import argparse
+import re
 from pydantic import BaseModel
-from inspect import Signature, Parameter
-from functools import wraps
+from typing import (
+    Type,
+    Any,
+    Optional,
+    Union,
+    get_origin,
+    get_args,
+    Literal,
+    List,
+    Annotated,
+)
+from enum import Enum
 
 
 class CLIManager:
     """
-    An extended class-based wrapper around Typer to dynamically generate CLI options from Pydantic models
-    with support for enums and custom field types.
+    Enhanced wrapper around argparse to dynamically generate CLI options from Pydantic models
+    with support for custom types and field constraints.
     """
 
     def __init__(self, *config_classes: Type[BaseModel]):
         self.config_classes = config_classes
-        self.app = typer.Typer()
-        self.params = self._generate_typer_options()
-        self.configs: dict[str, BaseModel] = {}
+        self.configs = {}
 
-    def _get_field_type(self, field) -> tuple[Any, str, Type]:
+    def _parse_list(self, value: str, item_type: Type) -> list:
+        """Parse comma-separated values into a list of the specified type"""
+        if not value:
+            return []
+        try:
+            items = value.replace(",", " ").split()
+            return [item_type(item) for item in items]
+        except ValueError as e:
+            raise argparse.ArgumentTypeError(f"Invalid list item: {e}")
+
+    def _get_literal_values(self, args):
+        """Extract all literal values from Union args"""
+        literal_values = []
+        for arg in args:
+            if get_origin(arg) is Literal:
+                literal_values.extend(arg.__args__)
+            elif hasattr(arg, "__args__") and isinstance(arg.__args__[0], str):
+                # Handle cases where Literal is nested in another type
+                literal_values.extend(arg.__args__)
+        return literal_values
+
+    def _get_type_parser(self, field_type: Any, field: Any) -> tuple[Any, dict]:
         """
-        Determine the field type and generate appropriate help text.
-        Returns (type, help_text, python_type)
+        Determine the appropriate parser and argparse kwargs for a given field type
         """
-        field_type = field.annotation
-        help_text = field.description or ""
-        python_type = field_type
+        origin = get_origin(field_type)
+        args = get_args(field_type)
+        kwargs = {"help": field.description or ""}
 
-        # Handle Optional types
-        if get_origin(field_type) is Optional:
-            field_type = get_args(field_type)[0]
-            python_type = Union[field_type, None]
+        # Handle Annotated types
+        if origin is Annotated:
+            base_type, *custom_metadata = args
+            for metadata in custom_metadata:
+                if hasattr(metadata, "parse"):
+                    return (metadata.parse, kwargs)
+            return self._get_type_parser(base_type, field)
 
-        # Handle lists
-        if get_origin(field_type) is list:
-            item_type = get_args(field_type)[0]
-            python_type = list[item_type]
-            if issubclass(item_type, Enum):
-                valid_values = [e.value for e in item_type]
-                help_text += f" (valid values: {valid_values})"
-            return (list[item_type], help_text, python_type)
+        # Handle Union types
+        if origin is Union:
+            if type(None) in args:
+                args = tuple(t for t in args if t is not type(None))
+                kwargs["required"] = False
 
-        # Handle enums
-        if isinstance(field_type, type) and issubclass(field_type, Enum):
-            valid_values = [e.value for e in field_type]
-            help_text += f" (valid values: {valid_values})"
-            return (field_type, help_text, field_type)
+            # Get all literal values first
+            literal_values = self._get_literal_values(args)
+            if literal_values:
 
-        # Handle custom types (like RangeField)
-        if hasattr(field_type, "validate"):
-            help_text += f" (format: number or start:end)"
-            return (field_type, help_text, field_type)
-
-        return (field_type, help_text, python_type)
-
-    def _generate_typer_options(self) -> dict:
-        """
-        Generates Typer command options for each Pydantic dataclass field.
-        Returns a dictionary of parameter name to (OptionInfo, type) tuples.
-        """
-        params = {}
-        for config_class in self.config_classes:
-            fields = config_class.model_fields.items()
-            for name, field in fields:
-                field_type, help_text, python_type = self._get_field_type(field)
-                default_value = (
-                    field.default if field.default is not None else typer.Option(None)
-                )
-
-                # Convert the name to CLI format (using hyphens)
-                cli_name = name.replace("_", "-")
-
-                # Base option parameters
-                option_params = {
-                    "help": help_text,
-                    "default": default_value,
-                }
-
-                # Special handling for enums
-                if isinstance(field_type, type) and issubclass(field_type, Enum):
-                    option_params["case_sensitive"] = False
-
-                # Special handling for custom types
-                if hasattr(field_type, "validate"):
-                    option_params["callback"] = field_type.validate
-
-                # Create the OptionInfo with the appropriate parameters
-                option = OptionInfo(**option_params)
-                params[name] = (option, python_type)
-
-        return params
-
-    def register_command(self):
-        """Register the command with the Typer app."""
-
-        def decorator(f):
-            # Generate a list of parameters to add to the function signature dynamically
-            parameters = []
-
-            for param_name, (option, param_type) in self.params.items():
-                parameters.append(
-                    Parameter(
-                        param_name,
-                        Parameter.POSITIONAL_OR_KEYWORD,
-                        default=typer.Option(
-                            default=option.default,
-                            help=option.help,
-                        ),
-                        annotation=param_type,
+                def literal_parser(value):
+                    if value in literal_values:
+                        return value
+                    # Try other types if not a literal
+                    for arg in args:
+                        if arg is not type(None) and not isinstance(arg, type(Literal)):
+                            try:
+                                if get_origin(arg) is list:
+                                    return self._parse_list(value, get_args(arg)[0])
+                                return arg(value)
+                            except (ValueError, TypeError):
+                                continue
+                    raise argparse.ArgumentTypeError(
+                        f"Value must be one of {literal_values} or valid {[arg for arg in args if arg is not type(None) and not isinstance(arg, type(Literal))]}"
                     )
+
+                kwargs["help"] = f"{kwargs['help']} (literals: {literal_values})"
+                return (literal_parser, kwargs)
+
+            # Handle other union types
+            parsers = []
+            for arg in args:
+                if get_origin(arg) is list:
+                    parsers.append(lambda x: self._parse_list(x, get_args(arg)[0]))
+                elif isinstance(arg, type) and issubclass(arg, Enum):
+                    parsers.append(arg)
+                else:
+                    parsers.append(arg)
+
+            def union_parser(value):
+                for parser in parsers:
+                    try:
+                        return parser(value)
+                    except (ValueError, argparse.ArgumentTypeError):
+                        continue
+                raise argparse.ArgumentTypeError(
+                    f"Could not parse '{value}' as any of {args}"
                 )
 
-            # Define the function with these dynamically generated parameters
-            @wraps(f)
-            def new_func(*args, **kwargs):
-                # Process kwargs to create Pydantic model instances
-                for config_class in self.config_classes:
-                    config_args = {
-                        key: value
-                        for key, value in kwargs.items()
-                        if key in config_class.model_fields
-                    }
-                    self.configs[config_class.__name__] = config_class(**config_args)
+            return (union_parser, kwargs)
 
-                # Call the original function `f` with `self` as its argument
-                return f(self)
+        # Handle List types
+        if origin is list or origin is List:
+            item_type = args[0]
+            kwargs["nargs"] = "+"
+            if item_type is int:
+                return (int, kwargs)
+            return (item_type, kwargs)
 
-            # Set the dynamically generated signature on `new_func`
-            new_func.__signature__ = Signature(parameters)
+        # Handle Enum types
+        if isinstance(field_type, type) and issubclass(field_type, Enum):
+            kwargs["choices"] = [e.value for e in field_type]
+            return (str, kwargs)
 
-            # Register the function with Typer
-            self.app.command()(new_func)  # Register with the Typer app
+        # Handle pattern-constrained strings
+        if hasattr(field, "pattern") and field.pattern:
 
-            return new_func  # This allows decorator chaining
+            def pattern_validator(value):
+                if not re.match(field.pattern, value):
+                    raise argparse.ArgumentTypeError(
+                        f"Value '{value}' does not match pattern '{field.pattern}'"
+                    )
+                return value
 
-        return decorator
+            return (pattern_validator, kwargs)
 
-    def run(self):
-        """Run the Typer app."""
-        self.app()
+        return (field_type, kwargs)
+
+    def parse_args(self):
+        """Parse command-line arguments and populate configuration models."""
+        parser = argparse.ArgumentParser(description="Configuration CLI")
+
+        for config_class in self.config_classes:
+            for name, field in config_class.model_fields.items():
+                field_type = field.annotation
+                cli_name = f"--{name.replace('_', '-')}"
+
+                type_parser, kwargs = self._get_type_parser(field_type, field)
+
+                if field.default is not None:
+                    kwargs["default"] = field.default
+
+                parser.add_argument(cli_name, type=type_parser, **kwargs)
+
+        args = parser.parse_args()
+
+        # Populate configs with parsed arguments
+        for config_class in self.config_classes:
+            config_args = {
+                name: getattr(args, name.replace("-", "_"))
+                for name in config_class.model_fields.keys()
+            }
+            self.configs[config_class.__name__] = config_class(**config_args)
 
     def get_config(self, config_name: str) -> Optional[BaseModel]:
-        """Get a specific populated config by class name."""
+        """Retrieve a populated config by class name."""
         return self.configs.get(config_name)
 
     def get_all_configs(self) -> dict[str, BaseModel]:
-        """Get all populated config objects."""
+        """Retrieve all populated config objects."""
         return self.configs
