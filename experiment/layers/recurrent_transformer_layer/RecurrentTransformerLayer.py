@@ -32,19 +32,19 @@ class RecurrentTransformerLayer(nn.Module):
         if config.num_steps is None:
             return FixedStepsStrategy(max_steps, config.use_time_embedding)
 
-        if isinstance(config.num_steps.value, int):
-            return FixedStepsStrategy(config.num_steps.value, config.use_time_embedding)
+        if isinstance(config.num_steps, int):
+            return FixedStepsStrategy(config.num_steps, config.use_time_embedding)
 
-        if config.num_steps.value == "classifier":
+        if config.num_steps == "classifier":
             return ExitClassifierStrategy(config, hidden_size)
 
-        if config.num_steps.value == "fixed_point":
+        if config.num_steps == "fixed_point":
             return FixedPointStrategy()
 
-        if config.num_steps.value == "random":
+        if config.num_steps == "random":
             return FixedStepsStrategy(random.randint(1, 10), config.use_time_embedding)
 
-        raise ValueError(f"Unknown recurrence mode: {config.num_steps.value}")
+        raise ValueError(f"Unknown recurrence mode: {config.num_steps}")
 
     def forward(
         self,

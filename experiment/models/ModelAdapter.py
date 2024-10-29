@@ -70,11 +70,13 @@ class ModelAdapter:
         if self.config.make_layers_recurrent is None:
             return 0, 0
 
-        if isinstance(self.config.make_layers_recurrent, int):
-            start = self.config.make_layers_recurrent
-            return start, start + 1
+        if ":" in self.config.make_layers_recurrent:
+            start, end = map(int, self.config.make_layers_recurrent.split(":"))
+            return start, end
 
-        return self.config.make_layers_recurrent.value
+        start = int(self.config.make_layers_recurrent)
+
+        return start, start + 1
 
     def _create_mamba_layer(self, num_layers: int) -> SequentialTransformerLayer:
         return SequentialTransformerLayer(
