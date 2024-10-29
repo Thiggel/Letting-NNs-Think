@@ -14,4 +14,4 @@ class ExperimentConfig(BaseModel):
     enable_logging: bool = Field(False, description="Enable wandb logging")
     continue_on_error: bool = Field(False, description="Continue if a run fails")
     save_results: bool = Field(True, description="Save results to disk")
-    mode: ExperimentMode = Field(ExperimentMode.TRAIN, description="Experiment mode")
+    mode: ExperimentMode = Field("train", description="Experiment mode")

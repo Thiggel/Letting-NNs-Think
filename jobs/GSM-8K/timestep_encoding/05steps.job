@@ -16,7 +16,7 @@ srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
   --finetune-layers "all" \
-  --use_time_embedding \
+  --use-time-embedding \
   --make-layers-recurrent 11 \
   --max-epochs 3 \
   --num-steps 5 \

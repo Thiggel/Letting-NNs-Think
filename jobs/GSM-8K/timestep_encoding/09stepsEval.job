@@ -5,7 +5,7 @@
 #SBATCH --job-name=GSM8K_9Steps_Eval
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=18
-#SBATCH --time=30:00:00
+#SBATCH --time=72:00:00
 #SBATCH --output=job_logs/GSM8K_9Steps_Eval_%A.out
 
 cd $HOME/Letting-NNs-Think
@@ -16,7 +16,7 @@ srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --finetune-layers "all" \
   --make-layers-recurrent 11 \
-  --use_time_embedding \
+  --use-time-embedding \
   --num-steps 9 \
   --mode evaluate \
   --evaluation-metrics gsm8k \

@@ -23,7 +23,7 @@ class CLIManager:
 
     def __init__(self, *config_classes: Type[BaseModel]):
         self.config_classes = config_classes
-        self.configs = {}
+        self.configs: dict[str, BaseModel] = {}
 
     def _parse_list(self, value: str, item_type: Type) -> list:
         """Parse comma-separated values into a list of the specified type"""
@@ -53,6 +53,14 @@ class CLIManager:
         origin = get_origin(field_type)
         args = get_args(field_type)
         kwargs = {"help": field.description or ""}
+
+        # Handle bool type
+        if field_type is bool:
+            if field.default is True:
+                kwargs["action"] = "store_false"  # Flag to set False if present
+            else:
+                kwargs["action"] = "store_true"  # Flag to set True if present
+            return (None, kwargs)
 
         # Handle Annotated types
         if origin is Annotated:
@@ -154,7 +162,10 @@ class CLIManager:
                 if field.default is not None:
                     kwargs["default"] = field.default
 
-                parser.add_argument(cli_name, type=type_parser, **kwargs)
+                if type_parser is not None:
+                    kwargs["type"] = type_parser
+
+                parser.add_argument(cli_name, **kwargs)
 
         args = parser.parse_args()
 
