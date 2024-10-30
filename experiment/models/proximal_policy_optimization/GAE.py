@@ -13,7 +13,8 @@ class GAE(AdvantageEstimator):
         gae = torch.zeros(1)
 
         for t in reversed(range(len(rewards))):
-            delta = rewards[t] + self.discount_factor * values[t + 1] - values[t]
+            next_value = values[t + 1] if t + 1 < len(rewards) else 0
+            delta = rewards[t] + self.discount_factor * next_value - values[t]
             gae = delta + self.discount_factor * self.gae_lambda * gae
             advantages[t] = gae
 
