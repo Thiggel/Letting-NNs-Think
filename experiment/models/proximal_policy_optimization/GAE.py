@@ -10,7 +10,7 @@ class GAE(AdvantageEstimator):
 
     def estimate(self, rewards: torch.Tensor, values: torch.Tensor) -> torch.Tensor:
         advantages = torch.zeros_like(rewards)
-        gae = torch.zeros(1)
+        gae = 0.0
 
         for t in reversed(range(len(rewards))):
             next_value = values[t + 1] if t + 1 < len(rewards) else 0

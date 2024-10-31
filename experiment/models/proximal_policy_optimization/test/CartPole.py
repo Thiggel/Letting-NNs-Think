@@ -11,12 +11,12 @@ action_dim = env.action_space.n
 config = PPOConfig(
     state_dim=state_dim,
     epsilon=0.2,
-    memory_capacity=32,
-    batch_size=32,
+    memory_capacity=4096,
+    batch_size=4096,
     discount_factor=0.99,
     gae_lambda=0.95,
     entropy_beta=0.0,
-    lr=1e-2,
+    lr=1e-3,
     num_steps_per_update=5,
 )
 

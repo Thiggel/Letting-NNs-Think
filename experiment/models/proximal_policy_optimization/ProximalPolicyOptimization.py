@@ -70,6 +70,7 @@ class ProximalPolicyOptimization:
         self.actor_loss = []
         self.value_loss = []
         self.reward = []
+        self.running_av_reward = []
 
     def calculate_reward_and_store(
         self,
@@ -143,25 +144,9 @@ class ProximalPolicyOptimization:
         policy_loss = -torch.min(surr1, surr2).mean()
         return policy_loss
 
-    def calculate_value_targets(
-        self,
-        rewards: torch.Tensor,
-        next_states: torch.Tensor,
-    ) -> torch.Tensor:
-        with torch.no_grad():
-            next_values = (
-                self.critic(next_states)
-                if next_states is not None
-                else torch.zeros_like(rewards)
-            ).squeeze()
-            value_targets = rewards + self.config.discount_factor * next_values
-
-        return value_targets
-
     def get_loss(
         self,
         states: torch.Tensor,
-        next_states: torch.Tensor,
         actions: torch.Tensor,
         old_log_probs: torch.Tensor,
         values: torch.Tensor,
@@ -173,10 +158,8 @@ class ProximalPolicyOptimization:
         new_dist = Categorical(new_log_probs)
         new_action_log_probs = new_dist.log_prob(actions).squeeze()
         ratio = (new_action_log_probs - old_log_probs).exp()
-        value_targets = self.calculate_value_targets(rewards, next_states)
         value_loss = (
-            self.config.value_loss_coefficient
-            * F.mse_loss(values, value_targets).mean()
+            self.config.value_loss_coefficient * F.mse_loss(values, rewards).mean()
         )
         actor_loss = self.calculate_policy_loss(ratio, advantages, self.config.epsilon)
         loss = actor_loss + value_loss - self.config.entropy_beta * entropies.mean()
@@ -193,13 +176,12 @@ class ProximalPolicyOptimization:
     ) -> None:
         if reward is not None:
             running_av_reward = (
-                sum(self.reward[-100:]) / min(len(self.reward), 100)
-                if len(self.reward) > 100
-                else reward
+                sum(self.reward[-300:]) / 300 if len(self.reward) > 300 else 0
             )
-            self.reward.append(running_av_reward)
-            self.reward_line.set_xdata(range(len(self.reward)))
-            self.reward_line.set_ydata(self.reward)
+            self.running_av_reward.append(running_av_reward)
+            self.reward.append(reward)
+            self.reward_line.set_xdata(range(len(self.running_av_reward)))
+            self.reward_line.set_ydata(self.running_av_reward)
 
         if actor_loss is not None:
             self.actor_loss.append(actor_loss.item())
@@ -231,7 +213,6 @@ class ProximalPolicyOptimization:
 
         loss = self.get_loss(
             batch.states.to(self.device),
-            batch.next_states.to(self.device),
             batch.actions.to(self.device),
             batch.action_log_probs.to(self.device),
             values,
