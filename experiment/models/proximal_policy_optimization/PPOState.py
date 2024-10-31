@@ -22,6 +22,9 @@ class PPOState(BaseModel):
     reward: Optional[torch.Tensor] = Field(
         None, description="The reward received from the environment."
     )
+    advantage: Optional[torch.Tensor] = Field(
+        None, description="The advantage of the action taken."
+    )
     next_state: Optional[torch.Tensor] = Field(
         None, description="The next state of the environment."
     )

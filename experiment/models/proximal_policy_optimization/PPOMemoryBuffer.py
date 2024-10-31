@@ -21,6 +21,7 @@ class PPOMemoryBuffer:
         actions = torch.stack([m.action for m in batch])
         action_log_probs = torch.stack([m.action_log_prob for m in batch])
         rewards = torch.stack([m.reward for m in batch])
+        advantages = torch.stack([m.advantage for m in batch])
         entropies = torch.stack([m.entropy for m in batch])
         next_states = torch.stack([m.next_state for m in batch])
 
@@ -30,6 +31,7 @@ class PPOMemoryBuffer:
             action_log_probs=action_log_probs,
             entropies=entropies,
             rewards=rewards,
+            advantages=advantages,
             next_states=next_states,
         )
 

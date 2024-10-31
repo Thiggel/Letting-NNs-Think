@@ -15,3 +15,6 @@ class PPOConfig(BaseModel):
     num_steps_per_update: int = Field(
         10, description="The number of training steps per update"
     )
+    max_grad_norm: float = Field(0.5, description="The maximum gradient norm")
+    value_loss_coefficient: float = Field(0.5, description="The value loss coefficient")
+    lr_decay_rate: float = Field(0.99, description="The learning rate decay rate")

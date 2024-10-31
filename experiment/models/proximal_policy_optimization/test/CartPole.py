@@ -11,13 +11,13 @@ action_dim = env.action_space.n
 config = PPOConfig(
     state_dim=state_dim,
     epsilon=0.2,
-    memory_capacity=1000,
+    memory_capacity=32,
     batch_size=32,
     discount_factor=0.99,
     gae_lambda=0.95,
-    entropy_beta=0.01,
-    lr=1e-3,
-    num_steps_per_update=10,
+    entropy_beta=0.0,
+    lr=1e-2,
+    num_steps_per_update=5,
 )
 
 agent = nn.Sequential(
@@ -68,6 +68,8 @@ for episode in range(num_episodes):
         if done:
             print(f"Episode {episode + 1} finished with reward {episode_reward}")
             break
+
+        ppo.update_plot(reward=episode_reward)
 
     ppo.calculate_reward_and_store(ppo_states)
 

@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torch.distributions import Categorical
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 from .AdvantageEstimator import AdvantageEstimator
 from .GAE import GAE
@@ -48,28 +49,48 @@ class ProximalPolicyOptimization:
             if additional_params_to_tune is not None
             else []
         )
-        self.optimizer = torch.optim.Adam(
+        self.parameters = lambda: (
             list(self.actor.parameters())
             + list(self.critic.parameters())
-            + list(additional_params_to_tune_list),
+            + list(additional_params_to_tune_list)
+        )
+        self.optimizer = torch.optim.Adam(
+            self.parameters(),
             lr=self.config.lr,
         )
+
+        self.init_plot()
+
+    def init_plot(self):
+        _, self.ax = plt.subplots()
+        (self.actor_loss_line,) = self.ax.plot([], [], label="Actor Loss")
+        (self.value_loss_line,) = self.ax.plot([], [], label="Value Loss")
+        (self.reward_line,) = self.ax.plot([], [], label="Reward")
+        # self.ax.legend()
+        self.actor_loss = []
+        self.value_loss = []
+        self.reward = []
 
     def calculate_reward_and_store(
         self,
         ppo_states: list[PPOState],
     ) -> None:
+        states = torch.stack([s.state for s in ppo_states])
         rewards = torch.tensor([s.reward for s in ppo_states], dtype=torch.float32)
 
         discounted_cumulative_rewards = self.calculate_discounted_cumulative_rewards(
             rewards
         )
 
-        for i, ppo_state in enumerate(ppo_states):
-            ppo_state.reward = discounted_cumulative_rewards[i].detach()
-            ppo_state.action_log_prob = ppo_state.action_log_prob.detach()
-            ppo_state.entropy = ppo_state.entropy.detach()
+        with torch.no_grad():
+            values = self.critic(states.to(self.device)).squeeze()
 
+        advantages = self.advantage_estimator.estimate(rewards.to(self.device), values)
+        advantages = self.normalize_advantages(advantages)
+
+        for i, ppo_state in enumerate(ppo_states):
+            ppo_state.reward = discounted_cumulative_rewards[i]
+            ppo_state.advantage = advantages[i]
             self.store_transition(ppo_state)
 
     def store_transition(
@@ -90,8 +111,8 @@ class ProximalPolicyOptimization:
         return PPOState(
             state=state,
             action=action,
-            action_log_prob=action_log_prob,
-            entropy=entropy,
+            action_log_prob=action_log_prob.detach(),
+            entropy=entropy.detach(),
             reward=None,
             next_state=None,
         )
@@ -111,12 +132,36 @@ class ProximalPolicyOptimization:
 
     def calculate_entropy(self, distribution: torch.Tensor) -> torch.Tensor:
         return -self.config.entropy_beta * torch.sum(
-            distribution * torch.log(distribution), dim=1
+            distribution * torch.log(distribution + 1e-8), dim=1
         )
+
+    def calculate_policy_loss(
+        self, ratio: torch.Tensor, advantages: torch.Tensor, epsilon: float
+    ) -> torch.Tensor:
+        surr1 = ratio * advantages
+        surr2 = torch.clamp(ratio, 1 - epsilon, 1 + epsilon) * advantages
+        policy_loss = -torch.min(surr1, surr2).mean()
+        return policy_loss
+
+    def calculate_value_targets(
+        self,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+    ) -> torch.Tensor:
+        with torch.no_grad():
+            next_values = (
+                self.critic(next_states)
+                if next_states is not None
+                else torch.zeros_like(rewards)
+            ).squeeze()
+            value_targets = rewards + self.config.discount_factor * next_values
+
+        return value_targets
 
     def get_loss(
         self,
         states: torch.Tensor,
+        next_states: torch.Tensor,
         actions: torch.Tensor,
         old_log_probs: torch.Tensor,
         values: torch.Tensor,
@@ -124,23 +169,55 @@ class ProximalPolicyOptimization:
         entropies: torch.Tensor,
         rewards: torch.Tensor,
     ) -> torch.Tensor:
-        new_log_probs = self.actor(states).log()
-        action_mask = F.one_hot(actions, new_log_probs.shape[-1]).bool()
-        new_action_log_probs = new_log_probs[action_mask]
+        new_log_probs = self.actor(states)
+        new_dist = Categorical(new_log_probs)
+        new_action_log_probs = new_dist.log_prob(actions).squeeze()
         ratio = (new_action_log_probs - old_log_probs).exp()
-        surr1 = ratio * advantages
-        surr2 = (
-            torch.clamp(ratio, 1 - self.config.epsilon, 1 + self.config.epsilon)
-            * advantages
+        value_targets = self.calculate_value_targets(rewards, next_states)
+        value_loss = (
+            self.config.value_loss_coefficient
+            * F.mse_loss(values, value_targets).mean()
         )
-        value_loss = F.mse_loss(values, rewards).mean()
-        loss = (
-            -torch.min(surr1, surr2).mean()
-            + value_loss
-            - self.config.entropy_beta * entropies.mean()
-        )
+        actor_loss = self.calculate_policy_loss(ratio, advantages, self.config.epsilon)
+        loss = actor_loss + value_loss - self.config.entropy_beta * entropies.mean()
+
+        # self.update_plot(actor_loss, value_loss)
 
         return loss
+
+    def update_plot(
+        self,
+        actor_loss: Optional[torch.Tensor] = None,
+        value_loss: Optional[torch.Tensor] = None,
+        reward: Optional[float] = None,
+    ) -> None:
+        if reward is not None:
+            running_av_reward = (
+                sum(self.reward[-100:]) / min(len(self.reward), 100)
+                if len(self.reward) > 100
+                else reward
+            )
+            self.reward.append(running_av_reward)
+            self.reward_line.set_xdata(range(len(self.reward)))
+            self.reward_line.set_ydata(self.reward)
+
+        if actor_loss is not None:
+            self.actor_loss.append(actor_loss.item())
+            self.actor_loss_line.set_xdata(range(len(self.actor_loss)))
+            self.actor_loss_line.set_ydata(self.actor_loss)
+
+        if value_loss is not None:
+            self.value_loss.append(value_loss.item())
+            self.value_loss_line.set_xdata(range(len(self.value_loss)))
+            self.value_loss_line.set_ydata(self.value_loss)
+
+        self.ax.relim()
+        self.ax.autoscale_view()
+        plt.draw()
+        plt.pause(0.001)
+
+    def normalize_advantages(self, advantages: torch.Tensor) -> torch.Tensor:
+        return (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
     def train_step(self):
         if len(self.memory) < self.config.batch_size:
@@ -152,22 +229,23 @@ class ProximalPolicyOptimization:
 
         values = self.critic(batch.states.to(self.device)).squeeze()
 
-        advantages = self.advantage_estimator.estimate(
-            batch.rewards.to(self.device), values
-        )
-
         loss = self.get_loss(
             batch.states.to(self.device),
+            batch.next_states.to(self.device),
             batch.actions.to(self.device),
             batch.action_log_probs.to(self.device),
             values,
-            advantages,
+            batch.advantages.to(self.device),
             batch.entropies.to(self.device),
             batch.rewards.to(self.device),
         )
 
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.config.max_grad_norm)
         self.optimizer.step()
+
+    def update_learning_rate(self) -> None:
+        self.optimizer.param_groups[0]["lr"] *= self.config.lr_decay_rate
 
     def train(self):
         for _ in range(self.config.num_steps_per_update):

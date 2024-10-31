@@ -18,6 +18,9 @@ class PPOMemoryBatch(BaseModel):
     rewards: torch.Tensor = Field(
         ..., description="The rewards received from the environment."
     )
+    advantages: torch.Tensor = Field(
+        ..., description="The advantages of the actions taken."
+    )
     next_states: torch.Tensor = Field(
         ..., description="The next states of the environment."
     )
