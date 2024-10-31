@@ -144,6 +144,18 @@ class ProximalPolicyOptimization:
         policy_loss = -torch.min(surr1, surr2).mean()
         return policy_loss
 
+    def calculate_kl_divergence(
+        self, old_log_probs: torch.Tensor, new_log_probs: torch.Tensor
+    ) -> torch.Tensor:
+        kl_divergence = torch.mean(old_log_probs - new_log_probs)
+
+        if kl_divergence > self.config.kl_target:
+            self.config.kl_beta *= 1.5  # Increase if KL divergence is too high
+        elif kl_divergence < self.config.kl_target / 1.5:
+            self.config.kl_beta *= 0.5  # Decrease if KL divergence is low
+
+        return self.config.kl_beta * kl_divergence
+
     def get_loss(
         self,
         states: torch.Tensor,
@@ -155,14 +167,29 @@ class ProximalPolicyOptimization:
         rewards: torch.Tensor,
     ) -> torch.Tensor:
         new_log_probs = self.actor(states)
+
         new_dist = Categorical(new_log_probs)
+
         new_action_log_probs = new_dist.log_prob(actions).squeeze()
+
         ratio = (new_action_log_probs - old_log_probs).exp()
+
         value_loss = (
             self.config.value_loss_coefficient * F.mse_loss(values, rewards).mean()
         )
+
+        kl_divergence = self.calculate_kl_divergence(
+            old_log_probs, new_action_log_probs
+        )
+
         actor_loss = self.calculate_policy_loss(ratio, advantages, self.config.epsilon)
-        loss = actor_loss + value_loss - self.config.entropy_beta * entropies.mean()
+
+        loss = (
+            actor_loss
+            + value_loss
+            - self.config.entropy_beta * entropies.mean()
+            + kl_divergence
+        )
 
         # self.update_plot(actor_loss, value_loss)
 
