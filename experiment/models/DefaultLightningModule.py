@@ -94,7 +94,6 @@ class DefaultLightningModule(LightningModule):
         outputs = self.model(**batch)
         loss = outputs.loss
 
-        # Log metrics
         self.metrics_logger.log_loss(loss, mode)
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
