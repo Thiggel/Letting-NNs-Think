@@ -1,3 +1,4 @@
+import math
 from lightning import LightningModule
 from transformers import PreTrainedTokenizer
 from torch.optim import AdamW
@@ -45,14 +46,17 @@ class DefaultLightningModule(LightningModule):
             optimizer = AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
 
         # Define the number of warmup steps (e.g., 10% of total training steps)
-        warmup_steps = 200  # Adjust this value based on your training setup
-        total_steps = 2000  # Total number of training steps (adjust as needed)
+        warmup_steps = 500  # Adjust this value based on your training setup
+        total_steps = 5000  # Total number of training steps (adjust as needed)
 
-        # Create a lambda function for linear warmup
+        # Create a lambda function for linear warmup and cosine decay
         def lr_lambda(current_step):
             if current_step < warmup_steps:
                 return float(current_step) / float(max(1, warmup_steps))
-            return 1.0  # After warmup, keep the learning rate constant
+            else:
+                # Cosine decay after the warmup period
+                progress = (current_step - warmup_steps) / (total_steps - warmup_steps)
+                return 0.5 * (1.0 + math.cos(math.pi * progress))
 
         # Create the scheduler with the lambda function
         scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda)
