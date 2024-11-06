@@ -116,7 +116,6 @@ class TrainRunner(Runner, HasTokenizer):
             "gradient_clip_val": 0.5,
             "accumulate_grad_batches": grad_acc_steps,
             "devices": "auto",
-            "max_time": {"hours": 18},
         }
 
     def _get_cuda_specific_args(self) -> dict[str, Any]:
