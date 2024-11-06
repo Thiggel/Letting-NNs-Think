@@ -114,7 +114,7 @@ class TrainRunner(Runner, HasTokenizer):
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
             "max_epochs": self.training_config.max_epochs,
             "gradient_clip_val": 0.5,
-            "accumulate_grad_batches": 8,
+            "accumulate_grad_batches": grad_acc_steps,
             "devices": "auto",
         }
 
