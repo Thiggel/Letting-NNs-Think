@@ -116,6 +116,7 @@ class ProximalPolicyOptimization:
             entropy=entropy.detach(),
             reward=None,
             next_state=None,
+            advantage=None,
         )
 
     def calculate_discounted_cumulative_rewards(

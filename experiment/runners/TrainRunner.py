@@ -1,7 +1,11 @@
 from typing import Any
 import torch
 from lightning import Trainer
-from lightning.pytorch.callbacks import ModelCheckpoint, DeviceStatsMonitor
+from lightning.pytorch.callbacks import (
+    ModelCheckpoint,
+    DeviceStatsMonitor,
+    EarlyStopping,
+)
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.strategies import DeepSpeedStrategy
 from pytorch_lightning.utilities.deepspeed import (
@@ -76,6 +80,9 @@ class TrainRunner(Runner, HasTokenizer):
                 + "_best-checkpoint-{epoch:02d}-{val_loss:.2f}",
             ),
             DeviceStatsMonitor(),
+            EarlyStopping(
+                monitor="val_loss", patience=1, mode="min", min_delta=0.00, verbose=True
+            ),
         ]
 
         trainer_args = self._get_trainer_args(callbacks, seed)
@@ -85,7 +92,7 @@ class TrainRunner(Runner, HasTokenizer):
 
         return Trainer(**trainer_args)
 
-    def _get_trainer_args(self, callbacks: list, seed) -> dict[str, Any]:
+    def _get_trainer_args(self, callbacks: list, seed: int) -> dict[str, Any]:
         wandb_logger = None
         if self.experiment_config.enable_logging:
             wandb_logger = WandbLogger(
@@ -109,7 +116,6 @@ class TrainRunner(Runner, HasTokenizer):
             "gradient_clip_val": 0.5,
             "accumulate_grad_batches": grad_acc_steps,
             "devices": "auto",
-            "max_time": {"hours": 18},
         }
 
     def _get_cuda_specific_args(self) -> dict[str, Any]:

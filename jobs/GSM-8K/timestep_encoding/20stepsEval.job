@@ -13,7 +13,6 @@ cd $HOME/Letting-NNs-Think
 
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
-  --finetune-layers "all" \
   --make-layers-recurrent 11 \
   --use-time-embedding \
   --num-steps 20 \

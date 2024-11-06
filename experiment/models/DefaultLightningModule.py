@@ -1,3 +1,4 @@
+import math
 from lightning import LightningModule
 from transformers import PreTrainedTokenizer
 from torch.optim import AdamW
@@ -36,34 +37,49 @@ class DefaultLightningModule(LightningModule):
         return self.model.generate(*args, **kwargs)
 
     def configure_optimizers(self):
+        adam_params = {
+            "lr": self.config.learning_rate,
+            "betas": (0.9, 0.95),
+            "weight_decay": 0.1,
+        }
         # Choose optimizer based on GPU availability
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
+            optimizer = DeepSpeedCPUAdam(
+                self.parameters(), **adam_params, adamw_mode=True
+            )
         else:
-            optimizer = AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
+            optimizer = AdamW(self.parameters(), **adam_params)
 
-        # Define the number of warmup steps (e.g., 10% of total training steps)
-        warmup_steps = 200  # Adjust this value based on your training setup
-        total_steps = 2000  # Total number of training steps (adjust as needed)
+        # Define the number of warmup steps and total steps
+        warmup_steps = 500
+        total_steps = 5000
+        min_lr_factor = 0.1  # Final learning rate will be 10% of max
 
-        # Create a lambda function for linear warmup
         def lr_lambda(current_step):
             if current_step < warmup_steps:
+                # Linear warmup
                 return float(current_step) / float(max(1, warmup_steps))
-            return 1.0  # After warmup, keep the learning rate constant
+            else:
+                # One-way cosine decay after warmup
+                progress = min(
+                    1.0, (current_step - warmup_steps) / (total_steps - warmup_steps)
+                )
+                # Only use the first half of the cosine curve (from 0 to π)
+                cosine_decay = 0.5 * (1.0 + math.cos(min(math.pi, progress * math.pi)))
+                # Scale the decay to range from 1.0 to min_lr_factor
+                return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
 
         # Create the scheduler with the lambda function
         scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda)
 
-        # Return optimizer and scheduler
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "interval": "step",  # or 'epoch' if you prefer to update per epoch
-                "frequency": 1,  # How often to update the learning rate (1 means every step/epoch)
+                "interval": "step",
+                "frequency": 1,
             },
         }
 
@@ -90,7 +106,6 @@ class DefaultLightningModule(LightningModule):
         outputs = self.model(**batch)
         loss = outputs.loss
 
-        # Log metrics
         self.metrics_logger.log_loss(loss, mode)
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 

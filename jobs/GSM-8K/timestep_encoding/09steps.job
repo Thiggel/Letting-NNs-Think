@@ -14,10 +14,10 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
-  --finetune-layers "all" \
+  --finetune-layers 11 \
   --use-time-embedding \
   --make-layers-recurrent 11 \
-  --max-epochs 3 \
+  --max-epochs 6 \
   --num-steps 9 \
   --batch-size 1 \
   --experiment-name GSM8K_9Step_TimeEmbedding \
