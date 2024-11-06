@@ -1,5 +1,5 @@
 module purge
-module load cuda12.3/toolkit/12.3
+module load cuda12.1/toolkit/12.1
 
 export SCRATCH_LOCAL="/var/scratch/flaitenb/"
 

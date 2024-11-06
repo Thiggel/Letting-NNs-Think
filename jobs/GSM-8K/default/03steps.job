@@ -1,10 +1,9 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu
-#SBATCH --gpus=4
+#SBATCH --gres=gpu:4
+#SBATCH -C A5000
 #SBATCH --job-name=GSM8K_3Steps
 #SBATCH --ntasks-per-node=4
-#SBATCH --cpus-per-task=18
 #SBATCH --time=30:00:00
 #SBATCH --output=job_logs/GSM8K_3Steps_%A.out
 

@@ -9,7 +9,7 @@ class ExperimentMode(str, Enum):
 
 class ExperimentConfig(BaseModel):
     experiment_name: str = Field("default", description="Name of the experiment")
-    seeds: list[int] = Field([1, 2, 3], description="Random seeds to use")
+    seeds: list[int] = Field([1], description="Random seeds to use")
     num_runs: int = Field(1, description="Number of runs to perform")
     enable_logging: bool = Field(False, description="Enable wandb logging")
     continue_on_error: bool = Field(False, description="Continue if a run fails")
