@@ -15,8 +15,8 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
-  --finetune-layers "all" \
-  --max-epochs 3 \
+  --finetune-layers 11 \
+  --max-epochs 6 \
   --batch-size 1 \
   --experiment-name GSM8K_1Step \
   --save-to-checkpoint GSM8K_1Step
