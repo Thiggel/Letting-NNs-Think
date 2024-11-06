@@ -1,12 +1,11 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu
-#SBATCH --gpus=4
-#SBATCH --job-name=GSM8K_9Steps
+#SBATCH -C A5000
+#SBATCH --gres=gpu:4
+#SBATCH --job-name=GSM8K_9Steps_TimeEmbedding
 #SBATCH --ntasks-per-node=4
-#SBATCH --cpus-per-task=18
 #SBATCH --time=30:00:00
-#SBATCH --output=job_logs/GSM8K_9Steps_%A.out
+#SBATCH --output=job_logs/GSM8K_9Steps_TimeEmbedding_%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -21,5 +20,6 @@ srun python -m experiment \
   --max-epochs 3 \
   --num-steps 9 \
   --batch-size 1 \
-  --experiment-name GSM8K_9Step \
-  --save-to-checkpoint GSM8K_9Step
+  --experiment-name GSM8K_9Step_TimeEmbedding \
+  --enable-logging \
+  --save-to-checkpoint GSM8K_9Step_TimeEmbedding

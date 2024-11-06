@@ -24,7 +24,7 @@ class ModelEvaluator:
         wrapped_model = HFLM(
             pretrained=self.model,
             tokenizer=self.tokenizer,
-            batch_size=64,
+            batch_size=16,
             max_length=512,
             backend="causal",
         )
@@ -33,7 +33,7 @@ class ModelEvaluator:
             model=wrapped_model,
             tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
             num_fewshot=0,
-            batch_size=64,
+            batch_size=16,
             random_seed=seed,
             numpy_random_seed=seed,
             torch_random_seed=seed,
@@ -42,15 +42,4 @@ class ModelEvaluator:
             log_samples=True,
         )
 
-        self._save_samples(output["samples"], seed, experiment_name)
         return output["results"]
-
-    def _save_samples(self, samples: dict, seed, experiment_name):
-        try:
-            sample_dir = Path(os.environ["BASE_CACHE_DIR"]) / "samples"
-            sample_dir.mkdir(exist_ok=True)
-
-            sample_path = sample_dir / f"{experiment_name}_{seed}.json"
-            sample_path.write_text(json.dumps(samples))
-        except Exception as e:
-            print(f"Failed to save samples: {e}")
