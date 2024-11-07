@@ -18,4 +18,5 @@ srun python -m experiment \
   --max-epochs 6 \
   --batch-size 1 \
   --experiment-name GSM8K_1Step \
-  --save-to-checkpoint GSM8K_1Step
+  --save-to-checkpoint GSM8K_1Step \
+  --enable-logging

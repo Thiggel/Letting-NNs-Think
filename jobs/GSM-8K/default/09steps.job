@@ -20,4 +20,5 @@ srun python -m experiment \
   --num-steps 9 \
   --batch-size 1 \
   --experiment-name GSM8K_9Step \
-  --save-to-checkpoint GSM8K_9Step
+  --save-to-checkpoint GSM8K_9Step \
+  --enable_logging

@@ -20,4 +20,5 @@ srun python -m experiment \
   --num-steps 3 \
   --batch-size 1 \
   --experiment-name GSM8K_3Step \
-  --save-to-checkpoint GSM8K_3Step
+  --save-to-checkpoint GSM8K_3Step \
+  --enable_logging
