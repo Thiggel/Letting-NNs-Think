@@ -7,7 +7,7 @@ from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
-from experiment.configs import ModelConfig
+from experiment.configs import ModelConfig, TrainingConfig, DataConfig
 
 from .ModelAdapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
@@ -19,10 +19,14 @@ class DefaultLightningModule(LightningModule):
     def __init__(
         self,
         config: ModelConfig,
+        training_config: TrainingConfig,
+        data_config: DataConfig,
         tokenizer: Optional[PreTrainedTokenizer] = None,
     ):
         super().__init__()
         self.config = config
+        self.training_config = training_config
+        self.data_config = data_config
         self.tokenizer = tokenizer
 
         # Initialize components
@@ -53,8 +57,8 @@ class DefaultLightningModule(LightningModule):
             optimizer = AdamW(self.parameters(), **adam_params)
 
         # Define the number of warmup steps and total steps
-        warmup_steps = 500
-        total_steps = 5000
+        total_steps = 1000
+        warmup_steps = total_steps // 10
         min_lr_factor = 0.1  # Final learning rate will be 10% of max
 
         def lr_lambda(current_step):

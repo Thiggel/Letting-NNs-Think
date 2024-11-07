@@ -11,8 +11,9 @@ class MetricsLogger:
         self.module = lightning_module
 
     def log_loss(self, loss: torch.Tensor, mode: str):
-        self.module.log_dict(
-            {f"{mode}_loss": loss, "train_step": self.module.global_step},
+        self.module.log(
+            f"{mode}_loss",
+            loss,
             on_step=(mode == "train"),
             on_epoch=True,
             prog_bar=True,

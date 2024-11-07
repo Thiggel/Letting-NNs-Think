@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --job-name=GSM8K_5Steps_TimeEmbedding
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=30:00:00
+#SBATCH --output=job_logs/GSM8K_5Steps_TimeEmbedding_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "google/gemma-2-2b" \
+  --dataset gsm8k \
+  --finetune-layers 11 \
+  --use-time-embedding \
+  --make-layers-recurrent 11 \
+  --max-epochs 6 \
+  --num-steps 5 \
+  --batch-size 8 \
+  --experiment-name GSM8K_5Step_TimeEmbedding \
+  --enable-logging \
+  --save-to-checkpoint GSM8K_5Step_TimeEmbedding

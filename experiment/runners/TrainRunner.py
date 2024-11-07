@@ -5,6 +5,7 @@ from lightning.pytorch.callbacks import (
     ModelCheckpoint,
     DeviceStatsMonitor,
     EarlyStopping,
+    LearningRateMonitor,
 )
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.strategies import DeepSpeedStrategy
@@ -49,7 +50,9 @@ class TrainRunner(Runner, HasTokenizer):
             self.tokenizer,
             seed,
         )
-        model = DefaultLightningModule(self.model_config, self.tokenizer)
+        model = DefaultLightningModule(
+            self.model_config, self.training_config, self.data_config, self.tokenizer
+        )
         trainer = self._setup_trainer(seed)
 
         trainer.fit(model=model, datamodule=data_module)
@@ -83,6 +86,7 @@ class TrainRunner(Runner, HasTokenizer):
             EarlyStopping(
                 monitor="val_loss", patience=1, mode="min", min_delta=0.00, verbose=True
             ),
+            LearningRateMonitor(logging_interval="step"),
         ]
 
         trainer_args = self._get_trainer_args(callbacks, seed)
@@ -112,6 +116,7 @@ class TrainRunner(Runner, HasTokenizer):
             "callbacks": callbacks,
             "enable_checkpointing": True,
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
+            "log_every_n_steps": 10,
             "max_epochs": self.training_config.max_epochs,
             "gradient_clip_val": 0.5,
             "accumulate_grad_batches": grad_acc_steps,
@@ -129,7 +134,7 @@ class TrainRunner(Runner, HasTokenizer):
 
         return {
             "strategy": DeepSpeedStrategy(config=deepspeed_config),
-            "precision": 16,
+            "precision": "16-mixed",
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
         }
 

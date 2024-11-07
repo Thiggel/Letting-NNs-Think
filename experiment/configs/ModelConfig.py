@@ -35,7 +35,7 @@ class ModelConfig(BaseModel):
     finetune_layers: Optional[Union[Literal["all"], list[int]]] = Field(
         None, description="The layers to fine-tune"
     )
-    learning_rate: float = Field(5e-5, description="The learning rate for the model")
+    learning_rate: float = Field(1e-4, description="The learning rate for the model")
     make_layers_recurrent: Optional[Annotated[str, LayerRange]] = Field(
         None, description="The layers to make recurrent (e.g., '5' or '2:4')"
     )
