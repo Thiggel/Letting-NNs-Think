@@ -51,6 +51,7 @@ class EvaluationRunner(Runner, HasTokenizer):
                 os.environ["BASE_CACHE_DIR"],
                 f"{self.evaluation_config.load_from_checkpoint}_{seed}.pt",
             )
+            print("Loading from checkpoint", checkpoint_path)
             return DefaultLightningModule.load_from_checkpoint(
                 checkpoint_path,
                 config=self.model_config,
