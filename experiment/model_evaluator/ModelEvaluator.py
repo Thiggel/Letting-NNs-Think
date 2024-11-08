@@ -24,7 +24,7 @@ class ModelEvaluator:
         wrapped_model = HFLM(
             pretrained=self.model,
             tokenizer=self.tokenizer,
-            batch_size=16,
+            batch_size=64,
             max_length=512,
             backend="causal",
         )
@@ -33,7 +33,7 @@ class ModelEvaluator:
             model=wrapped_model,
             tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
             num_fewshot=0,
-            batch_size=16,
+            batch_size=64,
             random_seed=seed,
             numpy_random_seed=seed,
             torch_random_seed=seed,

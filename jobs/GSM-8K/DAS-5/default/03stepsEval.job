@@ -18,4 +18,4 @@ srun python -m experiment \
   --evaluation-metrics gsm8k \
   --load_from_checkpoint GSM8K_3Step \
   --experiment-name GSM8K_3Step \
-  --enable_logging
+  --enable-logging
