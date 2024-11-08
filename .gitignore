@@ -172,3 +172,4 @@ wandb
 tmp*
 *.swp
 *.swo
+jobs/environment.sh

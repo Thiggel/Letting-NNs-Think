@@ -53,8 +53,8 @@ class DefaultLightningModule(LightningModule):
             optimizer = AdamW(self.parameters(), **adam_params)
 
         # Define the number of warmup steps and total steps
-        warmup_steps = 500
-        total_steps = 5000
+        total_steps = 1000
+        warmup_steps = total_steps // 10
         min_lr_factor = 0.1  # Final learning rate will be 10% of max
 
         def lr_lambda(current_step):

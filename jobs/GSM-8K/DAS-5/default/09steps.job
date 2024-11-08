@@ -2,10 +2,10 @@
 
 #SBATCH --gres=gpu:4
 #SBATCH -C A5000
-#SBATCH --job-name=GSM8K_7Steps
+#SBATCH --job-name=GSM8K_9Steps
 #SBATCH --ntasks-per-node=4
 #SBATCH --time=30:00:00
-#SBATCH --output=job_logs/GSM8K_7Steps_%A.out
+#SBATCH --output=job_logs/GSM8K_9Steps_%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -17,7 +17,8 @@ srun python -m experiment \
   --finetune-layers 11 \
   --make-layers-recurrent 11 \
   --max-epochs 6 \
-  --num-steps 7 \
+  --num-steps 9 \
   --batch-size 1 \
-  --experiment-name GSM8K_7Step \
-  --save-to-checkpoint GSM8K_7Step
+  --experiment-name GSM8K_9Step \
+  --save-to-checkpoint GSM8K_9Step \
+  --enable_logging

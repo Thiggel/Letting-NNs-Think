@@ -1,9 +1,10 @@
 #!/bin/bash
 
-#SBATCH --gres=gpu:4
-#SBATCH -C A5000
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
 #SBATCH --job-name=GSM8K_20Steps
-#SBATCH --ntasks-per-node=4
+#SBATCH --ntasks-per-node=1
 #SBATCH --time=30:00:00
 #SBATCH --output=job_logs/GSM8K_20Steps_%A.out
 
@@ -18,6 +19,7 @@ srun python -m experiment \
   --make-layers-recurrent 11 \
   --max-epochs 6 \
   --num-steps 20 \
-  --batch-size 1 \
+  --batch-size 8 \
   --experiment-name GSM8K_20Step \
-  --save-to-checkpoint GSM8K_20Step
+  --save-to-checkpoint GSM8K_20Step \
+  --enable-logging
