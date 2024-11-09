@@ -7,7 +7,7 @@ from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
-from experiment.configs import ModelConfig
+from experiment.configs import ModelConfig, TrainingConfig
 
 from .ModelAdapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
@@ -19,10 +19,12 @@ class DefaultLightningModule(LightningModule):
     def __init__(
         self,
         config: ModelConfig,
+        training_config: TrainingConfig,
         tokenizer: Optional[PreTrainedTokenizer] = None,
     ):
         super().__init__()
         self.config = config
+        self.training_config = training_config
         self.tokenizer = tokenizer
 
         # Initialize components
@@ -36,43 +38,36 @@ class DefaultLightningModule(LightningModule):
     def generate(self, *args, **kwargs):
         return self.model.generate(*args, **kwargs)
 
+    def lr_lambda(self, current_step: int) -> float:
+        """Get the learning rate for the given step using a lambda function"""
+        warmup_steps = self.training_config.warmup_steps
+        total_steps = self.training_config.total_training_steps
+        min_lr_factor = 0.1
+
+        if current_step < warmup_steps:
+            return float(current_step) / float(max(1, warmup_steps))
+        else:
+            progress = min(
+                1.0, (current_step - warmup_steps) / (total_steps - warmup_steps)
+            )
+            cosine_decay = 0.5 * (1.0 + math.cos(min(math.pi, progress * math.pi)))
+            return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
+
     def configure_optimizers(self):
         adam_params = {
-            "lr": self.config.learning_rate,
+            "lr": self.training_config.learning_rate,
             "betas": (0.9, 0.95),
-            "weight_decay": 0.1,
+            "weight_decay": 0.001,
         }
-        # Choose optimizer based on GPU availability
+
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(
-                self.parameters(), **adam_params, adamw_mode=True
-            )
+            optimizer = DeepSpeedCPUAdam(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
         else:
-            optimizer = AdamW(self.parameters(), **adam_params)
+            optimizer = AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
 
-        # Define the number of warmup steps and total steps
-        total_steps = 1000
-        warmup_steps = total_steps // 10
-        min_lr_factor = 0.1  # Final learning rate will be 10% of max
-
-        def lr_lambda(current_step):
-            if current_step < warmup_steps:
-                # Linear warmup
-                return float(current_step) / float(max(1, warmup_steps))
-            else:
-                # One-way cosine decay after warmup
-                progress = min(
-                    1.0, (current_step - warmup_steps) / (total_steps - warmup_steps)
-                )
-                # Only use the first half of the cosine curve (from 0 to π)
-                cosine_decay = 0.5 * (1.0 + math.cos(min(math.pi, progress * math.pi)))
-                # Scale the decay to range from 1.0 to min_lr_factor
-                return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
-
-        # Create the scheduler with the lambda function
-        scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda)
+        scheduler = LambdaLR(optimizer, lr_lambda=self.lr_lambda)
 
         return {
             "optimizer": optimizer,

@@ -32,10 +32,6 @@ class ModelConfig(BaseModel):
     """Configuration for model architecture and behavior"""
 
     model_name: str = Field("gpt2", description="The model name to be used")
-    finetune_layers: Optional[Union[Literal["all"], list[int]]] = Field(
-        None, description="The layers to fine-tune"
-    )
-    learning_rate: float = Field(1e-4, description="The learning rate for the model")
     make_layers_recurrent: Optional[Annotated[str, LayerRange]] = Field(
         None, description="The layers to make recurrent (e.g., '5' or '2:4')"
     )
@@ -61,3 +57,9 @@ class ModelConfig(BaseModel):
         False, description="Whether to use a time embedding in the model"
     )
     use_gating: bool = Field(False, description="Whether to use a gating in the model")
+    lora_r: int = Field(8, description="The LoRA rank")
+    lora_alpha: int = Field(16, description="The LoRA alpha")
+    lora_target_modules: list[str] = Field(
+        ["q_proj", "v_proj"], description="The target modules for LoRA"
+    )
+    lora_dropout: float = Field(0.05, description="The LoRA dropout rate")

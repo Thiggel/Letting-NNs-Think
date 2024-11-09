@@ -50,8 +50,12 @@ class TrainRunner(Runner, HasTokenizer):
             self.tokenizer,
             seed,
         )
-        model = DefaultLightningModule(self.model_config, self.tokenizer)
+        model = DefaultLightningModule(
+            self.model_config, self.training_config, self.tokenizer
+        )
         trainer = self._setup_trainer(seed)
+
+        print(model)
 
         trainer.fit(model=model, datamodule=data_module)
 

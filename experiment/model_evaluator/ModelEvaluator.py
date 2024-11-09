@@ -74,17 +74,31 @@ class ModelEvaluator:
 
         # Only save results on main process
         if dist.get_rank() == 0:
-            output_dir = Path("evaluation_results")
-            output_dir.mkdir(exist_ok=True)
-
-            results_path = output_dir / f"{experiment_name}.json"
-            with results_path.open("w") as f:
-                json.dump(output["results"], f, indent=2)
+            self._save_samples(output["samples"], seed, experiment_name)
+            self._save_results(output["results"], experiment_name)
 
         # Make sure all processes are synced
         dist.barrier()
 
         return output["results"]
+
+    def _save_results(self, results: dict, experiment_name: str):
+        output_dir = Path(os.getenv("BASE_CACHE_DIR") or "") / "evaluation_results"
+        output_dir.mkdir(exist_ok=True)
+
+        results_path = output_dir / f"{experiment_name}.json"
+        with results_path.open("w") as f:
+            json.dump(results, f, indent=2)
+
+    def _save_samples(self, samples: dict, seed, experiment_name):
+        try:
+            sample_dir = Path(os.environ["BASE_CACHE_DIR"] or "") / "samples"
+            sample_dir.mkdir(exist_ok=True)
+
+            sample_path = sample_dir / f"{experiment_name}_{seed}.json"
+            sample_path.write_text(json.dumps(samples))
+        except Exception as e:
+            print(f"Failed to save samples: {e}")
 
     def __del__(self):
         # Cleanup distributed process group

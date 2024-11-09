@@ -15,9 +15,9 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
-  --finetune-layers 11 \
+  --finetune-layers -1 \
   --use-time-embedding \
-  --make-layers-recurrent 11 \
+  --make-layers-recurrent -1 \
   --max-epochs 6 \
   --num-steps 5 \
   --batch-size 8 \
@@ -27,7 +27,7 @@ srun python -m experiment \
 
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
-  --make-layers-recurrent 11 \
+  --make-layers-recurrent -1 \
   --use-time-embedding \
   --num-steps 5 \
   --mode evaluate \

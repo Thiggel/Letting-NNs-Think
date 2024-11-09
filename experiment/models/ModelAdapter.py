@@ -1,6 +1,6 @@
 from transformers import AutoModelForCausalLM
 from torch import nn
-
+from peft import get_peft_model, LoraConfig, TaskType
 from experiment.layers import (
     MambaTransformerLayer,
     GatedGemmaDecoderLayer,
@@ -11,10 +11,20 @@ from experiment.configs import ModelConfig
 
 
 class ModelAdapter:
-    """Handles model initialization and modification"""
+    """Handles model initialization and modification with LoRA support"""
 
     def __init__(self, config: ModelConfig):
         self.config = config
+
+        self.lora_config = LoraConfig(
+            r=self.config.lora_r,
+            lora_alpha=self.config.lora_alpha,
+            target_modules=self.config.lora_target_modules,
+            lora_dropout=self.config.lora_dropout,
+            bias="none",
+            task_type=TaskType.CAUSAL_LM,
+        )
+
         self.model = self._initialize_model()
         self._configure_model()
 
@@ -24,28 +34,22 @@ class ModelAdapter:
         )
         model.use_cache = False
         model.train()
+        model = get_peft_model(model, self.lora_config)
+        model.print_trainable_parameters()
+
         return model
 
     def _configure_model(self):
-        self._setup_finetuning()
+        # No need for _setup_finetuning anymore since we're using LoRA
         if self.config.make_layers_recurrent is not None:
             self._add_recurrence()
-
-    def _setup_finetuning(self):
-        """Configure which layers should be trainable"""
-        if self.config.finetune_layers != "all":
-            for param in self.model.parameters():
-                param.requires_grad = False
-
-            if self.config.finetune_layers is not None:
-                for i in self.config.finetune_layers:
-                    for param in self.model.model.layers[i].parameters():
-                        param.requires_grad = True
 
     def _add_recurrence(self):
         """Add recurrent layers to the model"""
         start, end = self._get_recurrent_layer_range()
-        layers = self.model.model.layers[start:end]
+        layers = self.model.base_model.model.model.layers[
+            start:end
+        ]  # Note the path change for PEFT model
 
         if self.config.recurrent_mode == "mamba":
             recurrent_layer = self._create_mamba_layer(len(layers))
@@ -54,7 +58,7 @@ class ModelAdapter:
         else:
             recurrent_layer = SequentialTransformerLayer(*layers)
 
-        self.model.model.layers[start] = RecurrentTransformerLayer(
+        self.model.base_model.model.model.layers[start] = RecurrentTransformerLayer(
             recurrent_layer,
             config=self.config,
             hidden_size=self.model.config.hidden_size,
@@ -62,20 +66,17 @@ class ModelAdapter:
 
         # Remove the original layers that were made recurrent
         for i in range(start + 1, end):
-            self.model.model.layers.pop(i)
+            self.model.base_model.model.model.layers.pop(i)
 
         self.recurrent_layer_idx = start
 
     def _get_recurrent_layer_range(self) -> tuple[int, int]:
         if self.config.make_layers_recurrent is None:
             return 0, 0
-
         if ":" in self.config.make_layers_recurrent:
             start, end = map(int, self.config.make_layers_recurrent.split(":"))
             return start, end
-
         start = int(self.config.make_layers_recurrent)
-
         return start, start + 1
 
     def _create_mamba_layer(self, num_layers: int) -> SequentialTransformerLayer:
@@ -96,4 +97,6 @@ class ModelAdapter:
             new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
             new_layer.mlp.load_state_dict(layer.mlp.state_dict())
             new_layers.append(new_layer)
+            new_layer = get_peft_model(new_layer, self.lora_config)
+
         return SequentialTransformerLayer(*new_layers)

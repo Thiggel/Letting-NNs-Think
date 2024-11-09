@@ -2,6 +2,7 @@ import math
 from lightning import LightningModule
 import torch
 from deepspeed.utils import safe_get_full_grad
+from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 
 class MetricsLogger:
@@ -20,15 +21,27 @@ class MetricsLogger:
             sync_dist=True,
         )
 
+    def accuracy(
+        self,
+        outputs: CausalLMOutputWithCrossAttentions,
+        labels: torch.Tensor,
+    ) -> float:
+        predictions = outputs.logits.argmax(dim=-1)
+        mask = labels != -100
+        correct = ((predictions == labels) & mask).sum().item()
+        total = mask.sum().item()
+        accuracy = correct / total if total > 0 else 0
+
+        return accuracy
+
     def log_metrics(self, loss: torch.Tensor, outputs, labels: torch.Tensor, mode: str):
         if mode == "train":
             return
 
         perplexity = math.exp(loss.item())
+        accuracy = self.accuracy(outputs, labels)
 
-        metrics = {
-            f"{mode}_perplexity": perplexity,
-        }
+        metrics = {f"{mode}_perplexity": perplexity, f"{mode}_accuracy": accuracy}
 
         for name, value in metrics.items():
             self.module.log(

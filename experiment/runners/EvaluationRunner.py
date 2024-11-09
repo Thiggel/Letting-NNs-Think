@@ -55,15 +55,18 @@ class EvaluationRunner(Runner, HasTokenizer):
             return DefaultLightningModule.load_from_checkpoint(
                 checkpoint_path,
                 config=self.model_config,
+                training_config=self.training_config,
                 tokenizer=self.tokenizer,
                 strict=False,
             )
         else:
-            return DefaultLightningModule(self.model_config, self.tokenizer)
+            return DefaultLightningModule(
+                self.model_config, self.training_config, self.tokenizer
+            )
 
     def _log_results(self, results: dict[str, Any], seed):
         wandb.init(
-            project="variable-depth-lms",
+            project="variable-depth-lms2",
             name=f"{self.experiment_config.experiment_name}_{seed}",
             group=self.experiment_config.experiment_name,
         )
