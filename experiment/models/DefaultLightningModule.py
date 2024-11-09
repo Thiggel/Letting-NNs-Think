@@ -21,6 +21,7 @@ class DefaultLightningModule(LightningModule):
         config: ModelConfig,
         training_config: TrainingConfig,
         tokenizer: Optional[PreTrainedTokenizer] = None,
+        model_adapter: Optional[ModelAdapter] = None,
     ):
         super().__init__()
         self.config = config
@@ -28,8 +29,13 @@ class DefaultLightningModule(LightningModule):
         self.tokenizer = tokenizer
 
         # Initialize components
-        self.model_adapter = ModelAdapter(config)
-        self.model = self.model_adapter.model
+        if model_adapter is not None:
+            self.model_adapter = model_adapter
+            self.model = model_adapter.model
+        else:
+            self.model_adapter = ModelAdapter(config)
+            self.model = self.model_adapter.model
+
         self.metrics_logger = MetricsLogger(self)
 
     def forward(self, input_ids, attention_mask=None, labels=None):
@@ -63,9 +69,11 @@ class DefaultLightningModule(LightningModule):
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
+            optimizer = DeepSpeedCPUAdam(
+                self.parameters(), **adam_params, adamw_mode=True
+            )
         else:
-            optimizer = AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95))
+            optimizer = AdamW(self.parameters(), **adam_params)
 
         scheduler = LambdaLR(optimizer, lr_lambda=self.lr_lambda)
 

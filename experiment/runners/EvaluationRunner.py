@@ -9,6 +9,7 @@ from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
 from experiment.model_evaluator import ModelEvaluator
+from experiment.models.ModelAdapter import ModelAdapter
 
 from .HasTokenizer import HasTokenizer
 
@@ -52,12 +53,13 @@ class EvaluationRunner(Runner, HasTokenizer):
                 f"{self.evaluation_config.load_from_checkpoint}_{seed}.pt",
             )
             print("Loading from checkpoint", checkpoint_path)
+            model_adapter = ModelAdapter(self.model_config)
             return DefaultLightningModule.load_from_checkpoint(
                 checkpoint_path,
                 config=self.model_config,
                 training_config=self.training_config,
                 tokenizer=self.tokenizer,
-                strict=False,
+                model_adapter=model_adapter,
             )
         else:
             return DefaultLightningModule(

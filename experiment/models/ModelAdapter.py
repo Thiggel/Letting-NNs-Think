@@ -40,16 +40,13 @@ class ModelAdapter:
         return model
 
     def _configure_model(self):
-        # No need for _setup_finetuning anymore since we're using LoRA
         if self.config.make_layers_recurrent is not None:
             self._add_recurrence()
 
     def _add_recurrence(self):
         """Add recurrent layers to the model"""
         start, end = self._get_recurrent_layer_range()
-        layers = self.model.base_model.model.model.layers[
-            start:end
-        ]  # Note the path change for PEFT model
+        layers = self.model.base_model.model.model.layers[start:end]
 
         if self.config.recurrent_mode == "mamba":
             recurrent_layer = self._create_mamba_layer(len(layers))
