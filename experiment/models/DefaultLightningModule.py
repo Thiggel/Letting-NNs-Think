@@ -42,11 +42,7 @@ class DefaultLightningModule(LightningModule):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
     def generate(self, *args, **kwargs):
-        generated = self.model.generate(*args, **kwargs)
-        decoded = self.tokenizer.decode(generated[0], skip_special_tokens=True)
-        print(decoded)
-        print()
-        return generated
+        return self.model.generate(*args, **kwargs)
 
     def lr_lambda(self, current_step: int) -> float:
         """Get the learning rate for the given step using a lambda function"""
@@ -57,8 +53,6 @@ class DefaultLightningModule(LightningModule):
         if current_step < warmup_steps:
             return float(current_step) / float(max(1, warmup_steps))
         else:
-            return 1.0
-
             progress = min(
                 1.0, (current_step - warmup_steps) / (total_steps - warmup_steps)
             )
@@ -69,7 +63,7 @@ class DefaultLightningModule(LightningModule):
         adam_params = {
             "lr": self.training_config.learning_rate,
             "betas": (0.9, 0.95),
-            # "weight_decay": 0.001,
+            "weight_decay": 0.001,
         }
 
         if torch.cuda.is_available():
@@ -122,15 +116,6 @@ class DefaultLightningModule(LightningModule):
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")
-
-    def on_validation_epoch_end(self):
-        string = "Henry and 3 of his friends order 7 pizzas for lunch. Each pizza is cut into 8 slices. If Henry and his friends want to share the pizzas equally, how many slices can each of them have?"
-        tokenized = self.tokenizer.encode(string, return_tensors="pt").cuda()
-        generated = self.model.generate(tokenized, max_length=500)
-        decoded = self.tokenizer.decode(generated[0], skip_special_tokens=True)
-        print("QUESTION: ", string)
-        print("\nANSWER: ", decoded)
-        print()
 
     def validation_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="val")
