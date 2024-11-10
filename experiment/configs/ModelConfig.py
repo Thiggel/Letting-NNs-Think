@@ -63,4 +63,4 @@ class ModelConfig(BaseModel):
         ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         description="The target modules for LoRA",
     )
-    lora_dropout: float = Field(0.05, description="The LoRA dropout rate")
+    lora_dropout: float = Field(0.0, description="The LoRA dropout rate")

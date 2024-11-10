@@ -106,6 +106,7 @@ class TrainRunner(Runner, HasTokenizer):
                 name=f"{self.experiment_config.experiment_name}_{seed}",
                 group=self.experiment_config.experiment_name,
                 save_dir=os.environ["WANDB_DIR"],
+                log_model="all",
             )
 
         grad_acc_steps = (
