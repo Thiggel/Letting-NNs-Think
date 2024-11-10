@@ -121,7 +121,7 @@ class TrainRunner(Runner, HasTokenizer):
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
             "log_every_n_steps": 10,
             "max_epochs": self.training_config.max_epochs,
-            "gradient_clip_val": 0.5,
+            "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": grad_acc_steps,
             "devices": "auto",
         }
@@ -132,12 +132,12 @@ class TrainRunner(Runner, HasTokenizer):
                 "stage": 3,
                 "offload_optimizer": {"device": "cpu"},
             },
-            "fp16": {"enabled": True},
+            # "fp16": {"enabled": True}, # may have corrupted the model
         }
 
         return {
             "strategy": DeepSpeedStrategy(config=deepspeed_config),
-            "precision": "16-mixed",
+            # "precision": "16-mixed", # may have corrupted the model
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
         }
 

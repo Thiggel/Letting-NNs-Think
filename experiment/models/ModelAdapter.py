@@ -34,7 +34,12 @@ class ModelAdapter:
         )
         model.use_cache = False
         model.train()
-        model = get_peft_model(model, self.lora_config)
+        if self.config.finetune_mode == "lora":
+            print("Using LoRA")
+            model = get_peft_model(model, self.lora_config)
+        elif self.config.finetune_mode == "full":
+            print("Using full finetuning")
+
         model.print_trainable_parameters()
 
         return model

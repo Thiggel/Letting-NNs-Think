@@ -28,6 +28,11 @@ class RecurrentMode(str, Enum):
     TRANSFORMER = "transformer"
 
 
+class FinetuneMode(str, Enum):
+    FULL = "full"
+    LORA = "lora"
+
+
 class ModelConfig(BaseModel):
     """Configuration for model architecture and behavior"""
 
@@ -57,6 +62,9 @@ class ModelConfig(BaseModel):
         False, description="Whether to use a time embedding in the model"
     )
     use_gating: bool = Field(False, description="Whether to use a gating in the model")
+    finetune_mode: FinetuneMode = Field(
+        "full", description="The finetuning mode to use"
+    )
     lora_r: int = Field(8, description="The LoRA rank")
     lora_alpha: int = Field(1, description="The LoRA alpha")
     lora_target_modules: list[str] = Field(
