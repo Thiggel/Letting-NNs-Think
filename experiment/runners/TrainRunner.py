@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from experiment.experiment import Runner
 from experiment.datasets import LanguageDataModule
+from experiment.model_evaluator import ModelEvaluator
 from experiment.models import DefaultLightningModule
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
@@ -59,6 +60,8 @@ class TrainRunner(Runner, HasTokenizer):
 
         trainer.fit(model=model, datamodule=data_module)
 
+        results = self._evaluate(model, seed)
+
         if (
             self.evaluation_config.save_to_checkpoint
             and trainer.checkpoint_callback
@@ -66,7 +69,19 @@ class TrainRunner(Runner, HasTokenizer):
         ):
             self._save_checkpoint(trainer.checkpoint_callback.best_model_path, seed)
 
-        return {}
+        return results
+
+    def _evaluate(self, model, seed: int) -> dict[str, float]:
+        evaluator = ModelEvaluator(model, self.tokenizer)
+        results = evaluator.evaluate(
+            self.evaluation_config.evaluation_metrics or ["gsm8k"],
+            seed,
+            self.experiment_config.experiment_name,
+        )
+        print(results)
+        model.log_dict(results)
+
+        return results
 
     def _setup_trainer(self, seed: int) -> Trainer:
         callbacks = [
