@@ -60,8 +60,6 @@ class TrainRunner(Runner, HasTokenizer):
 
         trainer.fit(model=model, datamodule=data_module)
 
-        results = self._evaluate(model, seed)
-
         if (
             self.evaluation_config.save_to_checkpoint
             and trainer.checkpoint_callback
@@ -69,19 +67,7 @@ class TrainRunner(Runner, HasTokenizer):
         ):
             self._save_checkpoint(trainer.checkpoint_callback.best_model_path, seed)
 
-        return results
-
-    def _evaluate(self, model, seed: int) -> dict[str, float]:
-        evaluator = ModelEvaluator(model, self.tokenizer)
-        results = evaluator.evaluate(
-            self.evaluation_config.evaluation_metrics or ["gsm8k"],
-            seed,
-            self.experiment_config.experiment_name,
-        )
-        print(results)
-        model.log_dict(results)
-
-        return results
+        return {}
 
     def _setup_trainer(self, seed: int) -> Trainer:
         callbacks = [
@@ -142,14 +128,6 @@ class TrainRunner(Runner, HasTokenizer):
         }
 
     def _get_cuda_specific_args(self) -> dict[str, Any]:
-        deepspeed_config = {
-            "zero_optimization": {
-                "stage": 3,
-                "offload_optimizer": {"device": "cpu"},
-            },
-            # "fp16": {"enabled": True}, # may have corrupted the model
-        }
-
         return {
             "strategy": "deepspeed_stage_3_offload",
             # "precision": "16-mixed", # may have corrupted the model

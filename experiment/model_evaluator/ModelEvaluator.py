@@ -1,9 +1,10 @@
 from pathlib import Path
 import json
+from experiment.models import DefaultLightningModule
 from lm_eval import evaluator
 from lm_eval.models.huggingface import HFLM
 import torch
-from transformers import PreTrainedModel, PreTrainedTokenizer
+from transformers import PreTrainedTokenizer
 import os
 
 
@@ -12,7 +13,7 @@ class ModelEvaluator:
 
     def __init__(
         self,
-        model: PreTrainedModel,
+        model: DefaultLightningModule,
         tokenizer: PreTrainedTokenizer,
     ):
         self.model = model
@@ -21,21 +22,21 @@ class ModelEvaluator:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.model = self.model.to(self.device)
+        self.model.eval()
 
     def evaluate(
         self, metrics: list[str], seed: int, experiment_name: str
     ) -> dict[str, float]:
-        # Set up wrapped model for evaluation
         wrapped_model = HFLM(
             pretrained=self.model,
             tokenizer=self.tokenizer,
             batch_size=128,
             max_length=512,
             backend="causal",
-            device=self.device,  # Use assigned device
+            device=self.device,
+            add_bos_token=True,
         )
 
-        # Run evaluation
         output = evaluator.simple_evaluate(
             model=wrapped_model,
             tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
@@ -45,9 +46,12 @@ class ModelEvaluator:
             numpy_random_seed=seed,
             torch_random_seed=seed,
             fewshot_random_seed=seed,
-            device=self.device,  # Use assigned device
+            device=self.device,
             log_samples=True,
         )
+
+        self._save_results(output["results"], experiment_name)
+        self._save_samples(output["samples"], seed, experiment_name)
 
         return output["results"]
 

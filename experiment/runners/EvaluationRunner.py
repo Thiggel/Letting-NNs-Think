@@ -2,6 +2,7 @@ from typing import Any
 from transformers import PreTrainedModel
 import wandb
 import os
+import torch
 from pydantic import BaseModel
 
 from experiment.models import DefaultLightningModule
@@ -34,6 +35,7 @@ class EvaluationRunner(Runner, HasTokenizer):
 
     def run(self, seed: int) -> dict[str, float]:
         model = self._load_model(seed)
+
         evaluator = ModelEvaluator(model, self.tokenizer)
         results = evaluator.evaluate(
             self.evaluation_config.evaluation_metrics or ["gsm8k"],
@@ -53,14 +55,23 @@ class EvaluationRunner(Runner, HasTokenizer):
                 f"{self.evaluation_config.load_from_checkpoint}_{seed}.pt",
             )
             print("Loading from checkpoint", checkpoint_path)
-            model_adapter = ModelAdapter(self.model_config)
-            return DefaultLightningModule.load_from_checkpoint(
-                checkpoint_path,
-                config=self.model_config,
-                training_config=self.training_config,
-                tokenizer=self.tokenizer,
-                model_adapter=model_adapter,
+
+            model = DefaultLightningModule(
+                self.model_config, self.training_config, self.tokenizer
             )
+
+            checkpoint = torch.load(checkpoint_path)
+
+            state_dict = (
+                checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+            )
+
+            model.load_state_dict(state_dict)
+
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model = model.to(device)
+
+            return model
         else:
             return DefaultLightningModule(
                 self.model_config, self.training_config, self.tokenizer
