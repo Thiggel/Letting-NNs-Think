@@ -63,7 +63,7 @@ class ModelConfig(BaseModel):
     )
     use_gating: bool = Field(False, description="Whether to use a gating in the model")
     finetune_mode: FinetuneMode = Field(
-        "lora", description="The finetuning mode to use"
+        "full", description="The finetuning mode to use"
     )
     lora_r: int = Field(8, description="The LoRA rank")
     lora_alpha: int = Field(1, description="The LoRA alpha")

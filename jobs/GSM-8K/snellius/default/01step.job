@@ -15,7 +15,7 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
-  --batch-size 8 \
+  --batch-size 6 \
   --experiment-name GSM8K_1Step \
   --save-to-checkpoint GSM8K_1Step \
   --enable-logging

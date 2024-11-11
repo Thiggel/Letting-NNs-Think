@@ -13,8 +13,8 @@ class TrainingProcedureType(str, Enum):
 class TrainingConfig(BaseModel):
     """Configuration for training parameters"""
 
-    max_epochs: int = Field(6, description="The maximum number of epochs")
-    learning_rate: float = Field(1e-3, description="The learning rate for the model")
+    max_epochs: int = Field(2, description="The maximum number of epochs")
+    learning_rate: float = Field(1e-4, description="The learning rate for the model")
     warmup_steps: int = Field(50, description="The number of warmup steps")
     total_training_steps: int = Field(
         500, description="The total number of training steps"
