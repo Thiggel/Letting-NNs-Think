@@ -151,7 +151,7 @@ class TrainRunner(Runner, HasTokenizer):
         }
 
         return {
-            "strategy": DeepSpeedStrategy(config=deepspeed_config),
+            "strategy": "deepspeed_stage_3_offload",
             # "precision": "16-mixed", # may have corrupted the model
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
         }
