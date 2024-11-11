@@ -79,7 +79,7 @@ class EvaluationRunner(Runner, HasTokenizer):
 
     def _log_results(self, results: dict[str, Any], seed):
         wandb.init(
-            project="variable-depth-lms2",
+            project="variable-depth-lms3",
             name=f"{self.experiment_config.experiment_name}_{seed}",
             group=self.experiment_config.experiment_name,
         )

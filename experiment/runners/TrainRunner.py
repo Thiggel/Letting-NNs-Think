@@ -103,7 +103,7 @@ class TrainRunner(Runner, HasTokenizer):
         wandb_logger = None
         if self.experiment_config.enable_logging:
             wandb_logger = WandbLogger(
-                project="variable-depth-lms2",
+                project="variable-depth-lms3",
                 name=f"{self.experiment_config.experiment_name}_{seed}",
                 group=self.experiment_config.experiment_name,
                 save_dir=os.environ["WANDB_DIR"],
