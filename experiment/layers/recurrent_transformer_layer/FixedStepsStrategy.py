@@ -19,7 +19,7 @@ class FixedStepsStrategy(RecurrenceStrategy):
         attention_mask: torch.Tensor,
         layer: TransformerLayerProtocol,
         position_ids: Optional[torch.Tensor] = None,
-        **kwargs
+        **kwargs,
     ) -> RecurrenceOutput:
         intermediate_outputs = []
 
@@ -31,7 +31,7 @@ class FixedStepsStrategy(RecurrenceStrategy):
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
-                **kwargs
+                **kwargs,
             )
 
             if step < self.num_steps - 1:

@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --job-name=GSM8K_20Steps
 #SBATCH --ntasks-per-node=1
-#SBATCH --time4:00:00
+#SBATCH --time 4:00:00
 #SBATCH --output=job_logs/GSM8K_20Steps_%A.out
 
 cd $HOME/Letting-NNs-Think

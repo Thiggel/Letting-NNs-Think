@@ -2,6 +2,7 @@ from transformers import AutoModelForCausalLM
 from torch import nn
 from peft import get_peft_model, LoraConfig, TaskType
 from experiment.layers import (
+    DynamicVeraLayer,
     MambaTransformerLayer,
     GatedGemmaDecoderLayer,
     SequentialTransformerLayer,
@@ -59,6 +60,11 @@ class ModelAdapter:
         else:
             recurrent_layer = SequentialTransformerLayer(*layers)
 
+        if self.config.use_dynamic_vera:
+            recurrent_layer = DynamicVeraLayer(
+                recurrent_layer, self.model.config.hidden_size, self.config.vera_r
+            )
+
         self.model.base_model.model.model.layers[start] = RecurrentTransformerLayer(
             recurrent_layer,
             config=self.config,
@@ -76,9 +82,16 @@ class ModelAdapter:
             return 0, 0
         if ":" in self.config.make_layers_recurrent:
             start, end = map(int, self.config.make_layers_recurrent.split(":"))
-            return start, end
-        start = int(self.config.make_layers_recurrent)
-        return start, start + 1
+        else:
+            start = int(self.config.make_layers_recurrent)
+            end = start + 1
+
+        if start < 0:
+            start = len(self.model.base_model.model.model.layers) + start
+        if end < 0 or end == 0:
+            end = len(self.model.base_model.model.model.layers) + end
+
+        return start, end
 
     def _create_mamba_layer(self, num_layers: int) -> SequentialTransformerLayer:
         return SequentialTransformerLayer(
