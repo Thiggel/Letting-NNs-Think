@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --job-name=GSM8K_7Steps
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=30:00:00
+#SBATCH --time=4:00:00
 #SBATCH --output=job_logs/GSM8K_7Steps_%A.out
 
 cd $HOME/Letting-NNs-Think
@@ -15,9 +15,7 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
-  --finetune-layers -1 \
   --make-layers-recurrent -1 \
-  --max-epochs 6 \
   --num-steps 7 \
   --batch-size 8 \
   --experiment-name GSM8K_7Step \

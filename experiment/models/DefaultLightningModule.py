@@ -98,19 +98,6 @@ class DefaultLightningModule(LightningModule):
                 return True
         return False
 
-    def on_validation_epoch_end(self):
-        questions = [
-            "Henry and 3 of his friends order 7 pizzas for lunch. Each pizza is cut into 8 slices. If Henry and his friends want to share the pizzas equally, how many slices can each of them have?",
-            "Farmer Brown has 20 animals on his farm, all either chickens or cows. They have a total of 70 legs, all together. How many of the animals are chickens?",
-        ]
-
-        for question in questions:
-            input_ids = self.tokenizer.encode(question, return_tensors="pt").cuda()
-            output = self.model.generate(input_ids, max_length=200)
-            decoded_output = self.tokenizer.decode(output[0], skip_special_tokens=True)
-            print(decoded_output)
-            print()
-
     def get_recurrent_layer(self) -> Optional[RecurrentTransformerLayer]:
         """Get the recurrent layer if it exists"""
         if not hasattr(self.model_adapter, "recurrent_layer_idx"):
