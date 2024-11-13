@@ -36,6 +36,9 @@ class ModelAdapter:
         )
         model.use_cache = False
         model.train()
+
+        model = self._add_gating(model)
+
         if self.config.finetune_mode == "lora":
             print("Using LoRA")
             model = get_peft_model(model, self.lora_config)
@@ -49,15 +52,28 @@ class ModelAdapter:
         if self.config.make_layers_recurrent is not None:
             self._add_recurrence()
 
+    def _add_gating(self, model: nn.Module):
+        start, end = self._get_recurrent_layer_range(model)
+        layers = model.model.layers
+
+        for idx in range(start, end):
+            layer = layers[idx]
+            new_layer = GatedGemmaDecoderLayer(model.config, idx)
+            new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
+            new_layer.mlp.load_state_dict(layer.mlp.state_dict())
+            layers[idx] = new_layer
+
+        model.model.layers = layers
+
+        return model
+
     def _add_recurrence(self):
         """Add recurrent layers to the model"""
-        start, end = self._get_recurrent_layer_range()
+        start, end = self._get_recurrent_layer_range(self.model.base_model.model)
         layers = self.model.base_model.model.model.layers[start:end]
 
         if self.config.recurrent_mode == "mamba":
             recurrent_layer = self._create_mamba_layer(len(layers))
-        elif self.config.use_gating:
-            recurrent_layer = self._create_gated_layer(layers)
         else:
             recurrent_layer = SequentialTransformerLayer(*layers)
 
@@ -78,7 +94,7 @@ class ModelAdapter:
 
         self.recurrent_layer_idx = start
 
-    def _get_recurrent_layer_range(self) -> tuple[int, int]:
+    def _get_recurrent_layer_range(self, model: nn.Module) -> tuple[int, int]:
         if self.config.make_layers_recurrent is None:
             return 0, 0
         if ":" in self.config.make_layers_recurrent:
@@ -88,9 +104,9 @@ class ModelAdapter:
             end = start + 1
 
         if start < 0:
-            start = len(self.model.base_model.model.model.layers) + start
+            start = len(model.model.layers) + start
         if end < 0 or end == 0:
-            end = len(self.model.base_model.model.model.layers) + end
+            end = len(model.model.layers) + end
 
         return start, end
 
@@ -108,10 +124,14 @@ class ModelAdapter:
     def _create_gated_layer(self, layers: list) -> SequentialTransformerLayer:
         new_layers = []
         for idx, layer in enumerate(layers):
+            print(layer)
             new_layer = GatedGemmaDecoderLayer(self.model.config, idx)
+            new_layer = get_peft_model(new_layer, self.lora_config)
+            print(new_layer)
+            exit()
+
             new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
             new_layer.mlp.load_state_dict(layer.mlp.state_dict())
             new_layers.append(new_layer)
-            new_layer = get_peft_model(new_layer, self.lora_config)
 
         return SequentialTransformerLayer(*new_layers)

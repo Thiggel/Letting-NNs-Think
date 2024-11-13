@@ -25,12 +25,14 @@ class RecurrentTransformerLayer(nn.Module):
         super().__init__()
         self.layer = layer
         self.strategy = self._create_strategy(config, hidden_size, config.max_steps)
+        self.intermediate_outputs = None
 
     def _create_strategy(
         self, config: ModelConfig, hidden_size: int, max_steps: int
     ) -> RecurrenceStrategy:
-        if config.use_time_embedding:
-            self.timestep_embedder = TimestepEmbedder(hidden_size)
+        self.timestep_embedder = (
+            TimestepEmbedder(hidden_size) if config.use_time_embedding else None
+        )
 
         if config.num_steps is None:
             return FixedStepsStrategy(max_steps, hidden_size, config.use_time_embedding)
@@ -77,4 +79,10 @@ class RecurrentTransformerLayer(nn.Module):
         if hasattr(self.layer, "unsqueeze_seq_len"):
             output.hidden_states = self.layer.unsqueeze_seq_len(output.hidden_states)
 
-        return output.hidden_states, past_key_value, output.exit_probs
+        self.intermediate_outputs = output.intermediate_outputs
+
+        return (
+            output.hidden_states,
+            past_key_value,
+            output.exit_probs,
+        )

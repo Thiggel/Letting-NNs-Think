@@ -3,6 +3,7 @@ from lightning import LightningModule
 from transformers import PreTrainedTokenizer
 from torch.optim import AdamW
 import torch
+import torch.nn.functional as F
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -102,7 +103,28 @@ class DefaultLightningModule(LightningModule):
         """Get the recurrent layer if it exists"""
         if not hasattr(self.model_adapter, "recurrent_layer_idx"):
             return None
-        return self.model.model.layers[self.model_adapter.recurrent_layer_idx]
+        return self.model.base_model.model.model.layers[
+            self.model_adapter.recurrent_layer_idx
+        ]
+
+    def get_loss_for_intermediate_supervision(self) -> torch.Tensor:
+        layer = self.get_recurrent_layer()
+
+        if (
+            not self.training_config.use_random_intermediate_supervision
+            or layer is None
+            or len(layer.intermediate_outputs) == 0
+        ):
+            return 0
+
+        intermediate_outputs = torch.stack(layer.intermediate_outputs)
+
+        loss = F.mse_loss(
+            intermediate_outputs,
+            torch.randn_like(intermediate_outputs),
+        )
+
+        return loss
 
     def _step(self, batch, batch_idx, mode: str = "train") -> torch.Tensor:
         """Perform a single training/validation/test step"""
@@ -112,7 +134,7 @@ class DefaultLightningModule(LightningModule):
         self.metrics_logger.log_loss(loss, mode)
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
-        return loss
+        return loss + self.get_loss_for_intermediate_supervision()
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")
