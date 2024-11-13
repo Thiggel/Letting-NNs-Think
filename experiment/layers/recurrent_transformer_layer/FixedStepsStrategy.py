@@ -1,6 +1,7 @@
 import torch
 from typing import Optional
 
+from .TimestepEmbedder import TimestepEmbedder
 from .TransformerLayerProtocol import TransformerLayerProtocol
 from .RecurrenceOutput import RecurrenceOutput
 from .RecurrenceStrategy import RecurrenceStrategy
@@ -9,9 +10,15 @@ from .RecurrenceStrategy import RecurrenceStrategy
 class FixedStepsStrategy(RecurrenceStrategy):
     """Strategy for fixed number of recurrence steps"""
 
-    def __init__(self, num_steps: int, use_time_embedding: bool = False):
+    def __init__(
+        self,
+        num_steps: int,
+        use_time_embedding: bool = False,
+        timestep_embedder: Optional[TimestepEmbedder] = None,
+    ):
         self.num_steps = num_steps
         self.use_time_embedding = use_time_embedding
+        self.timestep_embedder = timestep_embedder
 
     def forward(
         self,
@@ -25,7 +32,7 @@ class FixedStepsStrategy(RecurrenceStrategy):
 
         for step in range(self.num_steps):
             if self.use_time_embedding:
-                hidden_states = hidden_states + (step + 1)
+                hidden_states = self.timestep_embedder(hidden_states, step)
 
             hidden_states = layer(
                 hidden_states,

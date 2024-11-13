@@ -1,4 +1,5 @@
 from transformers import AutoModelForCausalLM
+import torch
 from torch import nn
 from peft import get_peft_model, LoraConfig, TaskType
 from experiment.layers import (
