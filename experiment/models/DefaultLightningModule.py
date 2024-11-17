@@ -22,20 +22,17 @@ class DefaultLightningModule(LightningModule):
         config: ModelConfig,
         training_config: TrainingConfig,
         tokenizer: Optional[PreTrainedTokenizer] = None,
-        model_adapter: Optional[ModelAdapter] = None,
     ):
         super().__init__()
         self.config = config
         self.training_config = training_config
         self.tokenizer = tokenizer
 
-        # Initialize components
-        if model_adapter is not None:
-            self.model_adapter = model_adapter
-            self.model = model_adapter.model
-        else:
-            self.model_adapter = ModelAdapter(config)
-            self.model = self.model_adapter.model
+    def setup(self, stage):
+        self.model_adapter = ModelAdapter(self.config, self.device)
+        self.model = self.model_adapter.model
+
+        print(self.model)
 
         self.metrics_logger = MetricsLogger(self)
 

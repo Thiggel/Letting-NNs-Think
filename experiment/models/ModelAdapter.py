@@ -15,8 +15,9 @@ from experiment.configs import ModelConfig
 class ModelAdapter:
     """Handles model initialization and modification with LoRA support"""
 
-    def __init__(self, config: ModelConfig):
+    def __init__(self, config: ModelConfig, device: torch.device):
         self.config = config
+        self.device = device
 
         self.lora_config = LoraConfig(
             r=self.config.lora_r,
@@ -37,7 +38,8 @@ class ModelAdapter:
         model.use_cache = False
         model.train()
 
-        model = self._add_gating(model)
+        if self.config.use_gating:
+            model = self._add_gating(model)
 
         if self.config.finetune_mode == "lora":
             print("Using LoRA")
@@ -79,7 +81,10 @@ class ModelAdapter:
 
         if self.config.use_dynamic_vera:
             recurrent_layer = DynamicVeraLayer(
-                recurrent_layer, self.model.config.hidden_size, self.config.vera_r
+                recurrent_layer,
+                self.model.config.hidden_size,
+                self.config.vera_r,
+                self.device,
             )
 
         self.model.base_model.model.model.layers[start] = RecurrentTransformerLayer(
