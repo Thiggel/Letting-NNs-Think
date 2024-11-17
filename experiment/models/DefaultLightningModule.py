@@ -3,8 +3,10 @@ from lightning import LightningModule
 from transformers import PreTrainedTokenizer
 from torch.optim import AdamW
 import torch
+import torch.nn.functional as F
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
+from transformers.modeling_outputs import CausalLMOutput, CausalLMOutputWithPast
 
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import ModelConfig, TrainingConfig
@@ -117,12 +119,39 @@ class DefaultLightningModule(LightningModule):
             return None
         return self.model.model.layers[self.model_adapter.recurrent_layer_idx]
 
-    def _step(self, batch, batch_idx, mode: str = "train") -> torch.Tensor:
+    def get_similarity_loss(
+        self,
+        outputs: CausalLMOutputWithPast,
+        batch: dict[str, torch.Tensor],
+        mode: str = "train",
+    ) -> torch.Tensor:
+        lm_loss = outputs.loss
+
+        if self.config.make_uninterrupted and outputs.hidden_states is not None:
+            # Custom loss: make last hidden state similar to next token's first embedded state
+            last_hidden_states = outputs.hidden_states[-1][:, :-1, :]
+            next_token_embeddings = self.model.get_input_embeddings()(
+                batch["input_ids"][:, 1:]
+            )
+            similarity_loss = F.mse_loss(last_hidden_states, next_token_embeddings)
+
+            self.log(f"{mode}_similarity_loss", similarity_loss)
+
+            total_loss = (
+                lm_loss + self.config.uninterrupted_loss_weight * similarity_loss
+            )
+
+            return total_loss
+
+        return lm_loss or torch.tensor(0.0)
+
+    def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
         """Perform a single training/validation/test step"""
         outputs = self.model(**batch)
         loss = outputs.loss
 
         self.metrics_logger.log_loss(loss, mode)
+        loss = self.get_similarity_loss(outputs, batch, mode)
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
         return loss

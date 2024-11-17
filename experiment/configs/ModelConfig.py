@@ -72,3 +72,10 @@ class ModelConfig(BaseModel):
         description="The target modules for LoRA",
     )
     lora_dropout: float = Field(0.0, description="The LoRA dropout rate")
+    make_uninterrupted: bool = Field(
+        False,
+        description="Whether to make the model uninterrupted by making the last hidden state similar to the next token's first embedded state",
+    )
+    uninterrupted_loss_weight: float = Field(
+        1.0, description="The weight for the uninterrupted loss"
+    )
