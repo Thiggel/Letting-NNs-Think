@@ -47,8 +47,18 @@ class ModelAdapter:
             model.print_trainable_parameters()
         elif self.config.finetune_mode == "full":
             print("Using full finetuning")
+        elif self.config.finetune_mode == "uninterrupted":
+            self._unfreeze_last_layer(model)
 
         return model
+
+    def _unfreeze_last_layer(self, model: AutoModelForCausalLM) -> None:
+        for param in model.parameters():
+            param.requires_grad = False
+        for param in model.model.layers[-1].parameters():
+            param.requires_grad = True
+        for param in model.lm_head.parameters():
+            param.requires_grad = True
 
     def _configure_model(self):
         if self.config.make_layers_recurrent is not None:

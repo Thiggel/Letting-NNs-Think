@@ -31,6 +31,7 @@ class RecurrentMode(str, Enum):
 class FinetuneMode(str, Enum):
     FULL = "full"
     LORA = "lora"
+    UNINTERRUPTED = "uninterrupted"
 
 
 class ModelConfig(BaseModel):
