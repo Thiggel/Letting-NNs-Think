@@ -3,10 +3,10 @@
 #SBATCH --partition=gpu_h100
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
-#SBATCH --job-name=GSM8K_5Steps_TimeEmbedding
+#SBATCH --job-name=GSM8K_3Steps_MiddleLayer_TimeEmbedding
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=4:00:00
-#SBATCH --output=job_logs/GSM8K_5Steps_TimeEmbedding_%A.out
+#SBATCH --output=job_logs/GSM8K_3Steps_MiddleLayer_TimeEmbedding_%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -16,20 +16,20 @@ srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
   --use-time-embedding \
-  --make-layers-recurrent -1 \
-  --num-steps 5 \
+  --make-layers-recurrent 12 \
+  --num-steps 3 \
   --batch-size 8 \
-  --experiment-name GSM8K_5Step_TimeEmbedding \
+  --experiment-name GSM8K_3Step_MiddleLayer_TimeEmbedding \
   --enable-logging \
-  --save-to-checkpoint GSM8K_5Step_TimeEmbedding
+  --save-to-checkpoint GSM8K_3Step_MiddleLayer_TimeEmbedding
 
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
-  --make-layers-recurrent -1 \
+  --make-layers-recurrent 12 \
   --use-time-embedding \
-  --num-steps 5 \
+  --num-steps 3 \
   --mode evaluate \
   --evaluation-metrics gsm8k \
-  --load-from-checkpoint GSM8K_5Step_TimeEmbedding \
+  --load-from-checkpoint GSM8K_3Step_MiddleLayer_TimeEmbedding \
   --enable-logging \
-  --experiment-name GSM8K_5Step_TimeEmbedding
+  --experiment-name GSM8K_3Step_MiddleLayer_TimeEmbedding

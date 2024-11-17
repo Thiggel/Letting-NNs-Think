@@ -1,10 +1,10 @@
 import torch
 from torch import nn
 from typing import Optional, Tuple
-import random
 
 from .RecurrenceStrategy import RecurrenceStrategy
 from .FixedStepsStrategy import FixedStepsStrategy
+from .TimestepEmbedder import TimestepEmbedder
 from .exit_classifier_strategy import ExitClassifierStrategy
 from .FixedPointStrategy import FixedPointStrategy
 from experiment.configs.ModelConfig import ModelConfig
@@ -25,24 +25,30 @@ class RecurrentTransformerLayer(nn.Module):
         super().__init__()
         self.layer = layer
         self.strategy = self._create_strategy(config, hidden_size, config.max_steps)
+        self.intermediate_outputs = None
 
     def _create_strategy(
         self, config: ModelConfig, hidden_size: int, max_steps: int
     ) -> RecurrenceStrategy:
+        self.timestep_embedder = (
+            TimestepEmbedder(hidden_size) if config.use_time_embedding else None
+        )
+
         if config.num_steps is None:
-            return FixedStepsStrategy(max_steps, config.use_time_embedding)
+            return FixedStepsStrategy(max_steps, hidden_size, config.use_time_embedding)
 
         if isinstance(config.num_steps, int):
-            return FixedStepsStrategy(config.num_steps, config.use_time_embedding)
+            return FixedStepsStrategy(
+                config.num_steps,
+                config.use_time_embedding,
+                self.timestep_embedder,
+            )
 
         if config.num_steps == "classifier":
             return ExitClassifierStrategy(config, hidden_size)
 
         if config.num_steps == "fixed_point":
             return FixedPointStrategy()
-
-        if config.num_steps == "random":
-            return FixedStepsStrategy(random.randint(1, 10), config.use_time_embedding)
 
         raise ValueError(f"Unknown recurrence mode: {config.num_steps}")
 
@@ -73,4 +79,10 @@ class RecurrentTransformerLayer(nn.Module):
         if hasattr(self.layer, "unsqueeze_seq_len"):
             output.hidden_states = self.layer.unsqueeze_seq_len(output.hidden_states)
 
-        return output.hidden_states, past_key_value, output.exit_probs
+        self.intermediate_outputs = output.intermediate_outputs
+
+        return (
+            output.hidden_states,
+            past_key_value,
+            output.exit_probs,
+        )

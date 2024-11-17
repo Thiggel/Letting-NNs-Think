@@ -23,20 +23,17 @@ class DefaultLightningModule(LightningModule):
         config: ModelConfig,
         training_config: TrainingConfig,
         tokenizer: Optional[PreTrainedTokenizer] = None,
-        model_adapter: Optional[ModelAdapter] = None,
     ):
         super().__init__()
         self.config = config
         self.training_config = training_config
         self.tokenizer = tokenizer
 
-        # Initialize components
-        if model_adapter is not None:
-            self.model_adapter = model_adapter
-            self.model = model_adapter.model
-        else:
-            self.model_adapter = ModelAdapter(config)
-            self.model = self.model_adapter.model
+    def setup(self, stage):
+        self.model_adapter = ModelAdapter(self.config, self.device)
+        self.model = self.model_adapter.model
+
+        print(self.model)
 
         self.metrics_logger = MetricsLogger(self)
 
@@ -100,24 +97,32 @@ class DefaultLightningModule(LightningModule):
                 return True
         return False
 
-    def on_validation_epoch_end(self):
-        questions = [
-            "Henry and 3 of his friends order 7 pizzas for lunch. Each pizza is cut into 8 slices. If Henry and his friends want to share the pizzas equally, how many slices can each of them have?",
-            "Farmer Brown has 20 animals on his farm, all either chickens or cows. They have a total of 70 legs, all together. How many of the animals are chickens?",
-        ]
-
-        for question in questions:
-            input_ids = self.tokenizer.encode(question, return_tensors="pt").cuda()
-            output = self.model.generate(input_ids, max_length=200)
-            decoded_output = self.tokenizer.decode(output[0], skip_special_tokens=True)
-            print(decoded_output)
-            print()
-
     def get_recurrent_layer(self) -> Optional[RecurrentTransformerLayer]:
         """Get the recurrent layer if it exists"""
         if not hasattr(self.model_adapter, "recurrent_layer_idx"):
             return None
-        return self.model.model.layers[self.model_adapter.recurrent_layer_idx]
+        return self.model.base_model.model.model.layers[
+            self.model_adapter.recurrent_layer_idx
+        ]
+
+    def get_loss_for_intermediate_supervision(self) -> torch.Tensor:
+        layer = self.get_recurrent_layer()
+
+        if (
+            not self.training_config.use_random_intermediate_supervision
+            or layer is None
+            or len(layer.intermediate_outputs) == 0
+        ):
+            return 0
+
+        intermediate_outputs = torch.stack(layer.intermediate_outputs)
+
+        loss = F.mse_loss(
+            intermediate_outputs,
+            torch.randn_like(intermediate_outputs),
+        )
+
+        return loss
 
     def get_similarity_loss(
         self,
@@ -154,7 +159,7 @@ class DefaultLightningModule(LightningModule):
         loss = self.get_similarity_loss(outputs, batch, mode)
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
-        return loss
+        return loss + self.get_loss_for_intermediate_supervision()
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")

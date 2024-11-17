@@ -62,9 +62,11 @@ class ModelConfig(BaseModel):
         False, description="Whether to use a time embedding in the model"
     )
     use_gating: bool = Field(False, description="Whether to use a gating in the model")
+
     finetune_mode: FinetuneMode = Field(
         "lora", description="The finetuning mode to use"
     )
+
     lora_r: int = Field(8, description="The LoRA rank")
     lora_alpha: int = Field(1, description="The LoRA alpha")
     lora_target_modules: list[str] = Field(
@@ -72,6 +74,12 @@ class ModelConfig(BaseModel):
         description="The target modules for LoRA",
     )
     lora_dropout: float = Field(0.0, description="The LoRA dropout rate")
+
+    use_dynamic_vera: bool = Field(
+        False, description="Whether to use the Dynamic VeRA layer"
+    )
+    vera_r: int = Field(8, description="The inner size of the low-rank matrix in VeRA")
+
     make_uninterrupted: bool = Field(
         False,
         description="Whether to make the model uninterrupted by making the last hidden state similar to the next token's first embedded state",

@@ -1,5 +1,4 @@
 from typing import Any
-from transformers import PreTrainedModel
 import wandb
 import os
 import torch
@@ -10,7 +9,6 @@ from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
 from experiment.model_evaluator import ModelEvaluator
-from experiment.models.ModelAdapter import ModelAdapter
 
 from .HasTokenizer import HasTokenizer
 
@@ -59,13 +57,13 @@ class EvaluationRunner(Runner, HasTokenizer):
             model = DefaultLightningModule(
                 self.model_config, self.training_config, self.tokenizer
             )
+            model.setup("test")
 
             checkpoint = torch.load(checkpoint_path)
 
             state_dict = (
                 checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
             )
-
             model.load_state_dict(state_dict)
 
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

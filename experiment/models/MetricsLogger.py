@@ -25,10 +25,15 @@ class MetricsLogger:
         self,
         outputs: CausalLMOutputWithCrossAttentions,
         labels: torch.Tensor,
+        top_k: int = 5,
     ) -> float:
-        predictions = outputs.logits.argmax(dim=-1)
+        top_k_predictions = outputs.logits.topk(top_k).indices
         mask = labels != -100
-        correct = ((predictions == labels) & mask).sum().item()
+        correct = (
+            ((top_k_predictions == labels.unsqueeze(-1)).any(dim=-1) & mask)
+            .sum()
+            .item()
+        )
         total = mask.sum().item()
         accuracy = correct / total if total > 0 else 0
 
@@ -39,9 +44,13 @@ class MetricsLogger:
             return
 
         perplexity = math.exp(loss.item())
-        accuracy = self.accuracy(outputs, labels)
+        topk = 5
+        accuracy = self.accuracy(outputs, labels, top_k=topk)
 
-        metrics = {f"{mode}_perplexity": perplexity, f"{mode}_accuracy": accuracy}
+        metrics = {
+            f"{mode}_perplexity": perplexity,
+            f"{mode}_top{topk}_accuracy": accuracy,
+        }
 
         for name, value in metrics.items():
             self.module.log(
