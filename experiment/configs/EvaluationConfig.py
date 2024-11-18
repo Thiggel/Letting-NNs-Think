@@ -15,3 +15,6 @@ class EvaluationConfig(BaseModel):
     save_to_checkpoint: Optional[Path] = Field(
         None, description="The path to the checkpoint to save to"
     )
+    evaluate_as_uninterrupted: bool = Field(
+        False, description="Generate using the uninterrupted technique"
+    )

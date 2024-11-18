@@ -7,6 +7,8 @@ import torch
 from transformers import PreTrainedTokenizer
 import os
 
+from .CustomInference import CustomInference
+
 
 class ModelEvaluator:
     """Handles model evaluation using lm-eval-harness with multi-GPU support"""
@@ -15,8 +17,13 @@ class ModelEvaluator:
         self,
         model: DefaultLightningModule,
         tokenizer: PreTrainedTokenizer,
+        is_uninterrupted: bool = False,
     ):
-        self.model = model
+        if is_uninterrupted:
+            self.model = CustomInference(model, tokenizer)
+        else:
+            self.model = model
+
         self.tokenizer = tokenizer
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,7 +37,7 @@ class ModelEvaluator:
         wrapped_model = HFLM(
             pretrained=self.model,
             tokenizer=self.tokenizer,
-            batch_size=128,
+            batch_size=1,  # 28,
             max_length=512,
             backend="causal",
             device=self.device,
@@ -41,7 +48,7 @@ class ModelEvaluator:
             model=wrapped_model,
             tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
             num_fewshot=0,
-            batch_size=128,
+            batch_size=1,  # 28,
             random_seed=seed,
             numpy_random_seed=seed,
             torch_random_seed=seed,

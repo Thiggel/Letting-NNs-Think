@@ -109,7 +109,7 @@ class LanguageDataModule(LightningDataModule):
     ) -> DatasetSplit:
         ds = load_dataset(
             dataset_config["name"],
-            "en",
+            dataset_config.get("subset"),
             streaming=True,
             trust_remote_code=True,
         )
@@ -146,7 +146,11 @@ class LanguageDataModule(LightningDataModule):
         full_text = [
             dataset_config["q_func"](sample)
             + dataset_config["ans_func"](sample)
-            + self.tokenizer.eos_token
+            + (
+                self.tokenizer.eos_token
+                if not dataset_config.get("streaming", False)
+                else ""
+            )
             for sample in samples
         ]
 

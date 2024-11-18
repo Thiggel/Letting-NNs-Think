@@ -47,7 +47,7 @@ class ModelAdapter:
             model.print_trainable_parameters()
         elif self.config.finetune_mode == "full":
             print("Using full finetuning")
-        elif self.config.finetune_mode == "uninterrupted":
+        elif self.config.finetune_mode == "lastlayer_lmhead":
             self._unfreeze_last_layer(model)
 
         return model

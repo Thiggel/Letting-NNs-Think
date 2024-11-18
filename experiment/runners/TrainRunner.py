@@ -52,7 +52,7 @@ class TrainRunner(Runner, HasTokenizer):
             seed,
         )
         model = DefaultLightningModule(
-            self.model_config, self.training_config, self.tokenizer
+            self.model_config, self.training_config, self.data_config, self.tokenizer
         )
         trainer = self._setup_trainer(seed)
 
@@ -122,6 +122,7 @@ class TrainRunner(Runner, HasTokenizer):
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
             "log_every_n_steps": 10,
             "max_epochs": self.training_config.max_epochs,
+            "max_time": {"days": 4, "hours": 12},
             "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": grad_acc_steps,
             "devices": "auto",

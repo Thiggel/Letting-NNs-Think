@@ -1,5 +1,5 @@
 from pathlib import Path
-from datasets import load_from_disk
+from datasets import load_from_disk, IterableDataset
 
 from experiment.configs import DataConfig, ModelConfig
 
@@ -33,6 +33,9 @@ class DatasetManager:
         )
 
     def save_datasets(self, datasets: DatasetSplit, cache_path: Path) -> None:
+        if isinstance(datasets.train, IterableDataset):
+            return
+
         if datasets.train:
             datasets.train.save_to_disk(str(cache_path / "train"))
         if datasets.validation:

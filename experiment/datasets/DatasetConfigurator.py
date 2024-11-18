@@ -28,13 +28,12 @@ class DatasetConfigurator:
                 ),
                 "streaming": False,
             },
-            "c4": {
-                "name": "allenai/c4",
-                "subset_of_interest": "whole",
+            "fineweb": {
+                "name": "HuggingFaceFW/fineweb",
+                "subset": "CC-MAIN-2024-10",
                 "q_func": lambda x: x["text"],
                 "ans_func": lambda x: "",
                 "train_field": "train",
-                "validation_field": "validation",  # Add this if The Pile has a validation split
                 "streaming": True,
             },
             "gsm8k": {

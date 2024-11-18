@@ -2,10 +2,10 @@
 
 #SBATCH --gres=gpu:4
 #SBATCH -C A5000
-#SBATCH --job-name=UninteruptedTransformer
+#SBATCH --job-name=UninteruptedTransformerBaseline
 #SBATCH --ntasks-per-node=4
 #SBATCH --time=24:00:00
-#SBATCH --output=job_logs/Uninterrupted-Transformer-%A.out
+#SBATCH --output=job_logs/Uninterrupted-Transformer-Baseline-%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -16,10 +16,9 @@ srun python -m experiment \
   --dataset gsm8k \
   --batch-size 1 \
   --learning-rate 1e-4 \
-  --make-uninterrupted \
   --finetune-mode 'lastlayer_lmhead' \
-  --experiment-name UninterruptedTransformer \
-  --save-to-checkpoint UninterruptedTransformer \
+  --experiment-name UninterruptedTransformerBaseline \
+  --save-to-checkpoint UninterruptedTransformerBaseline \
   --enable-logging
 
 srun python -m experiment \
@@ -27,6 +26,6 @@ srun python -m experiment \
   --mode evaluate \
   --finetune-mode 'lastlayer_lmhead' \
   --evaluation-metrics gsm8k \
-  --load-from-checkpoint UninterruptedTransformer \
-  --experiment-name UninterruptedTransformer \
+  --load-from-checkpoint UninterruptedTransformerBaseline \
+  --experiment-name UninterruptedTransformerBaseline \
   --enable-logging

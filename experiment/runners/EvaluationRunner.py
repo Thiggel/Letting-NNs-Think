@@ -34,7 +34,9 @@ class EvaluationRunner(Runner, HasTokenizer):
     def run(self, seed: int) -> dict[str, float]:
         model = self._load_model(seed)
 
-        evaluator = ModelEvaluator(model, self.tokenizer)
+        evaluator = ModelEvaluator(
+            model, self.tokenizer, self.evaluation_config.evaluate_as_uninterrupted
+        )
         results = evaluator.evaluate(
             self.evaluation_config.evaluation_metrics or ["gsm8k"],
             seed,
@@ -55,7 +57,10 @@ class EvaluationRunner(Runner, HasTokenizer):
             print("Loading from checkpoint", checkpoint_path)
 
             model = DefaultLightningModule(
-                self.model_config, self.training_config, self.tokenizer
+                self.model_config,
+                self.training_config,
+                self.data_config,
+                self.tokenizer,
             )
             model.setup("test")
 
@@ -72,7 +77,10 @@ class EvaluationRunner(Runner, HasTokenizer):
             return model
         else:
             return DefaultLightningModule(
-                self.model_config, self.training_config, self.tokenizer
+                self.model_config,
+                self.training_config,
+                self.data_config,
+                self.tokenizer,
             )
 
     def _log_results(self, results: dict[str, Any], seed):

@@ -8,8 +8,9 @@ from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 class MetricsLogger:
     """Handles metric logging logic"""
 
-    def __init__(self, lightning_module: LightningModule):
+    def __init__(self, lightning_module: LightningModule, batch_size: int):
         self.module = lightning_module
+        self.batch_size = batch_size
 
     def log_loss(self, loss: torch.Tensor, mode: str):
         self.module.log(
@@ -19,6 +20,7 @@ class MetricsLogger:
             on_epoch=True,
             prog_bar=True,
             sync_dist=True,
+            batch_size=self.batch_size,
         )
 
     def accuracy(
@@ -60,6 +62,7 @@ class MetricsLogger:
                 on_epoch=True,
                 prog_bar=True,
                 sync_dist=True,
+                batch_size=self.batch_size,
             )
 
     def log_gradient_norms(self):
@@ -69,7 +72,11 @@ class MetricsLogger:
             if param.requires_grad:
                 param_norm = safe_get_full_grad(param).norm(2)
                 total_norm += param_norm.item() ** 2
-                self.module.log(f"gradient_norm/{name}", param_norm.item())
+                self.module.log(
+                    f"gradient_norm/{name}",
+                    param_norm.item(),
+                    batch_size=self.batch_size,
+                )
 
         total_norm = total_norm**0.5
-        self.module.log("gradient_norm/total", total_norm)
+        self.module.log("gradient_norm/total", total_norm, batch_size=self.batch_size)

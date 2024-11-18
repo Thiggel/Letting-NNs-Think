@@ -9,7 +9,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from transformers.modeling_outputs import CausalLMOutput, CausalLMOutputWithPast
 
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
-from experiment.configs import ModelConfig, TrainingConfig
+from experiment.configs import ModelConfig, TrainingConfig, DataConfig
 
 from .ModelAdapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
@@ -22,11 +22,13 @@ class DefaultLightningModule(LightningModule):
         self,
         config: ModelConfig,
         training_config: TrainingConfig,
+        data_config: DataConfig,
         tokenizer: Optional[PreTrainedTokenizer] = None,
     ):
         super().__init__()
         self.config = config
         self.training_config = training_config
+        self.data_config = data_config
         self.tokenizer = tokenizer
 
     def setup(self, stage):
@@ -35,10 +37,10 @@ class DefaultLightningModule(LightningModule):
 
         print(self.model)
 
-        self.metrics_logger = MetricsLogger(self)
+        self.metrics_logger = MetricsLogger(self, self.data_config.batch_size)
 
-    def forward(self, input_ids, attention_mask=None, labels=None):
-        return self.model(input_ids, attention_mask=attention_mask, labels=labels)
+    def forward(self, input_ids, **kwargs):
+        return self.model(input_ids, **kwargs)
 
     def generate(self, *args, **kwargs):
         return self.model.generate(*args, **kwargs)
@@ -140,18 +142,51 @@ class DefaultLightningModule(LightningModule):
             )
             similarity_loss = F.mse_loss(last_hidden_states, next_token_embeddings)
 
-            self.log(f"{mode}_similarity_loss", similarity_loss)
+            self.log(
+                f"{mode}_similarity_loss",
+                similarity_loss,
+                sync_dist=True,
+                batch_size=self.data_config.batch_size,
+            )
 
             total_loss = (
                 lm_loss + self.config.uninterrupted_loss_weight * similarity_loss
             )
-
             return total_loss
 
         return lm_loss or torch.tensor(0.0)
 
+    def _dump_first_batch(self, batch: dict[str, torch.Tensor]) -> None:
+        if self.trainer.global_rank > 0:
+            return
+
+        MAX_DUMPS = 5
+
+        if not hasattr(self, "num_dumped_first_batch"):
+            self.num_dumped_first_batch = 0
+
+        if self.num_dumped_first_batch < MAX_DUMPS:
+            input_ids = batch["input_ids"]
+            attention_masks = batch["attention_masks"]
+            for i in range(min(len(input_ids), 3)):
+                ids = input_ids[i]
+                att_mask = attention_masks[i]
+                decoded = self.tokenizer.decode(ids)
+                print()
+                print(decoded)
+                print()
+                print(att_mask[-1])
+                print()
+
+            self.num_dumped_first_batch += 1
+
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
         """Perform a single training/validation/test step"""
+        self._dump_first_batch(batch)
+
+        if self.config.make_uninterrupted:
+            batch["output_hidden_states"] = True
+
         outputs = self.model(**batch)
         loss = outputs.loss
 
