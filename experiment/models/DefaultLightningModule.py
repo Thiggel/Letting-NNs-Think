@@ -167,16 +167,15 @@ class DefaultLightningModule(LightningModule):
 
         if self.num_dumped_first_batch < MAX_DUMPS:
             input_ids = batch["input_ids"]
-            attention_masks = batch["attention_masks"]
             for i in range(min(len(input_ids), 3)):
                 ids = input_ids[i]
-                att_mask = attention_masks[i]
                 decoded = self.tokenizer.decode(ids)
                 print()
                 print(decoded)
                 print()
-                print(att_mask[-1])
-                print()
+
+            print(batch["attention_mask"].shape)
+            print()
 
             self.num_dumped_first_batch += 1
 

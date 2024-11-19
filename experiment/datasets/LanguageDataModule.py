@@ -139,6 +139,22 @@ class LanguageDataModule(LightningDataModule):
             batched=True,
         )
 
+    def _filter_max_len(
+        self, tokenized: dict[str, torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # Apply the length filtering
+        filtered_input_ids = []
+        filtered_attention_mask = []
+
+        for input_ids, attention_mask in zip(
+            tokenized["input_ids"], tokenized["attention_mask"]
+        ):
+            if len(input_ids) >= self.data_config.seq_length:
+                filtered_input_ids.append(input_ids)
+                filtered_attention_mask.append(attention_mask)
+
+        return filtered_input_ids, filtered_attention_mask
+
     def _tokenize(
         self, samples: dict[str, List[Any]], dataset_config: dict[str, Any]
     ) -> dict[str, List[Any]]:
@@ -161,10 +177,16 @@ class LanguageDataModule(LightningDataModule):
             ),
         )
 
+        if dataset_config.get("streaming", False):
+            input_ids, attention_mask = self._filter_max_len(tokenized)
+        else:
+            input_ids = tokenized["input_ids"]
+            attention_mask = tokenized["attention_mask"]
+
         return {
-            "input_ids": tokenized["input_ids"],
-            "attention_mask": tokenized["attention_mask"],
-            "labels": tokenized["input_ids"].copy(),
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "labels": input_ids.copy(),
         }
 
     def _split_dataset(

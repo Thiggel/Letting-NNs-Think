@@ -18,6 +18,3 @@ class TokenizationProcessor:
             truncation=max_length is not None,
             max_length=max_length,
         )
-
-    def create_attention_mask(self, input_ids: torch.Tensor) -> torch.Tensor:
-        return torch.ones_like(input_ids)
