@@ -32,6 +32,7 @@ class FinetuneMode(str, Enum):
     FULL = "full"
     LORA = "lora"
     UNINTERRUPTED = "lastlayer_lmhead"
+    UNINTERRUPTED_LORA = "lastlayer_lmhead_lora"
 
 
 class ModelConfig(BaseModel):
@@ -87,4 +88,14 @@ class ModelConfig(BaseModel):
     )
     uninterrupted_loss_weight: float = Field(
         1.0, description="The weight for the uninterrupted loss"
+    )
+    make_uninterrupted_with_recurrence: bool = Field(
+        False,
+        description="Whether to make the model uninterrupted with recurrence",
+    )
+    recurrent_prediction_weight: float = Field(
+        1.0, description="The weight for the recurrent prediction loss"
+    )
+    recurrent_hidden_state_weight: float = Field(
+        1.0, description="The weight for the recurrent hidden state loss"
     )

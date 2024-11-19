@@ -49,6 +49,10 @@ class ModelAdapter:
             print("Using full finetuning")
         elif self.config.finetune_mode == "lastlayer_lmhead":
             self._unfreeze_last_layer(model)
+        elif self.config.finetune_mode == "lastlayer_lmhead_lora":
+            self._unfreeze_last_layer(model)
+            model = get_peft_model(model, self.lora_config)
+            model.print_trainable_parameters()
 
         return model
 
