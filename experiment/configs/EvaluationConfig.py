@@ -18,3 +18,6 @@ class EvaluationConfig(BaseModel):
     evaluate_as_uninterrupted: bool = Field(
         False, description="Generate using the uninterrupted technique"
     )
+    eval_batch_size: int = Field(
+        128, description="The batch size to use for evaluation"
+    )

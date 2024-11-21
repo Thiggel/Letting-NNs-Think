@@ -32,7 +32,7 @@ class FinetuneMode(str, Enum):
     FULL = "full"
     LORA = "lora"
     UNINTERRUPTED = "lastlayer_lmhead"
-    UNINTERRUPTED_LORA = "lastlayer_lmhead_lora"
+    UNINTERRUPTED_LORA = "lmhead_lora"
 
 
 class ModelConfig(BaseModel):

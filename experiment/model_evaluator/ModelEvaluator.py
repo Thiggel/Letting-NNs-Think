@@ -18,7 +18,10 @@ class ModelEvaluator:
         model: DefaultLightningModule,
         tokenizer: PreTrainedTokenizer,
         is_uninterrupted: bool = False,
+        eval_batch_size: int = 128,
     ):
+        self.eval_batch_size = eval_batch_size
+
         if is_uninterrupted:
             self.model = CustomInference(model, tokenizer)
         else:
@@ -37,7 +40,7 @@ class ModelEvaluator:
         wrapped_model = HFLM(
             pretrained=self.model,
             tokenizer=self.tokenizer,
-            batch_size=1,  # 28,
+            batch_size=self.eval_batch_size,
             max_length=512,
             backend="causal",
             device=self.device,
@@ -48,7 +51,7 @@ class ModelEvaluator:
             model=wrapped_model,
             tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
             num_fewshot=0,
-            batch_size=1,  # 28,
+            batch_size=self.eval_batch_size,
             random_seed=seed,
             numpy_random_seed=seed,
             torch_random_seed=seed,

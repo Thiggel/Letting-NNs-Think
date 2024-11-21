@@ -35,7 +35,10 @@ class EvaluationRunner(Runner, HasTokenizer):
         model = self._load_model(seed)
 
         evaluator = ModelEvaluator(
-            model, self.tokenizer, self.evaluation_config.evaluate_as_uninterrupted
+            model,
+            self.tokenizer,
+            self.evaluation_config.evaluate_as_uninterrupted,
+            self.evaluation_config.eval_batch_size,
         )
         results = evaluator.evaluate(
             self.evaluation_config.evaluation_metrics or ["gsm8k"],
