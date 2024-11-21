@@ -144,9 +144,6 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
                 print(decoded)
                 print()
 
-            print(batch["attention_mask"].shape)
-            print()
-
             self.num_dumped_first_batch += 1
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
