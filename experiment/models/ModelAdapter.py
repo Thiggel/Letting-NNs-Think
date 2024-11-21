@@ -7,6 +7,7 @@ from experiment.layers import (
     MambaTransformerLayer,
     GatedGemmaDecoderLayer,
     SequentialTransformerLayer,
+    MoD,
 )
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import ModelConfig
@@ -41,6 +42,9 @@ class ModelAdapter:
         if self.config.use_gating:
             model = self._add_gating(model)
 
+        if self.config.use_mod:
+            model = self._add_mod(model)
+
         if self.config.finetune_mode == "lora":
             print("Using LoRA")
             model = get_peft_model(model, self.lora_config)
@@ -71,6 +75,13 @@ class ModelAdapter:
     def _configure_model(self):
         if self.config.make_layers_recurrent is not None:
             self._add_recurrence()
+
+    def _add_mod(self, model: nn.Module):
+        model.model.layers = nn.ModuleList(
+            [MoD(self.config.mod_capacity, layer) for layer in model.model.layers]
+        )
+
+        return model
 
     def _add_gating(self, model: nn.Module):
         start, end = self._get_recurrent_layer_range(model)
