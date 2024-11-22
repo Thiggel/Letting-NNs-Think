@@ -67,14 +67,27 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
             "weight_decay": 0.001,
         }
 
+        parameters = [
+            {
+                "params": self.model.base_model.model.model.parameters(),
+                "lr": self.training_config.learning_rate,
+            },
+        ]
+
+        if self.config.finetune_mode in ["lastlayer_lmhead", "lmhead_lora"]:
+            parameters.append(
+                {
+                    "params": self.model.base_model.model.lm_head.parameters(),
+                    "lr": self.training_config.learning_rate // 100,
+                }
+            )
+
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(
-                self.parameters(), **adam_params, adamw_mode=True
-            )
+            optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
         else:
-            optimizer = AdamW(self.parameters(), **adam_params)
+            optimizer = AdamW(parameters, **adam_params)
 
         scheduler = LambdaLR(optimizer, lr_lambda=self.lr_lambda)
 
@@ -126,6 +139,15 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
         return loss
 
+    def get_mod_loss(self) -> torch.Tensor:
+        """Get the MoD loss"""
+        if not hasattr(self.model, "mod_loss"):
+            return 0
+
+        self.log("mod_loss", self.model.mod_loss)
+
+        return self.model.mod_loss
+
     def _dump_first_batch(self, batch: dict[str, torch.Tensor]) -> None:
         if self.trainer.global_rank > 0:
             return
@@ -144,6 +166,14 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
                 print(decoded)
                 print()
 
+            is_tied = (
+                self.model.base_model.model.model.embed_tokens.weight.data_ptr()
+                == self.model.base_model.model.lm_head.weight.data_ptr()
+            )
+
+            print(f"Embedding and LM head weights are tied: {is_tied}")
+            print()
+
             self.num_dumped_first_batch += 1
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
@@ -158,9 +188,11 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
         self.metrics_logger.log_loss(loss, mode)
         loss = self.get_similarity_loss(outputs, batch, mode)
+        loss += self.get_mod_loss()
+        loss += self.get_loss_for_intermediate_supervision()
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
-        return loss + self.get_loss_for_intermediate_supervision()
+        return loss
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")

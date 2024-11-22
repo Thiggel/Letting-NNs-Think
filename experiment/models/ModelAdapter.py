@@ -7,8 +7,8 @@ from experiment.layers import (
     MambaTransformerLayer,
     GatedGemmaDecoderLayer,
     SequentialTransformerLayer,
-    MoD,
 )
+from experiment.layers.mixture_of_depths import MoDLayer
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import ModelConfig
 
@@ -45,6 +45,9 @@ class ModelAdapter:
         if self.config.use_mod:
             model = self._add_mod(model)
 
+        if self.config.untie_embedding_and_softmax:
+            self._untie_embedding_and_softmax(model)
+
         if self.config.finetune_mode == "lora":
             print("Using LoRA")
             model = get_peft_model(model, self.lora_config)
@@ -59,6 +62,13 @@ class ModelAdapter:
             model.print_trainable_parameters()
 
         return model
+
+    def _untie_embedding_and_softmax(self, model: AutoModelForCausalLM) -> None:
+        new_lm_head = nn.Linear(
+            model.config.hidden_size, model.config.vocab_size, bias=False
+        )
+        new_lm_head.weight.data = model.get_input_embeddings().weight.clone().detach()
+        model.lm_head = new_lm_head
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
         for param in model.lm_head.parameters():
@@ -78,7 +88,18 @@ class ModelAdapter:
 
     def _add_mod(self, model: nn.Module):
         model.model.layers = nn.ModuleList(
-            [MoD(self.config.mod_capacity, layer) for layer in model.model.layers]
+            [
+                MoDLayer(
+                    layer,
+                    model,
+                    self.config.mod_capacity,
+                    self.config.mod_router_hidden_dim,
+                    self.config.mod_z_loss_weight,
+                    self.config.mod_capacity_loss_weight,
+                    reset_mod_loss=(i == 0),
+                )
+                for i, layer in enumerate(model.model.layers)
+            ]
         )
 
         return model
