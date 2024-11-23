@@ -39,9 +39,6 @@ class ModelAdapter:
         model.use_cache = False
         model.train()
 
-        if self.config.untie_embedding_and_softmax:
-            self._untie_embedding_and_softmax(model)
-
         if self.config.use_gating:
             model = self._add_gating(model)
 
@@ -61,6 +58,9 @@ class ModelAdapter:
             self._unfreeze_lm_head(model)
             model.print_trainable_parameters()
 
+        if self.config.untie_embedding_and_softmax:
+            self._untie_embedding_and_softmax(model)
+
         if self.config.make_uninterrupted:
             model.gradient_checkpointing_enable()
 
@@ -72,7 +72,7 @@ class ModelAdapter:
         ).to(model.device)
         new_lm_head.weight.data = model.get_input_embeddings().weight.clone().detach()
         new_lm_head.weight.requires_grad = True
-        model.model.lm_head = new_lm_head
+        model.base_model.model.lm_head = new_lm_head
         model.config.tie_word_embeddings = False
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
