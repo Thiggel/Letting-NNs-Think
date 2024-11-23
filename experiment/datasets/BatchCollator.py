@@ -36,8 +36,4 @@ class BatchCollator:
         padded = pad_sequence(sequences, batch_first=True, padding_value=padding_value)
         truncated = padded[:, : self.max_length]
 
-        if truncated.shape[1] < self.max_length:
-            pad_length = self.max_length - truncated.shape[1]
-            truncated = F.pad(truncated, (0, pad_length), value=padding_value)
-
         return truncated
