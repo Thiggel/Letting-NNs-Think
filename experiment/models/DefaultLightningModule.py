@@ -30,6 +30,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         self.training_config = training_config
         self.data_config = data_config
         self.tokenizer = tokenizer
+        self.previous_weights = {}
 
     def setup(self, stage):
         self.model_adapter = ModelAdapter(self.config, self.device)
