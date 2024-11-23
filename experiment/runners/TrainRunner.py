@@ -124,7 +124,7 @@ class TrainRunner(Runner, HasTokenizer):
             "max_epochs": self.training_config.max_epochs,
             "max_time": {"days": 4, "hours": 12},
             "gradient_clip_val": self.training_config.max_grad_norm,
-            "accumulate_grad_batches": grad_acc_steps,
+            "accumulate_grad_batches": 1,  # grad_acc_steps,
             "devices": "auto",
         }
 
