@@ -77,7 +77,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         if self.config.finetune_mode in ["lastlayer_lmhead", "lmhead_lora"]:
             parameters.append(
                 {
-                    "params": self.model.get_output_embeddings().parameters(),
+                    "params": self.model.base_model.model.lm_head.parameters(),
                     "lr": self.training_config.learning_rate / 100,
                 }
             )
@@ -85,11 +85,9 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(
-                self.parameters(), **adam_params, adamw_mode=True
-            )
+            optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
         else:
-            optimizer = AdamW(self.parameters(), **adam_params)
+            optimizer = AdamW(parameters, **adam_params)
 
         scheduler = LambdaLR(optimizer, lr_lambda=self.lr_lambda)
 
@@ -158,6 +156,14 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
                 print(decoded)
                 print()
 
+            is_tied = (
+                self.model.base_model.model.model.embed_tokens.weight.data_ptr()
+                == self.model.base_model.model.lm_head.weight.data_ptr()
+            )
+
+            print(f"Embedding and LM head weights are tied: {is_tied}")
+            print()
+
             self.num_dumped_first_batch += 1
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
@@ -179,7 +185,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
 
-        current_weights = self.model.get_output_embeddings().weight.data
+        current_weights = self.model.base_model.model.lm_head.weight.data
         print(current_weights)
 
         return loss

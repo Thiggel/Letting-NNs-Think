@@ -72,7 +72,7 @@ class ModelAdapter:
         ).to(model.device)
         new_lm_head.weight.data = model.get_input_embeddings().weight.clone().detach()
         new_lm_head.weight.requires_grad = True
-        model.lm_head = new_lm_head
+        model.base_model.model.lm_head = new_lm_head
         model.config.tie_word_embeddings = False
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
