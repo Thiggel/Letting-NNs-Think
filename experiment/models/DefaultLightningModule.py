@@ -175,12 +175,12 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         if self.config.make_uninterrupted:
             batch["output_hidden_states"] = True
 
-        if self.config.make_uninterrupted:
-            loss = self.get_recurrent_prediction_loss(batch, mode)
-        else:
-            outputs = self.model(**batch)
-            loss = outputs.loss
-            self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
+        # if self.config.make_uninterrupted:
+        # print("X", self.get_recurrent_prediction_loss(batch, mode))
+
+        outputs = self.model(**batch)
+        loss = outputs.loss
+        self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
         self.metrics_logger.log_loss(loss, mode)
         loss += self.get_mod_loss()

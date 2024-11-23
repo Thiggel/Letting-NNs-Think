@@ -25,19 +25,24 @@ class UninterruptedLanguageModelProtocol(Protocol):
     ) -> None: ...
 
     def _forward_without_lm_head(
-        self, model: PreTrainedModel, batch: dict[str, torch.Tensor]
+        self,
+        model: PreTrainedModel,
+        batch: dict[str, torch.Tensor],
+        attention_mask: torch.Tensor,
     ) -> CausalLMOutputWithPast: ...
 
     def _get_prediction_loss(
         self,
         last_hidden_states: torch.Tensor,
         labels: torch.Tensor,
+        attention_mask: torch.Tensor,
     ) -> torch.Tensor: ...
 
     def _get_similarity_loss(
         self,
         last_hidden_states: torch.Tensor,
         next_token_embeddings: torch.Tensor,
+        mask: torch.Tensor,
     ) -> torch.Tensor: ...
 
     def get_recurrent_prediction_loss(
@@ -61,8 +66,16 @@ class UninterruptedLanguageModel:
         self: UninterruptedLanguageModelProtocol,
         last_hidden_states: torch.Tensor,
         next_token_embeddings: torch.Tensor,
+        mask: torch.Tensor,
     ) -> torch.Tensor:
-        similarity_loss = F.mse_loss(last_hidden_states, next_token_embeddings)
+        similarity_loss = (
+            F.mse_loss(
+                last_hidden_states * mask.unsqueeze(-1),
+                next_token_embeddings * mask.unsqueeze(-1),
+                reduction="sum",
+            )
+            / mask.sum()
+        )
 
         return self.config.uninterrupted_loss_weight * similarity_loss
 
@@ -72,11 +85,18 @@ class UninterruptedLanguageModel:
         labels: torch.Tensor,
     ) -> torch.Tensor:
         logits = self.model.get_output_embeddings()(last_hidden_states)
-        prediction_loss = F.cross_entropy(
-            logits.view(-1, logits.size(-1)), labels.reshape(-1)
-        )
 
-        return prediction_loss
+        if self.model.config.final_logit_softcapping is not None:
+            logits = logits / self.model.config.final_logit_softcapping
+            logits = torch.tanh(logits)
+            logits = logits * self.model.config.final_logit_softcapping
+
+        logits = logits.float().contiguous()
+        logits = logits.view(-1, self.model.config.vocab_size)
+        labels = labels.contiguous().view(-1)
+        labels = labels.to(logits.device)
+
+        return F.cross_entropy(logits, labels)
 
     def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
         return tensor[:, 1:]
@@ -98,17 +118,10 @@ class UninterruptedLanguageModel:
         sequence: torch.Tensor,
         attention_mask: torch.Tensor,
     ) -> CausalLMOutputWithPast:
-        lm_head = model.get_output_embeddings()
-        model.set_output_embeddings(nn.Identity())
-
-        original_dtype = sequence.dtype
-        outputs = model(
+        outputs = model.model.model(
             inputs_embeds=sequence,
             attention_mask=attention_mask,
-            return_dict=True,
-        ).logits.to(original_dtype)
-
-        self.model.set_output_embeddings(lm_head)
+        )[0]
 
         return outputs
 
@@ -131,7 +144,7 @@ class UninterruptedLanguageModel:
             Combined loss from cross entropy of predictions and MSE of hidden states
         """
         input_embeddings = self.model.get_input_embeddings()(batch["input_ids"])
-        sequence = input_embeddings.clone().detach().requires_grad_(True)
+        sequence = input_embeddings.clone()
 
         labels = batch["labels"]
         attention_mask = batch["attention_mask"]
@@ -142,10 +155,7 @@ class UninterruptedLanguageModel:
         seq_len = input_embeddings.shape[1]
         num_steps = min(seq_len - 1, self.config.uninterrupted_recurrence_depth)
 
-        for step in tqdm(
-            range(num_steps),
-            desc="Processing sequence recurrently...",
-        ):
+        for _ in range(num_steps):
             last_hidden_states = checkpoint(
                 self.checkpointed_forward,
                 self.model,
@@ -156,38 +166,49 @@ class UninterruptedLanguageModel:
             if last_hidden_states is None:
                 raise ValueError("Model forward pass failed")
 
+            pred_loss = self.model(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                labels=batch["labels"],
+            ).loss
+
             sequence = self._shift_right(last_hidden_states)
             attention_mask = self._shift_right(attention_mask)
             labels = self._shift_left(labels)
             input_embeddings = self._shift_left(input_embeddings)
 
             prediction_loss = self._get_prediction_loss(sequence, labels)
-            similarity_loss = self._get_similarity_loss(sequence, input_embeddings)
 
-            all_prediction_losses.append(prediction_loss)
-            all_hidden_state_losses.append(similarity_loss)
+            print("Pred loss:", pred_loss)
+            print("Prediction loss:", prediction_loss)
+
+            # similarity_loss = self._get_similarity_loss(
+            #    sequence, input_embeddings, attention_mask
+            # )
+
+            all_prediction_losses.append(pred_loss)
+            # all_hidden_state_losses.append(similarity_loss)
 
         avg_prediction_loss = torch.stack(all_prediction_losses).mean()
-        avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
+        # avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
 
-        # Combine losses with configurable weights
         total_loss = (
-            self.config.recurrent_prediction_weight * avg_prediction_loss
-            + self.config.recurrent_hidden_state_weight * avg_hidden_loss
+            self.config.recurrent_prediction_weight
+            * avg_prediction_loss
+            # + self.config.recurrent_hidden_state_weight * avg_hidden_loss
         )
 
-        # Log individual losses for tracking
         self.log(
             f"{mode}_recurrent_prediction_loss",
             avg_prediction_loss,
             sync_dist=True,
             batch_size=self.data_config.batch_size,
         )
-        self.log(
-            f"{mode}_recurrent_hidden_state_loss",
-            avg_hidden_loss,
-            sync_dist=True,
-            batch_size=self.data_config.batch_size,
-        )
+        # self.log(
+        #    f"{mode}_recurrent_hidden_state_loss",
+        #    avg_hidden_loss,
+        #    sync_dist=True,
+        #    batch_size=self.data_config.batch_size,
+        # )
 
         return total_loss
