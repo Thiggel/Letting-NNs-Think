@@ -80,8 +80,6 @@ class ModelAdapter:
         # First find the actual lm_head - need to check both possible locations
         if hasattr(model, "lm_head"):
             lm_head = model.lm_head
-        elif hasattr(model, "lm_head"):
-            lm_head = model.lm_head
         else:
             raise AttributeError("Could not find lm_head in model")
 
