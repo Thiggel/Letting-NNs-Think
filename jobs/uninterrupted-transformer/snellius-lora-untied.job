@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=4:00:00
-#SBATCH --job-name=UninteruptedTransformer-FullLora-Untied
-#SBATCH --output=job_logs/Uninterrupted-Transformer-FullLora-Untied-%A.out
+#SBATCH --job-name=UninteruptedTransformer-FullLora-Untied-Recurrent
+#SBATCH --output=job_logs/Uninterrupted-Transformer-FullLora-Untied-Recurrent-%A.out
 
 cd $HOME/Letting-NNs-Think
 

@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=4:00:00
-#SBATCH --job-name=UninteruptedTransformer-FullLora-Untied-Recurrent
-#SBATCH --output=job_logs/Uninterrupted-Transformer-FullLora-Untied-Recurrent-%A.out
+#SBATCH --job-name=UninteruptedTransformer-FullLora-Untied-Recurrent-1Step
+#SBATCH --output=job_logs/Uninterrupted-Transformer-FullLora-Untied-Recurrent-1Step-%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -15,15 +15,14 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
-  --batch-size 8 \
-  --max-epochs 1 \
+  --batch-size 16 \
   --learning-rate 1e-3 \
   --make-uninterrupted \
-  --make-uninterrupted-with-recurrence \
+  --uninterrupted-recurrence-depth 1 \
   --untie-embedding-and-softmax \
   --finetune-mode 'lmhead_lora' \
-  --experiment-name UninterruptedTransformerFullLoraUntiedRecurrent \
-  --save-to-checkpoint UninterruptedTransformerFullLoraUntiedRecurrent \
+  --experiment-name UninterruptedTransformerFullLoraUntied1Step \
+  --save-to-checkpoint UninterruptedTransformerFullLoraUntied1Step \
   --enable-logging
 
 srun python -m experiment \
@@ -32,6 +31,6 @@ srun python -m experiment \
   --untie-embedding-and-softmax \
   --finetune-mode 'lmhead_lora' \
   --evaluation-metrics gsm8k \
-  --load-from-checkpoint UninterruptedTransformerFullLoraUntiedRecurrent \
-  --experiment-name UninterruptedTransformerFullLoraUntiedRecurrent \
+  --load-from-checkpoint UninterruptedTransformerFullLoraUntied1Step \
+  --experiment-name UninterruptedTransformerFullLoraUntied1Step \
   --enable-logging

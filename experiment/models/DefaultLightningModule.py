@@ -166,14 +166,6 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
                 print(decoded)
                 print()
 
-            is_tied = (
-                self.model.base_model.model.model.embed_tokens.weight.data_ptr()
-                == self.model.base_model.model.lm_head.weight.data_ptr()
-            )
-
-            print(f"Embedding and LM head weights are tied: {is_tied}")
-            print()
-
             self.num_dumped_first_batch += 1
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
@@ -183,14 +175,16 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         if self.config.make_uninterrupted:
             batch["output_hidden_states"] = True
 
-        outputs = self.model(**batch)
-        loss = outputs.loss
+        if self.config.make_uninterrupted:
+            loss = self.get_recurrent_prediction_loss(batch, mode)
+        else:
+            outputs = self.model(**batch)
+            loss = outputs.loss
+            self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
         self.metrics_logger.log_loss(loss, mode)
-        loss += self.get_recurrent_prediction_loss(outputs, batch, mode)
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
-        self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
         return loss
 

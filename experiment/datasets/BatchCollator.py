@@ -1,4 +1,5 @@
 import torch
+from typing import Optional
 from torch.nn import functional as F
 from torch.nn.utils.rnn import pad_sequence
 from transformers import PreTrainedTokenizer
@@ -13,15 +14,22 @@ class BatchCollator:
         self.max_length = max_length
 
     def __call__(self, batch: list[dict[str, Any]]) -> dict[str, torch.Tensor]:
+        max_unpadded_len = max(sum(item["attention_mask"]) for item in batch)
+
         input_ids = self._pad_and_truncate(
             [torch.tensor(item["input_ids"]) for item in batch],
             self.tokenizer.pad_token_id or 0,
+            truncate_to=max_unpadded_len,
         )
         attention_mask = self._pad_and_truncate(
-            [torch.tensor(item["attention_mask"]) for item in batch], 0
+            [torch.tensor(item["attention_mask"]) for item in batch],
+            0,
+            truncate_to=max_unpadded_len,
         )
         labels = self._pad_and_truncate(
-            [torch.tensor(item["labels"]) for item in batch], -100
+            [torch.tensor(item["labels"]) for item in batch],
+            -100,
+            truncate_to=max_unpadded_len,
         )
 
         return {
@@ -31,13 +39,14 @@ class BatchCollator:
         }
 
     def _pad_and_truncate(
-        self, sequences: list[torch.Tensor], padding_value: int
+        self,
+        sequences: list[torch.Tensor],
+        padding_value: int,
+        truncate_to: Optional[int] = None,
     ) -> torch.Tensor:
         padded = pad_sequence(sequences, batch_first=True, padding_value=padding_value)
-        truncated = padded[:, : self.max_length]
 
-        if truncated.shape[1] < self.max_length:
-            pad_length = self.max_length - truncated.shape[1]
-            truncated = F.pad(truncated, (0, pad_length), value=padding_value)
+        max_length = truncate_to or self.max_length
+        truncated = padded[:, :max_length]
 
         return truncated

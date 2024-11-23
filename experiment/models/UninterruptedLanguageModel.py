@@ -24,6 +24,16 @@ class UninterruptedLanguageModelProtocol(Protocol):
         batch_size: int = 1,
     ) -> None: ...
 
+    def _forward_without_lm_head(
+        self, model: PreTrainedModel, batch: dict[str, torch.Tensor]
+    ) -> CausalLMOutputWithPast: ...
+
+    def _get_prediction_loss(
+        self,
+        last_hidden_states: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor: ...
+
     def _get_similarity_loss(
         self,
         last_hidden_states: torch.Tensor,
@@ -37,9 +47,9 @@ class UninterruptedLanguageModelProtocol(Protocol):
         mode: str = "train",
     ) -> torch.Tensor: ...
 
-    def shift_left(self, tensor: torch.Tensor) -> torch.Tensor: ...
+    def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor: ...
 
-    def shift_right(self, tensor: torch.Tensor) -> torch.Tensor: ...
+    def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor: ...
 
     def checkpointed_forward(
         self, module: nn.Module, sequence: torch.Tensor, labels: torch.Tensor
@@ -56,25 +66,17 @@ class UninterruptedLanguageModel:
 
         return self.config.uninterrupted_loss_weight * similarity_loss
 
-    def checkpointed_forward(
+    def _get_prediction_loss(
         self: UninterruptedLanguageModelProtocol,
-        module: nn.Module,
-        sequence: torch.Tensor,
+        last_hidden_states: torch.Tensor,
         labels: torch.Tensor,
     ) -> torch.Tensor:
-        """
-        Wrapper function for applying checkpointing to a module.
-        """
+        logits = self.model.get_output_embeddings()(last_hidden_states)
+        prediction_loss = F.cross_entropy(
+            logits.view(-1, logits.size(-1)), labels.reshape(-1)
+        )
 
-        def forward(sequence: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-            return module(
-                inputs_embeds=sequence,
-                labels=labels,
-                output_hidden_states=True,
-                return_dict=True,
-            )
-
-        return forward(sequence, labels)
+        return prediction_loss
 
     def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
         return tensor[:, 1:]
@@ -82,9 +84,36 @@ class UninterruptedLanguageModel:
     def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor:
         return tensor[:, :-1]
 
+    def checkpointed_forward(
+        self: UninterruptedLanguageModelProtocol,
+        model: nn.Module,
+        sequence: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        return self._forward_without_lm_head(model, sequence, attention_mask)
+
+    def _forward_without_lm_head(
+        self: UninterruptedLanguageModelProtocol,
+        model: PreTrainedModel,
+        sequence: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> CausalLMOutputWithPast:
+        lm_head = model.get_output_embeddings()
+        model.set_output_embeddings(nn.Identity())
+
+        original_dtype = sequence.dtype
+        outputs = model(
+            inputs_embeds=sequence,
+            attention_mask=attention_mask,
+            return_dict=True,
+        ).logits.to(original_dtype)
+
+        self.model.set_output_embeddings(lm_head)
+
+        return outputs
+
     def get_recurrent_prediction_loss(
         self: UninterruptedLanguageModelProtocol,
-        outputs: CausalLMOutputWithPast,
         batch: dict[str, torch.Tensor],
         mode: str = "train",
     ) -> torch.Tensor:
@@ -101,13 +130,11 @@ class UninterruptedLanguageModel:
         Returns:
             Combined loss from cross entropy of predictions and MSE of hidden states
         """
-        if not self.config.make_uninterrupted or outputs.hidden_states is None:
-            return torch.tensor(0.0, device=self.device)
-
         input_embeddings = self.model.get_input_embeddings()(batch["input_ids"])
-        sequence = input_embeddings.clone()
+        sequence = input_embeddings.clone().detach().requires_grad_(True)
 
         labels = batch["labels"]
+        attention_mask = batch["attention_mask"]
 
         all_prediction_losses = []
         all_hidden_state_losses = []
@@ -119,30 +146,23 @@ class UninterruptedLanguageModel:
             range(num_steps),
             desc="Processing sequence recurrently...",
         ):
-            transformer_outputs = checkpoint(
-                self.checkpointed_forward, self.model, sequence, batch["labels"]
+            last_hidden_states = checkpoint(
+                self.checkpointed_forward,
+                self.model,
+                sequence,
+                attention_mask,
             )
 
-            if transformer_outputs is None:
+            if last_hidden_states is None:
                 raise ValueError("Model forward pass failed")
 
-            last_hidden_states = transformer_outputs.hidden_states[-1]
-
-            prediction_loss = transformer_outputs.loss
-
-            # For cross entropy loss, HF automatically shifts
-            # labels and predictions, so we do not need to shift them
-            # at the first step, hence we shift at the end of each step
+            sequence = self._shift_right(last_hidden_states)
+            attention_mask = self._shift_right(attention_mask)
             labels = self._shift_left(labels)
-            sequence = self._shift_right(sequence)
+            input_embeddings = self._shift_left(input_embeddings)
 
-            # For MSE loss, we need to shift the embeddings ourselves
-            # from the start
-            input_embeddings = self._shift_right(input_embeddings)
-
-            similarity_loss = self._get_similarity_loss(
-                last_hidden_states, input_embeddings
-            )
+            prediction_loss = self._get_prediction_loss(sequence, labels)
+            similarity_loss = self._get_similarity_loss(sequence, input_embeddings)
 
             all_prediction_losses.append(prediction_loss)
             all_hidden_state_losses.append(similarity_loss)
