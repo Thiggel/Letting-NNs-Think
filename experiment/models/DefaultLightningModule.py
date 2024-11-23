@@ -67,6 +67,21 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
             "weight_decay": 0.001,
         }
 
+        parameters = [
+            {
+                "params": self.model.model.parameters(),
+                "lr": self.training_config.learning_rate,
+            },
+        ]
+
+        if self.config.finetune_mode in ["lastlayer_lmhead", "lmhead_lora"]:
+            parameters.append(
+                {
+                    "params": self.model.get_output_embeddings().parameters(),
+                    "lr": self.training_config.learning_rate / 100,
+                }
+            )
+
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
