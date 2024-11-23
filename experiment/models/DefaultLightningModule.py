@@ -91,6 +91,13 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
         scheduler = LambdaLR(optimizer, lr_lambda=self.lr_lambda)
 
+        lm_head_in_optimizer = any(
+            id(self.model.base_model.model.lm_head.weight) == id(p)
+            for group in optimizer.param_groups
+            for p in group["params"]
+        )
+        print("lm_head in optimizer:", lm_head_in_optimizer)
+
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -187,6 +194,15 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
         current_weights = self.model.base_model.model.lm_head.weight.data[0][:5]
 
+        # Check if weights require gradients
+        print(
+            "requires_grad:", self.model.base_model.model.lm_head.weight.requires_grad
+        )
+        # Print all frozen params
+        for name, param in self.model.named_parameters():
+            if not param.requires_grad:
+                print(f"Frozen parameter: {name}")
+
         if not hasattr(self, "previous_weights"):
             self.previous_weights = current_weights.clone()
         else:
@@ -197,7 +213,45 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
             print(f"Mean difference: {diff.mean().item():.10f}")
             self.previous_weights = current_weights.clone()
 
+        print("\nBefore forward:")
+        print(
+            "Has gradient:", self.model.base_model.model.lm_head.weight.grad is not None
+        )
+        if self.model.base_model.model.lm_head.weight.grad is not None:
+            print(
+                "Gradient norm:",
+                self.model.base_model.model.lm_head.weight.grad.norm().item(),
+            )
+
         return loss
+
+    def on_after_backward(self):
+        if self.global_step % 10 == 0:
+            print("\nAfter backward:")
+            print(
+                "Has gradient:",
+                self.model.base_model.model.lm_head.weight.grad is not None,
+            )
+            if self.model.base_model.model.lm_head.weight.grad is not None:
+                print(
+                    "Gradient norm:",
+                    self.model.base_model.model.lm_head.weight.grad.norm().item(),
+                )
+
+    def on_before_optimizer_step(self, optimizer):
+        # Verify optimizer state
+        print("\nBefore optimizer step:")
+        param = self.model.base_model.model.lm_head.weight
+        if param.grad is not None:
+            print(f"Param data: {param.data[0][0].item():.10f}")
+            print(f"Param grad: {param.grad[0][0].item():.10f}")
+
+    def on_train_batch_end(self, outputs, batch, batch_idx):
+        if batch_idx % 10 == 0:
+            print("\nAfter optimizer step:")
+            print(
+                f"Param data: {self.model.base_model.model.lm_head.weight.data[0][0].item():.10f}"
+            )
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")
