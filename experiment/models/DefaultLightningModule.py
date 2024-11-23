@@ -85,7 +85,9 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
+            optimizer = DeepSpeedCPUAdam(
+                self.parameters(), **adam_params, adamw_mode=True
+            )
         else:
             optimizer = AdamW(parameters, **adam_params)
 
