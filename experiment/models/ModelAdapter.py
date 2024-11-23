@@ -76,13 +76,24 @@ class ModelAdapter:
         model.config.tie_word_embeddings = False
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
+        """Unfreeze the LM head parameters after LoRA wrapping"""
+        # First find the actual lm_head - need to check both possible locations
         if hasattr(model.base_model.model, "lm_head"):
             lm_head = model.base_model.model.lm_head
-        else:
+        elif hasattr(model, "lm_head"):
             lm_head = model.lm_head
+        else:
+            raise AttributeError("Could not find lm_head in model")
 
+        # Unfreeze all parameters in the lm_head
         for param in lm_head.parameters():
             param.requires_grad = True
+
+        # Verify unfreezing worked
+        print(
+            "LM head requires grad:", all(p.requires_grad for p in lm_head.parameters())
+        )
+        print("LM head parameters:", sum(p.numel() for p in lm_head.parameters()))
 
     def _unfreeze_last_layer(self, model: AutoModelForCausalLM) -> None:
         for param in model.parameters():
