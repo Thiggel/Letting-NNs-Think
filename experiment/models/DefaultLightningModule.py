@@ -205,10 +205,6 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         print(
             "requires_grad:", self.model.base_model.model.lm_head.weight.requires_grad
         )
-        # Print all frozen params
-        for name, param in self.model.named_parameters():
-            if not param.requires_grad:
-                print(f"Frozen parameter: {name}")
 
         if not hasattr(self, "previous_weights"):
             self.previous_weights = current_weights.clone()
