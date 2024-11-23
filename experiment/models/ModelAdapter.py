@@ -72,7 +72,7 @@ class ModelAdapter:
         ).to(model.device)
         new_lm_head.weight.data = model.get_input_embeddings().weight.clone().detach()
         new_lm_head.weight.requires_grad = True
-        model.base_model.model.lm_head = new_lm_head
+        model.model.lm_head = new_lm_head
         model.config.tie_word_embeddings = False
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
@@ -198,5 +198,3 @@ class ModelAdapter:
             new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
             new_layer.mlp.load_state_dict(layer.mlp.state_dict())
             new_layers.append(new_layer)
-
-        return SequentialTransformerLayer(*new_layers)
