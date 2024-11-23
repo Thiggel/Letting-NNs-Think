@@ -192,7 +192,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         else:
             # Print with high precision
             diff = (current_weights - self.previous_weights).abs()
-            print(f"\nStep {batch_idx}")
+            print(f"\nStep ")
             print(f"Max difference: {diff.max().item():.10f}")
             print(f"Mean difference: {diff.mean().item():.10f}")
             self.previous_weights = current_weights.clone()
