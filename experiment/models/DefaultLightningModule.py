@@ -69,7 +69,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
         parameters = [
             {
-                "params": self.model.base_model.model.layers.parameters(),
+                "params": self.model.base_model.model.model.layers.parameters(),
                 "lr": self.training_config.learning_rate,
             },
         ]
