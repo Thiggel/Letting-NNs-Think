@@ -133,12 +133,12 @@ class UninterruptedLanguageModel:
             # For cross entropy loss, HF automatically shifts
             # labels and predictions, so we do not need to shift them
             # at the first step, hence we shift at the end of each step
-            labels = self.shift_left(labels)
-            sequence = self.shift_right(sequence)
+            labels = self._shift_left(labels)
+            sequence = self._shift_right(sequence)
 
             # For MSE loss, we need to shift the embeddings ourselves
             # from the start
-            input_embeddings = self.shift_right(input_embeddings)
+            input_embeddings = self._shift_right(input_embeddings)
 
             similarity_loss = self._get_similarity_loss(
                 last_hidden_states, input_embeddings
