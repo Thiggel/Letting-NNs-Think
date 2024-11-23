@@ -98,6 +98,11 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         )
         print("lm_head in optimizer:", lm_head_in_optimizer)
 
+        for group in optimizer.param_groups:
+            for p in group["params"]:
+                if id(p) == id(self.model.base_model.model.lm_head.weight):
+                    print("Found lm_head in param group with lr:", group["lr"])
+
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
