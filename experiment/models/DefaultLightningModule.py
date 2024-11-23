@@ -78,7 +78,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
             parameters.append(
                 {
                     "params": self.model.base_model.model.lm_head.parameters(),
-                    "lr": self.training_config.learning_rate,
+                    "lr": 0.1,  # self.training_config.learning_rate,
                 }
             )
 
