@@ -74,7 +74,7 @@ class ModelAdapter:
         model.lm_head = new_lm_head
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
-        for param in model.lm_head.parameters():
+        for param in model.base_model.model.lm_head.parameters():
             param.requires_grad = True
 
     def _unfreeze_last_layer(self, model: AutoModelForCausalLM) -> None:
