@@ -126,12 +126,12 @@ class UninterruptedLanguageModel:
         num_steps = min(seq_len - 1, self.config.uninterrupted_recurrence_depth)
 
         for _ in range(num_steps):
-            outputs = checkpoint(
-                self.checkpointed_forward,
-                self.model,
-                sequence,
-                attention_mask,
-                labels,
+            outputs = self.model(
+                inputs_embeds=sequence,
+                attention_mask=attention_mask,
+                labels=labels,
+                output_hidden_states=True,
+                return_dict=True,
             )
 
             if outputs is None:
