@@ -202,3 +202,47 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
     def tie_weights(self):
         """Tie the model's weights"""
         self.model.tie_weights()
+
+    def track_weight_changes(self, layer_name=None):
+        """
+        Track changes in model weights.
+        Args:
+            layer_name: Optional specific layer to track. If None, tracks all layers.
+        Returns:
+            dict: Changes in weights with their magnitudes
+        """
+        changes = {}
+        from copy import deepcopy
+
+        for name, param in self.named_parameters():
+            if layer_name is not None and name != layer_name:
+                continue
+
+            if name not in self.previous_weights:
+                self.previous_weights[name] = deepcopy(param.data)
+                changes[name] = {"changed": False, "max_diff": 0.0, "mean_diff": 0.0}
+            else:
+                diff = param.data - self.previous_weights[name]
+                max_diff = torch.max(torch.abs(diff)).item()
+                mean_diff = torch.mean(torch.abs(diff)).item()
+
+                changes[name] = {
+                    "changed": not torch.allclose(
+                        param.data, self.previous_weights[name]
+                    ),
+                    "max_diff": max_diff,
+                    "mean_diff": mean_diff,
+                }
+
+                # Update stored weights
+                self.previous_weights[name] = deepcopy(param.data)
+
+        return changes
+
+    def on_after_backward(self):
+        # Track changes after backward pass
+        post_backward_changes = self.track_weight_changes()
+        for name, change_info in post_backward_changes.items():
+            if change_info["changed"]:
+                self.log(f"{name}_max_diff", change_info["max_diff"])
+                self.log(f"{name}_mean_diff", change_info["mean_diff"])
