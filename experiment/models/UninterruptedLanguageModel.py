@@ -141,6 +141,8 @@ class UninterruptedLanguageModel:
 
             last_hidden_states = outputs.hidden_states[-1]
 
+            print(last_hidden_states)
+
             prediction_loss = outputs.loss
             similarity_loss = self._get_similarity_loss(
                 last_hidden_states, input_embeddings, attention_mask
