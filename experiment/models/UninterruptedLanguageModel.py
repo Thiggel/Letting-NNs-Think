@@ -113,9 +113,7 @@ class UninterruptedLanguageModel:
         batch: dict[str, torch.Tensor],
         mode: str = "train",
     ) -> torch.Tensor:
-        input_embeddings = self.model.base_model.model.model.embed_tokens(
-            batch["input_ids"]
-        )
+        input_embeddings = self.model.get_input_embeddings()(batch["input_ids"])
         sequence = input_embeddings.clone()
 
         labels = batch["labels"]

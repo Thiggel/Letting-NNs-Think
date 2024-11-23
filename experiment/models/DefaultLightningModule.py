@@ -67,21 +67,6 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
             "weight_decay": 0.001,
         }
 
-        parameters = [
-            {
-                "params": self.model.base_model.model.model.parameters(),
-                "lr": self.training_config.learning_rate,
-            },
-        ]
-
-        if self.config.finetune_mode in ["lastlayer_lmhead", "lmhead_lora"]:
-            parameters.append(
-                {
-                    "params": self.model.base_model.model.lm_head.parameters(),
-                    "lr": self.training_config.learning_rate / 100,
-                }
-            )
-
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
@@ -89,7 +74,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
                 self.parameters(), **adam_params, adamw_mode=True
             )
         else:
-            optimizer = AdamW(parameters, **adam_params)
+            optimizer = AdamW(self.parameters(), **adam_params)
 
         scheduler = LambdaLR(optimizer, lr_lambda=self.lr_lambda)
 
