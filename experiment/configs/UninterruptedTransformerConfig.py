@@ -13,6 +13,9 @@ class UninterruptedTransformerConfig:
         False,
         description="Whether to make the model uninterrupted with recurrence",
     )
+    uninterrupted_recurrence_depth: int = Field(
+        5, description="The depth of recurrence"
+    )
     recurrent_prediction_weight: float = Field(
         1.0, description="The weight for the recurrent prediction loss"
     )

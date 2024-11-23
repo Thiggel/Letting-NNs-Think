@@ -17,8 +17,8 @@ srun python -m experiment \
   --dataset gsm8k \
   --batch-size 8 \
   --use-mod \
-  --experiment-name GSM8K_1Step \
-  --save-to-checkpoint GSM8K_1Step \
+  --experiment-name GSM8K_1StepMoD \
+  --save-to-checkpoint GSM8K_1StepMoD \
   --enable-logging
 
 srun python -m experiment \
@@ -26,6 +26,6 @@ srun python -m experiment \
   --mode evaluate \
   --use-mod \
   --evaluation-metrics gsm8k \
-  --load-from-checkpoint GSM8K_1Step \
-  --experiment-name GSM8K_1Step \
+  --load-from-checkpoint GSM8K_1StepMoD \
+  --experiment-name GSM8K_1StepMoD \
   --enable-logging

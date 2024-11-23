@@ -1,7 +1,9 @@
 from tqdm import tqdm
 from typing import Protocol
 from transformers import PreTrainedModel
+from torch.utils.checkpoint import checkpoint
 import torch
+from torch import nn
 import torch.nn.functional as F
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
@@ -68,8 +70,31 @@ class UninterruptedLanguageModel:
 
         return lm_loss or torch.tensor(0.0)
 
+    def checkpointed_forward(
+        self, module: nn.Module, sequence: torch.Tensor, labels: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Wrapper function for applying checkpointing to a module.
+        """
+
+        def forward(sequence: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+            return module(
+                inputs_embeds=sequence,
+                labels=labels,
+                output_hidden_states=True,
+                return_dict=True,
+            )
+
+        return forward(sequence, labels)
+
+    def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor:
+        return tensor[:, 1:]
+
+    def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
+        return tensor[:, :-1]
+
     def get_recurrent_prediction_loss(
-        self,
+        self: UninterruptedLanguageModelProtocol,
         outputs: CausalLMOutputWithPast,
         batch: dict[str, torch.Tensor],
         mode: str = "train",
@@ -103,26 +128,23 @@ class UninterruptedLanguageModel:
             padding_mask.sum(dim=1).max().item()
         )  # Maximum number of non-pad tokens
 
-        # Extract original embeddings
-        original_embeddings = self.model.get_input_embeddings()(
-            batch["input_ids"]
-        )  # [batch, seq_len, hidden_dim]
+        sequence = self.model.get_input_embeddings()(batch["input_ids"])
+
+        labels = batch["labels"]
 
         # Initialize losses
         all_prediction_losses = []
         all_hidden_state_losses = []
 
         # Start with the original embeddings for recurrence
-        current_sequence = original_embeddings.clone()  # Initial input embeddings
         for step in tqdm(
-            range(seq_length - 1), desc="Processing sequence recurrently..."
-        ):  # -1 because last token cannot predict further
+            range(min(seq_length - 1, self.config.uninterrupted_recurrence_depth)),
+            desc="Processing sequence recurrently...",
+        ):
 
             # Forward pass through the model
-            transformer_outputs = self.model(
-                inputs_embeds=current_sequence,
-                output_hidden_states=True,
-                return_dict=True,
+            transformer_outputs = checkpoint(
+                self.checkpointed_forward, self.model, sequence, batch["labels"]
             )
 
             # Get the last hidden state for each token
@@ -130,30 +152,14 @@ class UninterruptedLanguageModel:
                 -1
             ]  # [batch, seq_len, hidden_dim]
 
-            # Generate predictions for all tokens
-            lm_head_outputs = self.model.lm_head(
-                last_hidden_states
-            )  # [batch, seq_len, vocab_size]
+            pred_loss = transformer_outputs.loss
 
-            # Cross-entropy loss for predictions (mask out pad tokens)
-            target_tokens = batch["input_ids"]  # [batch, seq_len]
-            pred_loss = F.cross_entropy(
-                lm_head_outputs.reshape(
-                    -1, lm_head_outputs.size(-1)
-                ),  # [batch * seq_len, vocab_size]
-                target_tokens.reshape(-1),  # [batch * seq_len]
-                reduction="none",
-            )
-            pred_loss = pred_loss[padding_mask.view(-1)]  # Mask out pad positions
-            pred_loss = pred_loss.mean()  # Average loss over valid tokens
-
-            # MSE loss between hidden states and original embeddings (mask out pad tokens)
-            target_embeds = original_embeddings  # [batch, seq_len, hidden_dim]
+            target_embeds = original_embeddings[:, 1:]  # Shifted by one token
             mse_loss = F.mse_loss(
-                last_hidden_states, target_embeds, reduction="none"
+                last_hidden_states[:, :-1, :], target_embeds, reduction="none"
             )  # [batch, seq_len, hidden_dim]
             mse_loss = mse_loss[
-                padding_mask.unsqueeze(-1).expand_as(mse_loss)
+                padding_mask[:, :-1].unsqueeze(-1).expand_as(mse_loss)
             ]  # Mask out pad positions
             mse_loss = mse_loss.mean()  # Average loss over valid tokens
 
