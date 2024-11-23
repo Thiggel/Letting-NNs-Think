@@ -72,14 +72,14 @@ class ModelAdapter:
         ).to(model.device)
         new_lm_head.weight.data = model.get_input_embeddings().weight.clone().detach()
         new_lm_head.weight.requires_grad = True
-        model.base_model.model.lm_head = new_lm_head
+        model.lm_head = new_lm_head
         model.config.tie_word_embeddings = False
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
         """Unfreeze the LM head parameters after LoRA wrapping"""
         # First find the actual lm_head - need to check both possible locations
-        if hasattr(model.base_model.model, "lm_head"):
-            lm_head = model.base_model.model.lm_head
+        if hasattr(model., "lm_head"):
+            lm_head = model.lm_head
         elif hasattr(model, "lm_head"):
             lm_head = model.lm_head
         else:
