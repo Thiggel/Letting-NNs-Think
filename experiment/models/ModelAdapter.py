@@ -39,14 +39,14 @@ class ModelAdapter:
         model.use_cache = False
         model.train()
 
+        if self.config.untie_embedding_and_softmax:
+            self._untie_embedding_and_softmax(model)
+
         if self.config.use_gating:
             model = self._add_gating(model)
 
         if self.config.use_mod:
             model = self._add_mod(model)
-
-        if self.config.untie_embedding_and_softmax:
-            self._untie_embedding_and_softmax(model)
 
         if self.config.finetune_mode == "lora":
             print("Using LoRA")
@@ -69,12 +69,19 @@ class ModelAdapter:
     def _untie_embedding_and_softmax(self, model: AutoModelForCausalLM) -> None:
         new_lm_head = nn.Linear(
             model.config.hidden_size, model.config.vocab_size, bias=False
-        )
+        ).to(model.device)
         new_lm_head.weight.data = model.get_input_embeddings().weight.clone().detach()
+        new_lm_head.weight.requires_grad = True
         model.lm_head = new_lm_head
+        model.config.tie_word_embeddings = False
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
-        for param in model.base_model.model.lm_head.parameters():
+        if hasattr(model.base_model.model, "lm_head"):
+            lm_head = model.base_model.model.lm_head
+        else:
+            lm_head = model.lm_head
+
+        for param in lm_head.parameters():
             param.requires_grad = True
 
     def _unfreeze_last_layer(self, model: AutoModelForCausalLM) -> None:

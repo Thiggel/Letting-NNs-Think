@@ -34,6 +34,9 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
     def setup(self, stage):
         self.model_adapter = ModelAdapter(self.config, self.device)
         self.model = self.model_adapter.model
+        self.initial_lm_head_weights = (
+            self.model.base_model.model.lm_head.weight.data.clone()
+        ).cuda()
 
         print(self.model)
 
@@ -162,6 +165,12 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
             self.num_dumped_first_batch += 1
 
+    def on_train_start(self):
+        # Store initial weights
+        self.initial_lm_head_weights = (
+            self.model.base_model.model.lm_head.weight.data.clone()
+        )
+
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
         """Perform a single training/validation/test step"""
         self._dump_first_batch(batch)
@@ -181,7 +190,16 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
 
-        print(self.model.base_model.model.lm_head.weight)
+        if not hasattr(self, "initial_lm_head_weights"):
+            self.initial_lm_head_weights = (
+                self.model.base_model.model.lm_head.weight.data.clone()
+            )
+        # print(self.model.base_model.model.lm_head.weight)
+        current_weights = self.model.base_model.model.lm_head.weight.data
+        print(current_weights)
+        print(self.initial_lm_head_weights)
+        diff = (current_weights - self.initial_lm_head_weights).abs().mean()
+        print(f"Average LM head weight change: {diff.item()}")
 
         return loss
 

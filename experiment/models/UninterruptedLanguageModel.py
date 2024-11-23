@@ -78,16 +78,14 @@ class UninterruptedLanguageModel:
         next_token_embeddings = self.model.base_model.model.model.embed_tokens(
             batch["input_ids"][:, 1:]
         )
-        similarity_loss2 = F.mse_loss(last_hidden_states, next_token_embeddings)
-
-        print(similarity_loss2)
-
         similarity_loss = (
             F.mse_loss(last_hidden_states, next_token_embeddings, reduction="none")
+            * mask.unsqueeze(-1)
         ).sum() / mask.unsqueeze(-1).repeat(1, 1, last_hidden_states.shape[-1]).sum()
+
         print(similarity_loss)
 
-        return self.config.uninterrupted_loss_weight * similarity_loss2
+        return self.config.uninterrupted_loss_weight * similarity_loss
 
     def _get_prediction_loss(
         self: UninterruptedLanguageModelProtocol,
@@ -128,10 +126,12 @@ class UninterruptedLanguageModel:
         sequence: torch.Tensor,
         attention_mask: torch.Tensor,
     ) -> CausalLMOutputWithPast:
-        outputs = model.base_model.model.model(
+        outputs = model(
             inputs_embeds=sequence,
             attention_mask=attention_mask,
-        )[0]
+            output_hidden_states=True,
+            return_dict=True,
+        )
 
         return outputs
 
@@ -179,7 +179,7 @@ class UninterruptedLanguageModel:
                 raise ValueError("Model forward pass failed")
 
             similarity_loss = self._get_similarity_loss(
-                sequence, input_embeddings, attention_mask, batch
+               sequence, input_embeddings, attention_mask, batch
             )
 
             sequence = self._shift_right(last_hidden_states)
@@ -198,14 +198,15 @@ class UninterruptedLanguageModel:
             )
 
             all_prediction_losses.append(prediction_loss)
-            all_hidden_state_losses.append(similarity_loss)
+            # all_hidden_state_losses.append(similarity_loss)
 
         avg_prediction_loss = torch.stack(all_prediction_losses).mean()
-        avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
+        # avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
 
         total_loss = (
-            self.config.recurrent_prediction_weight * avg_prediction_loss
-            + self.config.recurrent_hidden_state_weight * avg_hidden_loss
+            self.config.recurrent_prediction_weight
+            * avg_prediction_loss
+            # + self.config.recurrent_hidden_state_weight * avg_hidden_loss
         )
 
         self.log(
@@ -214,11 +215,11 @@ class UninterruptedLanguageModel:
             sync_dist=True,
             batch_size=self.data_config.batch_size,
         )
-        self.log(
-            f"{mode}_recurrent_hidden_state_loss",
-            avg_hidden_loss,
-            sync_dist=True,
-            batch_size=self.data_config.batch_size,
-        )
+        # self.log(
+        #    f"{mode}_recurrent_hidden_state_loss",
+        #    avg_hidden_loss,
+        #    sync_dist=True,
+        #    batch_size=self.data_config.batch_size,
+        # )
 
         return total_loss
