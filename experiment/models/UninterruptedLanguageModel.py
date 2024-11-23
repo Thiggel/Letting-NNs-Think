@@ -72,8 +72,6 @@ class UninterruptedLanguageModel:
             * mask.unsqueeze(-1)
         ).sum() / mask.unsqueeze(-1).repeat(1, 1, last_hidden_states.shape[-1]).sum()
 
-        print(similarity_loss)
-
         return self.config.uninterrupted_loss_weight * similarity_loss
 
     def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
@@ -139,9 +137,6 @@ class UninterruptedLanguageModel:
                 raise ValueError("Model forward pass failed")
 
             last_hidden_states = outputs.hidden_states[-1]
-
-            print(last_hidden_states)
-            print(last_hidden_states.requires_grad)
 
             prediction_loss = outputs.loss
             similarity_loss = self._get_similarity_loss(
