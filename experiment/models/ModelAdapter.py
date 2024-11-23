@@ -86,8 +86,14 @@ class ModelAdapter:
             raise AttributeError("Could not find lm_head in model")
 
         # Unfreeze all parameters in the lm_head
-        for param in lm_head.parameters():
-            param.requires_grad = True
+        # Check if weights require gradients
+        print(
+            "requires_grad:", self.model.base_model.model.lm_head.weight.requires_grad
+        )
+        # Print all frozen params
+        for name, param in self.model.named_parameters():
+            if not param.requires_grad:
+                print(f"Frozen parameter: {name}")
 
         # Verify unfreezing worked
         print(
