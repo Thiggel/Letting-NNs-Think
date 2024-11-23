@@ -181,16 +181,8 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
 
-        if not hasattr(self, "initial_lm_head_weights"):
-            self.initial_lm_head_weights = (
-                self.model.base_model.model.lm_head.weight.data.clone()
-            )
-        # print(self.model.base_model.model.lm_head.weight)
         current_weights = self.model.base_model.model.lm_head.weight.data
         print(current_weights)
-        print(self.initial_lm_head_weights)
-        diff = (current_weights - self.initial_lm_head_weights).abs().mean()
-        print(f"Average LM head weight change: {diff.item()}")
 
         return loss
 
