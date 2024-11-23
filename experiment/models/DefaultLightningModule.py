@@ -69,7 +69,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
         parameters = [
             {
-                "params": self.model.model.layers.parameters(),
+                "params": self.model.base_model.model.model.layers.parameters(),
                 "lr": self.training_config.learning_rate,
             },
         ]
@@ -77,7 +77,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         if self.config.finetune_mode in ["lastlayer_lmhead", "lmhead_lora"]:
             parameters.append(
                 {
-                    "params": self.model.lm_head.parameters(),
+                    "params": self.model.base_model.model.lm_head.parameters(),
                     "lr": self.training_config.learning_rate / 100,
                 }
             )
@@ -85,9 +85,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(
-                self.parameters(), **adam_params, adamw_mode=True
-            )
+            optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
         else:
             optimizer = AdamW(parameters, **adam_params)
 
@@ -159,8 +157,8 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
                 print()
 
             is_tied = (
-                self.model.model.embed_tokens.weight.data_ptr()
-                == self.model.lm_head.weight.data_ptr()
+                self.model.base_model.model.model.embed_tokens.weight.data_ptr()
+                == self.model.base_model.model.lm_head.weight.data_ptr()
             )
 
             print(f"Embedding and LM head weights are tied: {is_tied}")
@@ -187,8 +185,17 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
 
-        current_weights = self.model.lm_head.weight.data
-        print(current_weights)
+        current_weights = self.model.base_model.model.lm_head.weight.data[0][:5]
+
+        if not hasattr(self, "previous_weights"):
+            self.previous_weights = current_weights.clone()
+        else:
+            # Print with high precision
+            diff = (current_weights - self.previous_weights).abs()
+            print(f"\nStep {batch_idx}")
+            print(f"Max difference: {diff.max().item():.10f}")
+            print(f"Mean difference: {diff.mean().item():.10f}")
+            self.previous_weights = current_weights.clone()
 
         return loss
 
