@@ -95,9 +95,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         """Get the recurrent layer if it exists"""
         if not hasattr(self.model_adapter, "recurrent_layer_idx"):
             return None
-        return self.model.base_model.model.model.layers[
-            self.model_adapter.recurrent_layer_idx
-        ]
+        return self.model.model.layers[self.model_adapter.recurrent_layer_idx]
 
     def get_loss_for_intermediate_supervision(self) -> torch.Tensor:
         layer = self.get_recurrent_layer()
@@ -166,7 +164,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
 
-        current_weights = self.model.base_model.model.lm_head.weight.data
+        current_weights = self.model.get_output_embeddings().weight.data
         print(current_weights)
 
         return loss
