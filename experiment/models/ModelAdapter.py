@@ -78,7 +78,7 @@ class ModelAdapter:
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
         """Unfreeze the LM head parameters after LoRA wrapping"""
         # First find the actual lm_head - need to check both possible locations
-        if hasattr(model., "lm_head"):
+        if hasattr(model, "lm_head"):
             lm_head = model.lm_head
         elif hasattr(model, "lm_head"):
             lm_head = model.lm_head
