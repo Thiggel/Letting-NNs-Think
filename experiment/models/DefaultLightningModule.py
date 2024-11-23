@@ -187,7 +187,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         loss = outputs.loss
 
         self.metrics_logger.log_loss(loss, mode)
-        loss = self.get_similarity_loss(outputs, batch, mode)
+        loss += self.get_recurrent_prediction_loss(outputs, batch, mode)
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)

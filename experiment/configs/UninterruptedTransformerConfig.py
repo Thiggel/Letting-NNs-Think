@@ -9,10 +9,6 @@ class UninterruptedTransformerConfig:
     uninterrupted_loss_weight: float = Field(
         1.0, description="The weight for the uninterrupted loss"
     )
-    make_uninterrupted_with_recurrence: bool = Field(
-        False,
-        description="Whether to make the model uninterrupted with recurrence",
-    )
     uninterrupted_recurrence_depth: int = Field(
         5, description="The depth of recurrence"
     )

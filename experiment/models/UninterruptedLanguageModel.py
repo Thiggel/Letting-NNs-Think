@@ -24,11 +24,10 @@ class UninterruptedLanguageModelProtocol(Protocol):
         batch_size: int = 1,
     ) -> None: ...
 
-    def get_similarity_loss(
+    def _get_similarity_loss(
         self,
-        outputs: CausalLMOutputWithPast,
-        batch: dict[str, torch.Tensor],
-        mode: str = "train",
+        last_hidden_states: torch.Tensor,
+        next_token_embeddings: torch.Tensor,
     ) -> torch.Tensor: ...
 
     def get_recurrent_prediction_loss(
@@ -38,40 +37,30 @@ class UninterruptedLanguageModelProtocol(Protocol):
         mode: str = "train",
     ) -> torch.Tensor: ...
 
+    def shift_left(self, tensor: torch.Tensor) -> torch.Tensor: ...
 
-class UninterruptedLanguageModel:
-    def get_similarity_loss(
-        self: UninterruptedLanguageModelProtocol,
-        outputs: CausalLMOutputWithPast,
-        batch: dict[str, torch.Tensor],
-        mode: str = "train",
-    ) -> torch.Tensor:
-        lm_loss = outputs.loss
-
-        if self.config.make_uninterrupted and outputs.hidden_states is not None:
-            # Custom loss: make last hidden state similar to next token's first embedded state
-            last_hidden_states = outputs.hidden_states[-1][:, :-1, :]
-            next_token_embeddings = self.model.get_input_embeddings()(
-                batch["input_ids"][:, 1:]
-            )
-            similarity_loss = F.mse_loss(last_hidden_states, next_token_embeddings)
-
-            self.log(
-                f"{mode}_similarity_loss",
-                similarity_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
-
-            total_loss = (
-                lm_loss + self.config.uninterrupted_loss_weight * similarity_loss
-            )
-            return total_loss + self.get_recurrent_prediction_loss(outputs, batch, mode)
-
-        return lm_loss or torch.tensor(0.0)
+    def shift_right(self, tensor: torch.Tensor) -> torch.Tensor: ...
 
     def checkpointed_forward(
         self, module: nn.Module, sequence: torch.Tensor, labels: torch.Tensor
+    ) -> torch.Tensor: ...
+
+
+class UninterruptedLanguageModel:
+    def _get_similarity_loss(
+        self: UninterruptedLanguageModelProtocol,
+        last_hidden_states: torch.Tensor,
+        next_token_embeddings: torch.Tensor,
+    ) -> torch.Tensor:
+        similarity_loss = F.mse_loss(last_hidden_states, next_token_embeddings)
+
+        return self.config.uninterrupted_loss_weight * similarity_loss
+
+    def checkpointed_forward(
+        self: UninterruptedLanguageModelProtocol,
+        module: nn.Module,
+        sequence: torch.Tensor,
+        labels: torch.Tensor,
     ) -> torch.Tensor:
         """
         Wrapper function for applying checkpointing to a module.
@@ -87,10 +76,10 @@ class UninterruptedLanguageModel:
 
         return forward(sequence, labels)
 
-    def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor:
+    def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
         return tensor[:, 1:]
 
-    def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
+    def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor:
         return tensor[:, :-1]
 
     def get_recurrent_prediction_loss(
@@ -112,99 +101,73 @@ class UninterruptedLanguageModel:
         Returns:
             Combined loss from cross entropy of predictions and MSE of hidden states
         """
-        if not (
-            self.config.make_uninterrupted_with_recurrence
-            and outputs.hidden_states is not None
-        ):
+        if not self.config.make_uninterrupted or outputs.hidden_states is None:
             return torch.tensor(0.0, device=self.device)
 
-        # Get model configuration details
-        pad_token_id = self.tokenizer.pad_token_id
-        device = batch["input_ids"].device
-
-        # Create a mask for valid tokens (non-pad tokens)
-        padding_mask = batch["input_ids"] != pad_token_id  # [batch, seq_len]
-        seq_length = (
-            padding_mask.sum(dim=1).max().item()
-        )  # Maximum number of non-pad tokens
-
-        sequence = self.model.get_input_embeddings()(batch["input_ids"])
+        input_embeddings = self.model.get_input_embeddings()(batch["input_ids"])
+        sequence = input_embeddings.clone()
 
         labels = batch["labels"]
 
-        # Initialize losses
         all_prediction_losses = []
         all_hidden_state_losses = []
 
-        # Start with the original embeddings for recurrence
+        seq_len = input_embeddings.shape[1]
+        num_steps = min(seq_len - 1, self.config.uninterrupted_recurrence_depth)
+
         for step in tqdm(
-            range(min(seq_length - 1, self.config.uninterrupted_recurrence_depth)),
+            range(num_steps),
             desc="Processing sequence recurrently...",
         ):
-
-            # Forward pass through the model
             transformer_outputs = checkpoint(
                 self.checkpointed_forward, self.model, sequence, batch["labels"]
             )
 
-            # Get the last hidden state for each token
-            last_hidden_states = transformer_outputs.hidden_states[
-                -1
-            ]  # [batch, seq_len, hidden_dim]
+            if transformer_outputs is None:
+                raise ValueError("Model forward pass failed")
 
-            pred_loss = transformer_outputs.loss
+            last_hidden_states = transformer_outputs.hidden_states[-1]
 
-            target_embeds = original_embeddings[:, 1:]  # Shifted by one token
-            mse_loss = F.mse_loss(
-                last_hidden_states[:, :-1, :], target_embeds, reduction="none"
-            )  # [batch, seq_len, hidden_dim]
-            mse_loss = mse_loss[
-                padding_mask[:, :-1].unsqueeze(-1).expand_as(mse_loss)
-            ]  # Mask out pad positions
-            mse_loss = mse_loss.mean()  # Average loss over valid tokens
+            prediction_loss = transformer_outputs.loss
 
-            # Accumulate losses
-            all_prediction_losses.append(pred_loss)
-            all_hidden_state_losses.append(mse_loss)
+            # For cross entropy loss, HF automatically shifts
+            # labels and predictions, so we do not need to shift them
+            # at the first step, hence we shift at the end of each step
+            labels = self.shift_left(labels)
+            sequence = self.shift_right(sequence)
 
-            # Prepare the next sequence for recurrence
-            next_hidden_sequence = last_hidden_states.clone()
-            next_hidden_sequence = torch.cat(
-                [
-                    original_embeddings[
-                        :, :1, :
-                    ],  # Re-add embedding for the first token
-                    next_hidden_sequence[:, :-1, :],  # Remove the last hidden state
-                ],
-                dim=1,
-            )
-            current_sequence = next_hidden_sequence
+            # For MSE loss, we need to shift the embeddings ourselves
+            # from the start
+            input_embeddings = self.shift_right(input_embeddings)
 
-        # Finalize losses
-        if all_prediction_losses:  # Only if there are valid predictions
-            avg_prediction_loss = torch.stack(all_prediction_losses).mean()
-            avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
-
-            # Combine losses with configurable weights
-            total_loss = (
-                self.config.recurrent_prediction_weight * avg_prediction_loss
-                + self.config.recurrent_hidden_state_weight * avg_hidden_loss
+            similarity_loss = self._get_similarity_loss(
+                last_hidden_states, input_embeddings
             )
 
-            # Log individual losses for tracking
-            self.log(
-                f"{mode}_recurrent_prediction_loss",
-                avg_prediction_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
-            self.log(
-                f"{mode}_recurrent_hidden_state_loss",
-                avg_hidden_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
+            all_prediction_losses.append(prediction_loss)
+            all_hidden_state_losses.append(similarity_loss)
 
-            return total_loss
+        avg_prediction_loss = torch.stack(all_prediction_losses).mean()
+        avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
 
-        return torch.tensor(0.0, device=self.device)
+        # Combine losses with configurable weights
+        total_loss = (
+            self.config.recurrent_prediction_weight * avg_prediction_loss
+            + self.config.recurrent_hidden_state_weight * avg_hidden_loss
+        )
+
+        # Log individual losses for tracking
+        self.log(
+            f"{mode}_recurrent_prediction_loss",
+            avg_prediction_loss,
+            sync_dist=True,
+            batch_size=self.data_config.batch_size,
+        )
+        self.log(
+            f"{mode}_recurrent_hidden_state_loss",
+            avg_hidden_loss,
+            sync_dist=True,
+            batch_size=self.data_config.batch_size,
+        )
+
+        return total_loss

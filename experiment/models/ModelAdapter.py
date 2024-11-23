@@ -61,7 +61,7 @@ class ModelAdapter:
             self._unfreeze_lm_head(model)
             model.print_trainable_parameters()
 
-        if self.config.make_uninterrupted_with_recurrence:
+        if self.config.make_uninterrupted:
             model.gradient_checkpointing_enable()
 
         return model
