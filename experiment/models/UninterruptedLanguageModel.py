@@ -142,6 +142,7 @@ class UninterruptedLanguageModel:
             last_hidden_states = outputs.hidden_states[-1]
 
             print(last_hidden_states)
+            print(last_hidden_states.requires_grad)
 
             prediction_loss = outputs.loss
             similarity_loss = self._get_similarity_loss(
