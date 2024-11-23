@@ -132,7 +132,7 @@ class UninterruptedLanguageModel:
                 sequence,
                 attention_mask,
                 labels,
-                use_reenntrant=False,
+                use_reentrant=False,
             )
 
             if outputs is None:
