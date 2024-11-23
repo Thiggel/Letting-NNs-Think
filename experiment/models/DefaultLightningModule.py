@@ -78,7 +78,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
             parameters.append(
                 {
                     "params": self.model.base_model.model.lm_head.parameters(),
-                    "lr": self.training_config.learning_rate / 100,
+                    "lr": self.training_config.learning_rate,
                 }
             )
 
@@ -199,6 +199,8 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
         current_weights = self.model.base_model.model.lm_head.weight.data[0][:5]
 
+        print("Model training mode:", self.model.training)
+        print("Base model training mode:", self.model.base_model.training)
         # Check if weights require gradients
         print(
             "requires_grad:", self.model.base_model.model.lm_head.weight.requires_grad
