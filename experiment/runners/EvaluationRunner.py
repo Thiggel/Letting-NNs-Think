@@ -72,9 +72,11 @@ class EvaluationRunner(Runner, HasTokenizer):
             state_dict = (
                 checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
             )
-            print(state_dict.keys())
-            print("-" * 80)
-            print(model.state_dict().keys())
+            print(
+                set(state_dict.keys()).symmetric_difference(
+                    set(model.state_dict().keys())
+                )
+            )
             exit()
             model.load_state_dict(state_dict)
 
