@@ -50,6 +50,7 @@ class DefaultLightningModule(
         return self.model(input_ids, **kwargs)
 
     def generate(self, *args, **kwargs):
+        self._dump_first_batch(kwargs)
         return self.model.generate(*args, **kwargs)
 
     def lr_lambda(self, current_step: int) -> float:
