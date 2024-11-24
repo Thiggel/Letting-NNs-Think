@@ -203,7 +203,9 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
 
-        current_weights = self.model.base_model.model.lm_head.weight.data[0][:5]
+        current_weights = self.model.base_model.model.layers[
+            0
+        ].mlp.gate_proj.lora_A.weight
 
         print("Model training mode:", self.model.training)
         print("Base model training mode:", self.model.base_model.training)
