@@ -85,6 +85,7 @@ class EvaluationRunner(Runner, HasTokenizer):
                 self.data_config,
                 self.tokenizer,
             )
+            model.setup("test")
 
     def _log_results(self, results: dict[str, Any], seed):
         wandb.init(
