@@ -124,14 +124,14 @@ class TrainRunner(Runner, HasTokenizer):
             "max_epochs": self.training_config.max_epochs,
             "max_time": {"days": 4, "hours": 12},
             "gradient_clip_val": self.training_config.max_grad_norm,
-            "accumulate_grad_batches": 1,  # grad_acc_steps,
+            "accumulate_grad_batches": grad_acc_steps,
             "devices": "auto",
         }
 
     def _get_cuda_specific_args(self) -> dict[str, Any]:
         return {
             "strategy": "deepspeed_stage_3_offload",
-            "precision": "bf16",
+            # "precision": "bf16",
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
         }
 
