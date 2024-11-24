@@ -19,8 +19,11 @@ class ModelLogger(ModelLoggerProtocol):
         self.metrics_logger.log_gradient_norms()
 
     def _dump_first_batch(self, batch: dict[str, torch.Tensor]) -> None:
-        if hasattr(self, "trainer") and self.trainer.global_rank > 0:
-            return
+        try:
+            if self.trainer.global_rank > 0:
+                return
+        except Exception:
+            pass
 
         MAX_DUMPS = 5
 
