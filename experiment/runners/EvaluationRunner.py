@@ -72,6 +72,8 @@ class EvaluationRunner(Runner, HasTokenizer):
             state_dict = (
                 checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
             )
+            print(state_dict)
+            exit()
             missing_keys, unexpected_keys = model.load_state_dict(
                 state_dict, strict=False
             )
