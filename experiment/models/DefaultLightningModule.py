@@ -67,27 +67,31 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
             "weight_decay": 0.001,
         }
 
+        # Explicitly separate lm_head parameters and layer parameters
+        layer_params = list(self.model.base_model.model.model.layers.parameters())
+        lm_head_params = list(self.model.base_model.model.lm_head.parameters())
+
+        # Create parameter groups with explicit learning rates
         parameters = [
             {
-                "params": self.model.base_model.model.model.layers.parameters(),
+                "params": layer_params,
                 "lr": self.training_config.learning_rate,
+            },
+            {
+                "params": lm_head_params,
+                "lr": self.training_config.learning_rate
+                / 100,  # or whatever LR you want
             },
         ]
 
-        if self.config.finetune_mode in ["lastlayer_lmhead", "lmhead_lora"]:
-            parameters.append(
-                {
-                    "params": self.model.base_model.model.lm_head.parameters(),
-                    "lr": 0.1,  # self.training_config.learning_rate,
-                }
-            )
+        # Debug prints
+        print(f"Number of layer parameters: {len(layer_params)}")
+        print(f"Number of lm_head parameters: {len(lm_head_params)}")
 
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
-            optimizer = DeepSpeedCPUAdam(
-                self.parameters(), **adam_params, adamw_mode=True
-            )
+            optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
         else:
             optimizer = AdamW(parameters, **adam_params)
 
