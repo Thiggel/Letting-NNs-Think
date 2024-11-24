@@ -125,8 +125,6 @@ class DefaultLightningModule(
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
 
-        print(self.model.get_output_embeddings().weight)
-
         return loss
 
     def training_step(self, batch, batch_idx):
