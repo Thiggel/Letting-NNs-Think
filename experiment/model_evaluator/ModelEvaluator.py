@@ -47,6 +47,8 @@ class ModelEvaluator:
             add_bos_token=True,
         )
 
+        print("wiuhdwihdiuwhd")
+
         output = evaluator.simple_evaluate(
             model=wrapped_model,
             tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
@@ -59,6 +61,8 @@ class ModelEvaluator:
             device=self.device,
             log_samples=True,
         )
+
+        print(output)
 
         self._save_results(output["results"], experiment_name)
         self._save_samples(output["samples"], seed, experiment_name)
