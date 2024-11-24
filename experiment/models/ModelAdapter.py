@@ -75,6 +75,15 @@ class ModelAdapter:
         model.base_model.model.lm_head = new_lm_head
         model.config.tie_word_embeddings = False
 
+        new_embeddings = nn.Embedding(
+            model.config.vocab_size, model.config.hidden_size
+        ).to(model.device)
+        new_embeddings.weight.data = (
+            model.get_input_embeddings().weight.clone().detach()
+        )
+        new_embeddings.weight.requires_grad = False
+        model.base_model.model.set_input_embeddings(new_embeddings)
+
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
         """Unfreeze the LM head parameters after LoRA wrapping"""
         # First find the actual lm_head - need to check both possible locations
