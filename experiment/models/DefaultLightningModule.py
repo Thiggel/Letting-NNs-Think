@@ -110,35 +110,34 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
                     print("Found lm_head in param group with lr:", group["lr"])
 
                 for group_idx, group in enumerate(optimizer.param_groups):
-            group_lr = group["lr"]
+                    group_lr = group["lr"]
 
-            for param_idx, param in enumerate(group["params"]):
-                # Get parameter name if available
-                param_name = "Unknown"
-                for name, p in (
-                    optimizer.param_references.items()
-                    if hasattr(optimizer, "param_references")
-                    else []
-                ):
-                    if id(p) == id(param):
-                        param_name = name
-                        break
+                    for param_idx, param in enumerate(group["params"]):
+                        # Get parameter name if available
+                        param_name = "Unknown"
+                        for name, p in (
+                            optimizer.param_references.items()
+                            if hasattr(optimizer, "param_references")
+                            else []
+                        ):
+                            if id(p) == id(param):
+                                param_name = name
+                                break
 
-                # Collect parameter statistics
-                stats = {
-                    "param_name": param_name,
-                    "lr": group_lr,
-                    "requires_grad": param.requires_grad,
-                    "has_grad": param.grad is not None,
-                    "device": param.device,
-                    "dtype": param.dtype,
-                }
-                print(stats)
-                print()
-                print()
+                        # Collect parameter statistics
+                        stats = {
+                            "param_name": param_name,
+                            "lr": group_lr,
+                            "requires_grad": param.requires_grad,
+                            "has_grad": param.grad is not None,
+                            "device": param.device,
+                            "dtype": param.dtype,
+                        }
+                        print(stats)
+                        print()
+                        print()
 
         exit()
-
 
         return {
             "optimizer": optimizer,
