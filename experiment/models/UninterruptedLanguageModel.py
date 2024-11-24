@@ -23,19 +23,13 @@ class UninterruptedLanguageModelProtocol(Protocol):
         batch_size: int = 1,
     ) -> None: ...
 
-    def _forward_without_lm_head(
+    def _forward(
         self,
         model: PreTrainedModel,
-        batch: dict[str, torch.Tensor],
+        sequence: torch.Tensor,
         attention_mask: torch.Tensor,
-    ) -> CausalLMOutputWithPast: ...
-
-    def _get_prediction_loss(
-        self,
-        last_hidden_states: torch.Tensor,
         labels: torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor: ...
+    ) -> CausalLMOutputWithPast: ...
 
     def _get_similarity_loss(
         self,
@@ -82,14 +76,14 @@ class UninterruptedLanguageModel:
 
     def checkpointed_forward(
         self: UninterruptedLanguageModelProtocol,
-        model: nn.Module,
+        model: PreTrainedModel,
         sequence: torch.Tensor,
         labels: torch.Tensor,
         attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        return self._forward_without_lm_head(model, sequence, attention_mask, labels)
+    ) -> CausalLMOutputWithPast:
+        return self._forward(model, sequence, attention_mask, labels)
 
-    def _forward_without_lm_head(
+    def _forward(
         self: UninterruptedLanguageModelProtocol,
         model: PreTrainedModel,
         sequence: torch.Tensor,

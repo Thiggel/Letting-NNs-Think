@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, PreTrainedModel
 import torch
 from torch import nn
 from peft import get_peft_model, LoraConfig, TaskType
@@ -32,7 +32,7 @@ class ModelAdapter:
         self.model = self._initialize_model()
         self._configure_model()
 
-    def _initialize_model(self) -> nn.Module:
+    def _initialize_model(self) -> PreTrainedModel:
         model = AutoModelForCausalLM.from_pretrained(
             self.config.model_name, attn_implementation="eager"
         )
