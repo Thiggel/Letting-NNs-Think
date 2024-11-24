@@ -83,7 +83,7 @@ class TrainRunner(Runner, HasTokenizer):
                 filename=self.experiment_config.experiment_name
                 + "_"
                 + str(seed)
-                + "_best-checkpoint-{epoch:02d}-{val_loss:.2f}",
+                + "_best-checkpoint-{epoch:02d}-{val_loss:.5f}",
             ),
             DeviceStatsMonitor(),
             EarlyStopping(
