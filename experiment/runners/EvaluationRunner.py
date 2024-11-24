@@ -52,6 +52,14 @@ class EvaluationRunner(Runner, HasTokenizer):
         return self._format_results(results)
 
     def _load_model(self, seed: int) -> DefaultLightningModule:
+        model = DefaultLightningModule(
+            self.model_config,
+            self.training_config,
+            self.data_config,
+            self.tokenizer,
+        )
+        model.setup("test")
+
         if self.evaluation_config.load_from_checkpoint:
             checkpoint_path = os.path.join(
                 os.environ["BASE_CACHE_DIR"],
@@ -59,34 +67,23 @@ class EvaluationRunner(Runner, HasTokenizer):
             )
             print("Loading from checkpoint", checkpoint_path)
 
-            model = DefaultLightningModule(
-                self.model_config,
-                self.training_config,
-                self.data_config,
-                self.tokenizer,
-            )
-            model.setup("test")
-
             checkpoint = torch.load(checkpoint_path)
 
             state_dict = (
                 checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
             )
-            model.load_state_dict(state_dict, strict=False)
-
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            model = model.to(device)
-
-            return model
-        else:
-            model = DefaultLightningModule(
-                self.model_config,
-                self.training_config,
-                self.data_config,
-                self.tokenizer,
+            missing_keys, unexpected_keys = model.load_state_dict(
+                state_dict, strict=False
             )
-            model.setup("test")
+            print("Missing keys:", missing_keys)
+            print("Unexpected keys:", unexpected_keys)
+
             return model
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
+
+        return model
 
     def _log_results(self, results: dict[str, Any], seed):
         wandb.init(
