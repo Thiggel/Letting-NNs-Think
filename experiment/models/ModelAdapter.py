@@ -70,7 +70,7 @@ class ModelAdapter:
         new_lm_head = nn.Linear(
             model.config.hidden_size, model.config.vocab_size, bias=False
         ).to(model.device)
-        new_lm_head.weight.data = model.get_input_embeddings().weight.clone().detach()
+        new_lm_head.weight.data = model.get_output_embeddings().weight.clone().detach()
         new_lm_head.weight.requires_grad = True
         model.base_model.model.lm_head = new_lm_head
         model.config.tie_word_embeddings = False
