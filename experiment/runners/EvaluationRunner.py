@@ -79,13 +79,14 @@ class EvaluationRunner(Runner, HasTokenizer):
 
             return model
         else:
-            return DefaultLightningModule(
+            model = DefaultLightningModule(
                 self.model_config,
                 self.training_config,
                 self.data_config,
                 self.tokenizer,
             )
             model.setup("test")
+            return model
 
     def _log_results(self, results: dict[str, Any], seed):
         wandb.init(
