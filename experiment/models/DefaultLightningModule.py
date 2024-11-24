@@ -205,7 +205,7 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
         current_weights = self.model.base_model.model.model.layers[
             0
-        ].mlp.gate_proj.lora_A.weight
+        ].mlp.gate_proj.lora_A.default.weight
 
         print("Model training mode:", self.model.training)
         print("Base model training mode:", self.model.base_model.training)
