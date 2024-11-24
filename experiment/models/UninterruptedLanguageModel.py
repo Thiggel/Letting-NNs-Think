@@ -137,19 +137,13 @@ class UninterruptedLanguageModel:
                 last_hidden_states, input_embeddings, attention_mask
             )
 
-            sequence = self._shift_right(last_hidden_states)
-            attention_mask = self._shift_right(attention_mask)
-            labels = self._shift_left(labels)
-            input_embeddings = self._shift_left(input_embeddings)
-
-            # TODO: think through again:
-            # sequence = torch.cat(
-            #    [
-            #        input_embeddings[:, :1],
-            #        sequence,
-            #    ],
-            #    dim=1,
-            # )
+            sequence = torch.cat(
+                [
+                    input_embeddings[:, :1],
+                    sequence[:, :-1],
+                ],
+                dim=1,
+            )
 
             all_prediction_losses.append(prediction_loss)
             all_hidden_state_losses.append(similarity_loss)
