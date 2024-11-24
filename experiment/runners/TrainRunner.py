@@ -131,7 +131,7 @@ class TrainRunner(Runner, HasTokenizer):
     def _get_cuda_specific_args(self) -> dict[str, Any]:
         return {
             "strategy": "deepspeed_stage_3_offload",
-            # "precision": "bf16",
+            "precision": "bf16",
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
         }
 

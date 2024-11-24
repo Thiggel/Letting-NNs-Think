@@ -231,17 +231,23 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
         return loss
 
     def on_after_backward(self):
-        if self.global_step % 10 == 0:
-            print("\nAfter backward:")
+        print("\nAfter backward:")
+        print(
+            "Has gradient:",
+            self.model.base_model.model.lm_head.weight.grad is not None,
+        )
+        if self.model.base_model.model.lm_head.weight.grad is not None:
             print(
-                "Has gradient:",
-                self.model.base_model.model.lm_head.weight.grad is not None,
+                "Gradient norm:",
+                self.model.base_model.model.lm_head.weight.grad.norm().item(),
             )
-            if self.model.base_model.model.lm_head.weight.grad is not None:
-                print(
-                    "Gradient norm:",
-                    self.model.base_model.model.lm_head.weight.grad.norm().item(),
-                )
+        param = self.model.base_model.model.lm_head.weight
+        print("\nAfter backward:")
+        print("Param device:", param.device)
+        print("Has gradient:", param.grad is not None)
+        if hasattr(self.model, "ds_hook"):
+            print("Using DeepSpeed")
+            # DeepSpeed specific checks could go here
 
     def on_before_optimizer_step(self, optimizer):
         # Verify optimizer state
@@ -252,11 +258,10 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
             print(f"Param grad: {param.grad[0][0].item():.10f}")
 
     def on_train_batch_end(self, outputs, batch, batch_idx):
-        if batch_idx % 10 == 0:
-            print("\nAfter optimizer step:")
-            print(
-                f"Param data: {self.model.base_model.model.lm_head.weight.data[0][0].item():.10f}"
-            )
+        print("\nAfter optimizer step:")
+        print(
+            f"Param data: {self.model.base_model.model.lm_head.weight.data[0][0].item():.10f}"
+        )
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")
