@@ -72,6 +72,10 @@ class EvaluationRunner(Runner, HasTokenizer):
             state_dict = (
                 checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
             )
+            print(state_dict.keys())
+            print("-" * 80)
+            print(model.state_dict().keys())
+            exit()
             model.load_state_dict(state_dict)
 
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
