@@ -78,6 +78,11 @@ class EvaluationRunner(Runner, HasTokenizer):
             print("Missing keys:", missing_keys)
             print("Unexpected keys:", unexpected_keys)
 
+            for key in missing_keys:
+                print("Weight for: ", key)
+                print(model.state_dict()[key])
+                print()
+
             return model
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
