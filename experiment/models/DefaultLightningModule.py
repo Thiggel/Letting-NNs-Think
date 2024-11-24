@@ -259,9 +259,8 @@ class DefaultLightningModule(LightningModule, UninterruptedLanguageModel):
 
     def on_train_batch_end(self, outputs, batch, batch_idx):
         print("\nAfter optimizer step:")
-        print(
-            f"Param data: {self.model.base_model.model.lm_head.weight.data[0][0].item():.10f}"
-        )
+        print(f"Param data:")
+        print(self.model.base_model.model.lm_head.weight.data)
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")
