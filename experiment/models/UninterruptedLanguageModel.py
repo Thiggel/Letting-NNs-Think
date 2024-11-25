@@ -30,7 +30,7 @@ class UninterruptedLanguageModelProtocol(Protocol):
         attention_mask: torch.Tensor,
         labels: torch.Tensor,
     ) -> CausalLMOutputWithPast: ...
-
+    
     def _get_similarity_loss(
         self,
         last_hidden_states: torch.Tensor,

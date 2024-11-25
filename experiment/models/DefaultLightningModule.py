@@ -5,6 +5,7 @@ from torch.optim import AdamW
 import torch
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
+from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from experiment.configs import ModelConfig, TrainingConfig, DataConfig
 
@@ -108,14 +109,13 @@ class DefaultLightningModule(
             },
         }
 
+
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
         """Perform a single training/validation/test step"""
         self._dump_first_batch(batch)
 
         if self.config.make_uninterrupted:
             batch["output_hidden_states"] = True
-
-        if self.config.make_uninterrupted:
             loss = self.get_recurrent_prediction_loss(batch, mode)
 
         else:
