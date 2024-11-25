@@ -35,7 +35,10 @@ class EvaluationRunner(Runner, HasTokenizer):
         model = self._load_model(seed)
 
         evaluator = ModelEvaluator(
-            model, self.tokenizer, self.evaluation_config.evaluate_as_uninterrupted
+            model,
+            self.tokenizer,
+            self.evaluation_config.evaluate_as_uninterrupted,
+            self.evaluation_config.eval_batch_size,
         )
         results = evaluator.evaluate(
             self.evaluation_config.evaluation_metrics or ["gsm8k"],
@@ -49,6 +52,14 @@ class EvaluationRunner(Runner, HasTokenizer):
         return self._format_results(results)
 
     def _load_model(self, seed: int) -> DefaultLightningModule:
+        model = DefaultLightningModule(
+            self.model_config,
+            self.training_config,
+            self.data_config,
+            self.tokenizer,
+        )
+        model.setup("test")
+
         if self.evaluation_config.load_from_checkpoint:
             checkpoint_path = os.path.join(
                 os.environ["BASE_CACHE_DIR"],
@@ -56,32 +67,28 @@ class EvaluationRunner(Runner, HasTokenizer):
             )
             print("Loading from checkpoint", checkpoint_path)
 
-            model = DefaultLightningModule(
-                self.model_config,
-                self.training_config,
-                self.data_config,
-                self.tokenizer,
-            )
-            model.setup("test")
-
             checkpoint = torch.load(checkpoint_path)
 
             state_dict = (
                 checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
             )
-            model.load_state_dict(state_dict)
+            missing_keys, unexpected_keys = model.load_state_dict(
+                state_dict, strict=False
+            )
+            print("Missing keys:", missing_keys)
+            print("Unexpected keys:", unexpected_keys)
 
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            model = model.to(device)
+            for key in missing_keys:
+                print("Weight for: ", key)
+                print(model.state_dict()[key])
+                print()
 
             return model
-        else:
-            return DefaultLightningModule(
-                self.model_config,
-                self.training_config,
-                self.data_config,
-                self.tokenizer,
-            )
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
+
+        return model
 
     def _log_results(self, results: dict[str, Any], seed):
         wandb.init(

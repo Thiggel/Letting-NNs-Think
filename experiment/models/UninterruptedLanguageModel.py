@@ -1,4 +1,3 @@
-from tqdm import tqdm
 from typing import Protocol
 from transformers import PreTrainedModel
 from torch.utils.checkpoint import checkpoint
@@ -24,20 +23,14 @@ class UninterruptedLanguageModelProtocol(Protocol):
         batch_size: int = 1,
     ) -> None: ...
 
-    def _forward_without_lm_head(
+    def _forward(
         self,
         model: PreTrainedModel,
-        batch: dict[str, torch.Tensor],
+        sequence: torch.Tensor,
         attention_mask: torch.Tensor,
-    ) -> CausalLMOutputWithPast: ...
-
-    def _get_prediction_loss(
-        self,
-        last_hidden_states: torch.Tensor,
         labels: torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor: ...
-
+    ) -> CausalLMOutputWithPast: ...
+    
     def _get_similarity_loss(
         self,
         last_hidden_states: torch.Tensor,
@@ -69,34 +62,11 @@ class UninterruptedLanguageModel:
         mask: torch.Tensor,
     ) -> torch.Tensor:
         similarity_loss = (
-            F.mse_loss(
-                last_hidden_states * mask.unsqueeze(-1),
-                next_token_embeddings * mask.unsqueeze(-1),
-                reduction="sum",
-            )
-            / mask.sum()
-        )
+            F.mse_loss(last_hidden_states, next_token_embeddings, reduction="none")
+            * mask.unsqueeze(-1)
+        ).sum() / mask.unsqueeze(-1).repeat(1, 1, last_hidden_states.shape[-1]).sum()
 
         return self.config.uninterrupted_loss_weight * similarity_loss
-
-    def _get_prediction_loss(
-        self: UninterruptedLanguageModelProtocol,
-        last_hidden_states: torch.Tensor,
-        labels: torch.Tensor,
-    ) -> torch.Tensor:
-        logits = self.model.get_output_embeddings()(last_hidden_states)
-
-        if self.model.config.final_logit_softcapping is not None:
-            logits = logits / self.model.config.final_logit_softcapping
-            logits = torch.tanh(logits)
-            logits = logits * self.model.config.final_logit_softcapping
-
-        logits = logits.float().contiguous()
-        logits = logits.view(-1, self.model.config.vocab_size)
-        labels = labels.contiguous().view(-1)
-        labels = labels.to(logits.device)
-
-        return F.cross_entropy(logits, labels)
 
     def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
         return tensor[:, 1:]
@@ -106,22 +76,27 @@ class UninterruptedLanguageModel:
 
     def checkpointed_forward(
         self: UninterruptedLanguageModelProtocol,
-        model: nn.Module,
+        model: PreTrainedModel,
         sequence: torch.Tensor,
+        labels: torch.Tensor,
         attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        return self._forward_without_lm_head(model, sequence, attention_mask)
+    ) -> CausalLMOutputWithPast:
+        return self._forward(model, sequence, attention_mask, labels)
 
-    def _forward_without_lm_head(
+    def _forward(
         self: UninterruptedLanguageModelProtocol,
         model: PreTrainedModel,
         sequence: torch.Tensor,
         attention_mask: torch.Tensor,
+        labels: torch.Tensor,
     ) -> CausalLMOutputWithPast:
-        outputs = model.model.model(
+        outputs = model(
             inputs_embeds=sequence,
             attention_mask=attention_mask,
-        )[0]
+            labels=labels,
+            output_hidden_states=True,
+            return_dict=True,
+        )
 
         return outputs
 
@@ -130,19 +105,6 @@ class UninterruptedLanguageModel:
         batch: dict[str, torch.Tensor],
         mode: str = "train",
     ) -> torch.Tensor:
-        """
-        Compute loss based on recurrent predictions using last hidden states.
-        Accumulate hidden states during recurrence to allow proper attention,
-        skipping pad tokens and applying causal masking.
-
-        Args:
-            outputs: Model outputs containing hidden states
-            batch: Input batch containing input_ids and other tensors
-            mode: Training mode ('train', 'val', or 'test')
-
-        Returns:
-            Combined loss from cross entropy of predictions and MSE of hidden states
-        """
         input_embeddings = self.model.get_input_embeddings()(batch["input_ids"])
         sequence = input_embeddings.clone()
 
@@ -156,46 +118,32 @@ class UninterruptedLanguageModel:
         num_steps = min(seq_len - 1, self.config.uninterrupted_recurrence_depth)
 
         for _ in range(num_steps):
-            last_hidden_states = checkpoint(
-                self.checkpointed_forward,
-                self.model,
-                sequence,
-                attention_mask,
+            outputs = self._forward(self.model, sequence, attention_mask, labels)
+
+            last_hidden_states = outputs.hidden_states[-1]
+
+            prediction_loss = outputs.loss
+            similarity_loss = self._get_similarity_loss(
+                last_hidden_states, input_embeddings, attention_mask
             )
 
-            if last_hidden_states is None:
-                raise ValueError("Model forward pass failed")
+            sequence = torch.cat(
+                [
+                    input_embeddings[:, :1],
+                    sequence[:, :-1],
+                ],
+                dim=1,
+            )
 
-            pred_loss = self.model(
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-                labels=batch["labels"],
-            ).loss
-
-            sequence = self._shift_right(last_hidden_states)
-            attention_mask = self._shift_right(attention_mask)
-            labels = self._shift_left(labels)
-            input_embeddings = self._shift_left(input_embeddings)
-
-            prediction_loss = self._get_prediction_loss(sequence, labels)
-
-            print("Pred loss:", pred_loss)
-            print("Prediction loss:", prediction_loss)
-
-            # similarity_loss = self._get_similarity_loss(
-            #    sequence, input_embeddings, attention_mask
-            # )
-
-            all_prediction_losses.append(pred_loss)
-            # all_hidden_state_losses.append(similarity_loss)
+            all_prediction_losses.append(prediction_loss)
+            all_hidden_state_losses.append(similarity_loss)
 
         avg_prediction_loss = torch.stack(all_prediction_losses).mean()
-        # avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
+        avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
 
         total_loss = (
-            self.config.recurrent_prediction_weight
-            * avg_prediction_loss
-            # + self.config.recurrent_hidden_state_weight * avg_hidden_loss
+            self.config.recurrent_prediction_weight * avg_prediction_loss
+            + self.config.recurrent_hidden_state_weight * avg_hidden_loss
         )
 
         self.log(
@@ -204,11 +152,11 @@ class UninterruptedLanguageModel:
             sync_dist=True,
             batch_size=self.data_config.batch_size,
         )
-        # self.log(
-        #    f"{mode}_recurrent_hidden_state_loss",
-        #    avg_hidden_loss,
-        #    sync_dist=True,
-        #    batch_size=self.data_config.batch_size,
-        # )
+        self.log(
+            f"{mode}_recurrent_hidden_state_loss",
+            avg_hidden_loss,
+            sync_dist=True,
+            batch_size=self.data_config.batch_size,
+        )
 
         return total_loss

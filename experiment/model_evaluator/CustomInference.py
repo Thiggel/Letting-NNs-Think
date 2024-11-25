@@ -17,16 +17,16 @@ class CustomInference:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def forward_only_transformer_layers(self, *args, **kwargs):
-        embed_tokens = self.model.model.model.embed_tokens
-        lm_head = self.model.model.lm_head
+        embed_tokens = self.model.model.base_model.model.model.embed_tokens
+        lm_head = self.model.model.base_model.model.lm_head
 
-        self.model.model.model.embed_tokens = nn.Identity()
-        self.model.model.lm_head = nn.Identity()
+        self.model.model.base_model.model.model.embed_tokens = nn.Identity()
+        self.model.model.base_model.model.lm_head = nn.Identity()
 
         output = self.model(*args, **kwargs).logits
 
-        self.model.model.model.embed_tokens = embed_tokens
-        self.model.model.lm_head = lm_head
+        self.model.model.base_model.model.model.embed_tokens = embed_tokens
+        self.model.model.base_model.model.lm_head = lm_head
 
         return output
 
@@ -56,12 +56,14 @@ class CustomInference:
         finished = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
         import torch.nn.functional as F
 
-        embed_tokens = self.model.model.model.embed_tokens(input_ids)
+        embed_tokens = self.model.model.base_model.model.model.embed_tokens(input_ids)
         first_hidden_states = embed_tokens
         last_hidden_states = None
 
         for _ in range(max_length):
-            embed_tokens = self.model.model.model.embed_tokens(input_ids)
+            embed_tokens = self.model.model.base_model.model.model.embed_tokens(
+                input_ids
+            )
             first_hidden_states = embed_tokens
 
             hidden_states = self.forward_only_transformer_layers(first_hidden_states)

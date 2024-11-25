@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, PreTrainedModel
 import torch
 from torch import nn
 from peft import get_peft_model, LoraConfig, TaskType
@@ -8,6 +8,7 @@ from experiment.layers import (
     GatedGemmaDecoderLayer,
     SequentialTransformerLayer,
 )
+from experiment.layers.mixture_of_depths import MoDLayer
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import ModelConfig
 
@@ -31,7 +32,7 @@ class ModelAdapter:
         self.model = self._initialize_model()
         self._configure_model()
 
-    def _initialize_model(self) -> nn.Module:
+    def _initialize_model(self) -> PreTrainedModel:
         model = AutoModelForCausalLM.from_pretrained(
             self.config.model_name, attn_implementation="eager"
         )
@@ -41,6 +42,9 @@ class ModelAdapter:
         if self.config.use_gating:
             model = self._add_gating(model)
 
+        if self.config.use_mod:
+            model = self._add_mod(model)
+
         if self.config.finetune_mode == "lora":
             print("Using LoRA")
             model = get_peft_model(model, self.lora_config)
@@ -49,8 +53,56 @@ class ModelAdapter:
             print("Using full finetuning")
         elif self.config.finetune_mode == "lastlayer_lmhead":
             self._unfreeze_last_layer(model)
+        elif self.config.finetune_mode == "lmhead_lora":
+            model = get_peft_model(model, self.lora_config)
+            self._unfreeze_lm_head(model)
+            model.print_trainable_parameters()
+
+        if self.config.untie_embedding_and_softmax:
+            self._untie_embedding_and_softmax(model)
+
+        if self.config.make_uninterrupted:
+            model.gradient_checkpointing_enable()
 
         return model
+
+    def _untie_embedding_and_softmax(self, model: AutoModelForCausalLM) -> None:
+        new_lm_head = nn.Linear(
+            model.config.hidden_size, model.config.vocab_size, bias=False
+        ).to(model.device)
+        new_lm_head.weight.data = model.get_output_embeddings().weight.clone().detach()
+        new_lm_head.weight.requires_grad = True
+        model.base_model.model.lm_head = new_lm_head
+        model.config.tie_word_embeddings = False
+
+        new_embeddings = nn.Embedding(
+            model.config.vocab_size, model.config.hidden_size
+        ).to(model.device)
+        new_embeddings.weight.data = (
+            model.get_input_embeddings().weight.clone().detach()
+        )
+        new_embeddings.weight.requires_grad = False
+        model.base_model.model.set_input_embeddings(new_embeddings)
+
+    def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
+        """Unfreeze the LM head parameters after LoRA wrapping"""
+        # First find the actual lm_head - need to check both possible locations
+        if hasattr(model.base_model.model, "lm_head"):
+            lm_head = model.base_model.model.lm_head
+        elif hasattr(model, "lm_head"):
+            lm_head = model.lm_head
+        else:
+            raise AttributeError("Could not find lm_head in model")
+
+        # Unfreeze all parameters in the lm_head
+        for param in lm_head.parameters():
+            param.requires_grad = True
+
+        # Verify unfreezing worked
+        print(
+            "LM head requires grad:", all(p.requires_grad for p in lm_head.parameters())
+        )
+        print("LM head parameters:", sum(p.numel() for p in lm_head.parameters()))
 
     def _unfreeze_last_layer(self, model: AutoModelForCausalLM) -> None:
         for param in model.parameters():
@@ -63,6 +115,24 @@ class ModelAdapter:
     def _configure_model(self):
         if self.config.make_layers_recurrent is not None:
             self._add_recurrence()
+
+    def _add_mod(self, model: nn.Module):
+        model.model.layers = nn.ModuleList(
+            [
+                MoDLayer(
+                    layer,
+                    model,
+                    self.config.mod_capacity,
+                    self.config.mod_router_hidden_dim,
+                    self.config.mod_z_loss_weight,
+                    self.config.mod_capacity_loss_weight,
+                    reset_mod_loss=(i == 0),
+                )
+                for i, layer in enumerate(model.model.layers)
+            ]
+        )
+
+        return model
 
     def _add_gating(self, model: nn.Module):
         start, end = self._get_recurrent_layer_range(model)
@@ -148,5 +218,3 @@ class ModelAdapter:
             new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
             new_layer.mlp.load_state_dict(layer.mlp.state_dict())
             new_layers.append(new_layer)
-
-        return SequentialTransformerLayer(*new_layers)

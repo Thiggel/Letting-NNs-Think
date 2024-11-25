@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=4:00:00
+#SBATCH --job-name=UninteruptedTransformer-FullLora
+#SBATCH --output=job_logs/Uninterrupted-Transformer-FullLora-%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "google/gemma-2-2b" \
+  --dataset gsm8k \
+  --batch-size 8 \
+  --learning-rate 1e-3 \
+  --make-uninterrupted \
+  --finetune-mode 'lmhead_lora' \
+  --experiment-name UninterruptedTransformerFullLora \
+  --save-to-checkpoint UninterruptedTransformerFullLora \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "google/gemma-2-2b" \
+  --mode evaluate \
+  --finetune-mode 'lmhead_lora' \
+  --evaluation-metrics gsm8k \
+  --load-from-checkpoint UninterruptedTransformerFullLora \
+  --experiment-name UninterruptedTransformerFullLora \
+  --enable-logging
