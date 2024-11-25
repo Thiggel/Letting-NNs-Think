@@ -81,7 +81,7 @@ class ModelAdapter:
         new_embeddings.weight.data = (
             model.get_input_embeddings().weight.clone().detach()
         )
-        new_embeddings.weight.requires_grad = False
+        new_embeddings.weight.requires_grad = True
         model.base_model.model.set_input_embeddings(new_embeddings)
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:

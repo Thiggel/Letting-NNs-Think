@@ -86,8 +86,9 @@ class DefaultLightningModule(
         if self.config.finetune_mode in ["lastlayer_lmhead", "lmhead_lora"]:
             parameters.append(
                 {
-                    "params": self.model.base_model.model.lm_head.parameters(),
-                    "lr": self.training_config.learning_rate / 100,
+                    "params": list(self.model.get_output_embeddings().parameters())
+                    + list(self.model.get_input_embeddings().parameters()),
+                    "lr": self.training_config.learning_rate / 10,
                 }
             )
 
