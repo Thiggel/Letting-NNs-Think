@@ -1,7 +1,9 @@
-from lightning import LightningModule
+from tqdm import tqdm
 from typing import Protocol
 from transformers import PreTrainedModel
+from torch.utils.checkpoint import checkpoint
 import torch
+from torch import nn
 import torch.nn.functional as F
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
@@ -12,6 +14,7 @@ class UninterruptedLanguageModelProtocol(Protocol):
     config: ModelConfig
     data_config: DataConfig
     model: PreTrainedModel
+    device: torch.device
 
     def log(
         self,
@@ -21,47 +24,116 @@ class UninterruptedLanguageModelProtocol(Protocol):
         batch_size: int = 1,
     ) -> None: ...
 
+    def _forward_without_lm_head(
+        self,
+        model: PreTrainedModel,
+        batch: dict[str, torch.Tensor],
+        attention_mask: torch.Tensor,
+    ) -> CausalLMOutputWithPast: ...
 
-class UninterruptedLanguageModel:
-    def get_similarity_loss(
-        self: UninterruptedLanguageModelProtocol,
+    def _get_prediction_loss(
+        self,
+        last_hidden_states: torch.Tensor,
+        labels: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> torch.Tensor: ...
+
+    def _get_similarity_loss(
+        self,
+        last_hidden_states: torch.Tensor,
+        next_token_embeddings: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> torch.Tensor: ...
+
+    def get_recurrent_prediction_loss(
+        self,
         outputs: CausalLMOutputWithPast,
         batch: dict[str, torch.Tensor],
         mode: str = "train",
+    ) -> torch.Tensor: ...
+
+    def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor: ...
+
+    def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor: ...
+
+    def checkpointed_forward(
+        self, module: nn.Module, sequence: torch.Tensor, labels: torch.Tensor
+    ) -> torch.Tensor: ...
+
+
+class UninterruptedLanguageModel:
+    def _get_similarity_loss(
+        self: UninterruptedLanguageModelProtocol,
+        last_hidden_states: torch.Tensor,
+        next_token_embeddings: torch.Tensor,
+        mask: torch.Tensor,
     ) -> torch.Tensor:
-        lm_loss = outputs.loss
-
-        if self.config.make_uninterrupted and outputs.hidden_states is not None:
-            # Custom loss: make last hidden state similar to next token's first embedded state
-            last_hidden_states = outputs.hidden_states[-1][:, :-1, :]
-            next_token_embeddings = self.model.get_input_embeddings()(
-                batch["input_ids"][:, 1:]
+        similarity_loss = (
+            F.mse_loss(
+                last_hidden_states * mask.unsqueeze(-1),
+                next_token_embeddings * mask.unsqueeze(-1),
+                reduction="sum",
             )
-            similarity_loss = F.mse_loss(last_hidden_states, next_token_embeddings)
+            / mask.sum()
+        )
 
-            self.log(
-                f"{mode}_similarity_loss",
-                similarity_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
+        return self.config.uninterrupted_loss_weight * similarity_loss
 
-            total_loss = (
-                lm_loss + self.config.uninterrupted_loss_weight * similarity_loss
-            )
-            return total_loss
+    def _get_prediction_loss(
+        self: UninterruptedLanguageModelProtocol,
+        last_hidden_states: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        logits = self.model.get_output_embeddings()(last_hidden_states)
 
-        return lm_loss or torch.tensor(0.0)
+        if self.model.config.final_logit_softcapping is not None:
+            logits = logits / self.model.config.final_logit_softcapping
+            logits = torch.tanh(logits)
+            logits = logits * self.model.config.final_logit_softcapping
+
+        logits = logits.float().contiguous()
+        logits = logits.view(-1, self.model.config.vocab_size)
+        labels = labels.contiguous().view(-1)
+        labels = labels.to(logits.device)
+
+        return F.cross_entropy(logits, labels)
+
+    def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
+        return tensor[:, 1:]
+
+    def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor:
+        return tensor[:, :-1]
+
+    def checkpointed_forward(
+        self: UninterruptedLanguageModelProtocol,
+        model: nn.Module,
+        sequence: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        return self._forward_without_lm_head(model, sequence, attention_mask)
+
+    def _forward_without_lm_head(
+        self: UninterruptedLanguageModelProtocol,
+        model: PreTrainedModel,
+        sequence: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> CausalLMOutputWithPast:
+        outputs = model.model.model(
+            inputs_embeds=sequence,
+            attention_mask=attention_mask,
+        )[0]
+
+        return outputs
 
     def get_recurrent_prediction_loss(
         self: UninterruptedLanguageModelProtocol,
-        outputs: CausalLMOutputWithPast,
         batch: dict[str, torch.Tensor],
         mode: str = "train",
     ) -> torch.Tensor:
         """
         Compute loss based on recurrent predictions using last hidden states.
-        Accumulate hidden states during recurrence to allow proper attention.
+        Accumulate hidden states during recurrence to allow proper attention,
+        skipping pad tokens and applying causal masking.
 
         Args:
             outputs: Model outputs containing hidden states
@@ -71,121 +143,72 @@ class UninterruptedLanguageModel:
         Returns:
             Combined loss from cross entropy of predictions and MSE of hidden states
         """
-        if not (
-            self.config.make_uninterrupted_with_recurrence
-            and outputs.hidden_states is not None
-        ):
-            return torch.tensor(0.0, device=self.device)
+        input_embeddings = self.model.get_input_embeddings()(batch["input_ids"])
+        sequence = input_embeddings.clone()
 
-        # Get the last hidden states for all tokens
-        last_hidden_states = outputs.hidden_states[-1]  # [batch, seq_len, hidden_dim]
-        # Get original embeddings
-        original_embeddings = self.model.get_input_embeddings()(
-            batch["input_ids"]
-        )  # [batch, seq_len, hidden_dim]
-
-        batch_size, seq_length, hidden_dim = last_hidden_states.shape
+        labels = batch["labels"]
+        attention_mask = batch["attention_mask"]
 
         all_prediction_losses = []
         all_hidden_state_losses = []
 
-        # For each starting position
-        for start_pos in range(
-            seq_length - 1
-        ):  # -1 because last token can't predict anything
-            # Initial hidden states: stack first tokens up to start_pos
-            initial_hidden = torch.cat(
-                [
-                    original_embeddings[:, : start_pos + 1, :],  # original embeddings
-                    last_hidden_states[
-                        :, start_pos + 1 : start_pos + 2, :
-                    ],  # last hidden state of next token
-                ],
-                dim=1,
+        seq_len = input_embeddings.shape[1]
+        num_steps = min(seq_len - 1, self.config.uninterrupted_recurrence_depth)
+
+        for _ in range(num_steps):
+            last_hidden_states = checkpoint(
+                self.checkpointed_forward,
+                self.model,
+                sequence,
+                attention_mask,
             )
 
-            # Prepare variables for recurrence
-            current_hidden_sequence = initial_hidden
-            position_predictions = []
-            position_hidden_states = []
+            if last_hidden_states is None:
+                raise ValueError("Model forward pass failed")
 
-            # Predict all remaining tokens from this position
-            remaining_steps = seq_length - (start_pos + 1)
+            pred_loss = self.model(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                labels=batch["labels"],
+            ).loss
 
-            for step in range(remaining_steps):
-                # Use entire accumulated hidden sequence for model input
-                transformer_outputs = self.model(
-                    inputs_embeds=current_hidden_sequence,
-                    output_hidden_states=True,
-                    return_dict=True,
-                )
+            sequence = self._shift_right(last_hidden_states)
+            attention_mask = self._shift_right(attention_mask)
+            labels = self._shift_left(labels)
+            input_embeddings = self._shift_left(input_embeddings)
 
-                # Get the last hidden state of the last token as prediction hidden state
-                last_token_hidden = transformer_outputs.hidden_states[-1][:, -1:, :]
+            prediction_loss = self._get_prediction_loss(sequence, labels)
 
-                # Generate prediction for the next token
-                lm_head_output = self.model.lm_head(
-                    last_token_hidden
-                )  # [batch, 1, vocab_size]
-                position_predictions.append(lm_head_output)
-                position_hidden_states.append(last_token_hidden)
+            print("Pred loss:", pred_loss)
+            print("Prediction loss:", prediction_loss)
 
-                # Prepare for next iteration: add the current hidden state to the sequence
-                current_hidden_sequence = torch.cat(
-                    [current_hidden_sequence, last_token_hidden], dim=1
-                )
+            # similarity_loss = self._get_similarity_loss(
+            #    sequence, input_embeddings, attention_mask
+            # )
 
-            if position_predictions:  # Skip if no predictions (last token)
-                # Stack predictions and hidden states for this position
-                pos_preds = torch.cat(
-                    position_predictions, dim=1
-                )  # [batch, remaining_steps, vocab_size]
-                pos_hidden = torch.cat(
-                    position_hidden_states, dim=1
-                )  # [batch, remaining_steps, hidden_dim]
+            all_prediction_losses.append(pred_loss)
+            # all_hidden_state_losses.append(similarity_loss)
 
-                # Get target tokens and embeddings for the remaining sequence
-                target_tokens = batch["input_ids"][
-                    :, start_pos + 1 : seq_length
-                ]  # [batch, remaining_steps]
-                target_embeds = original_embeddings[
-                    :, start_pos + 1 : seq_length, :
-                ]  # [batch, remaining_steps, hidden_dim]
+        avg_prediction_loss = torch.stack(all_prediction_losses).mean()
+        # avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
 
-                # Compute losses for this position
-                pred_loss = F.cross_entropy(
-                    pos_preds.view(-1, pos_preds.size(-1)), target_tokens.view(-1)
-                )
-                hidden_loss = F.mse_loss(pos_hidden, target_embeds)
+        total_loss = (
+            self.config.recurrent_prediction_weight
+            * avg_prediction_loss
+            # + self.config.recurrent_hidden_state_weight * avg_hidden_loss
+        )
 
-                all_prediction_losses.append(pred_loss)
-                all_hidden_state_losses.append(hidden_loss)
+        self.log(
+            f"{mode}_recurrent_prediction_loss",
+            avg_prediction_loss,
+            sync_dist=True,
+            batch_size=self.data_config.batch_size,
+        )
+        # self.log(
+        #    f"{mode}_recurrent_hidden_state_loss",
+        #    avg_hidden_loss,
+        #    sync_dist=True,
+        #    batch_size=self.data_config.batch_size,
+        # )
 
-        # Average losses across all positions
-        if all_prediction_losses:  # Check if we have any predictions
-            avg_prediction_loss = torch.stack(all_prediction_losses).mean()
-            avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
-
-            # Combine losses with configurable weights
-            total_loss = (
-                self.config.recurrent_prediction_weight * avg_prediction_loss
-                + self.config.recurrent_hidden_state_weight * avg_hidden_loss
-            )
-
-            # Log individual losses
-            self.log(
-                f"{mode}_recurrent_prediction_loss",
-                avg_prediction_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
-            self.log(
-                f"{mode}_recurrent_hidden_state_loss",
-                avg_hidden_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
-
-            return total_loss
-
-        return torch.tensor(0.0, device=self.device)
+        return total_loss
