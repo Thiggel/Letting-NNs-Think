@@ -51,24 +51,6 @@ class DefaultLightningModule(
 
     def generate(self, *args, **kwargs):
         self._dump_first_batch(kwargs)
-
-        class DebugLayer(torch.nn.Module):
-            def __init__(self, layer):
-                self.layer = layer
-
-            def __call__(self, x):
-                print(self.layer.__name__, "1", x)
-                x = self.layer(x)
-                print(self.layer.__name__, "2", x)
-                return x
-
-        self.model.set_input_embeddings(DebugLayer(self.model.get_input_embeddings()))
-
-        for i, layer in enumerate(self.model.base_model.model.model.layers):
-            self.model.base_model.model.model.layers[i] = DebugLayer(layer)
-
-        self.model.set_output_embeddings(DebugLayer(self.model.get_output_embeddings()))
-
         return self.model.generate(*args, **kwargs)
 
     def lr_lambda(self, current_step: int) -> float:
@@ -157,4 +139,5 @@ class DefaultLightningModule(
 
     def tie_weights(self):
         """Tie the model's weights"""
-        self.model.tie_weights()
+        if not self.config.untie_embedding_and_softmax:
+            self.model.tie_weights()

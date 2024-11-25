@@ -118,17 +118,7 @@ class UninterruptedLanguageModel:
         num_steps = min(seq_len - 1, self.config.uninterrupted_recurrence_depth)
 
         for _ in range(num_steps):
-            outputs = checkpoint(
-                self.checkpointed_forward,
-                self.model,
-                sequence,
-                attention_mask,
-                labels,
-                use_reentrant=False,
-            )
-
-            if outputs is None:
-                raise ValueError("Model forward pass failed")
+            outputs = self._forward(self.model, sequence, attention_mask, labels)
 
             last_hidden_states = outputs.hidden_states[-1]
 

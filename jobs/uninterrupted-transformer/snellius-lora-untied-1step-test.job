@@ -20,18 +20,15 @@ srun python -m experiment \
   --learning-rate 1e-3 \
   --make-uninterrupted \
   --uninterrupted-recurrence-depth 1 \
-  --untie-embedding-and-softmax \
   --finetune-mode 'lmhead_lora' \
   --experiment-name UninterruptedTransformerFullLoraUntied1StepTEST \
   --save-to-checkpoint UninterruptedTransformerFullLoraUntied1StepTEST \
-  --enable-logging
+  --uninterrupted-loss-weight 0.0
 
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --mode evaluate \
-  --untie-embedding-and-softmax \
   --finetune-mode 'lmhead_lora' \
   --evaluation-metrics gsm8k \
   --load-from-checkpoint UninterruptedTransformerFullLoraUntied1StepTEST \
-  --experiment-name UninterruptedTransformerFullLoraUntied1StepTEST \
-  --enable-logging
+  --experiment-name UninterruptedTransformerFullLoraUntied1StepTEST 
