@@ -12,8 +12,10 @@ from experiment.layers.mixture_of_depths import MoDLayer
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import ModelConfig
 
+from .HasLayers import HasLayers
 
-class ModelAdapter:
+
+class ModelAdapter(HasLayers):
     """Handles model initialization and modification with LoRA support"""
 
     def __init__(self, config: ModelConfig, device: torch.device):
@@ -72,7 +74,7 @@ class ModelAdapter:
         ).to(model.device)
         new_lm_head.weight.data = model.get_output_embeddings().weight.clone().detach()
         new_lm_head.weight.requires_grad = True
-        model.base_model.model.lm_head = new_lm_head
+        model.set_output_embeddings(new_lm_head)
         model.config.tie_word_embeddings = False
 
         new_embeddings = nn.Embedding(
@@ -82,17 +84,12 @@ class ModelAdapter:
             model.get_input_embeddings().weight.clone().detach()
         )
         new_embeddings.weight.requires_grad = True
-        model.base_model.model.set_input_embeddings(new_embeddings)
+        model.set_input_embeddings(new_embeddings)
 
     def _unfreeze_lm_head(self, model: AutoModelForCausalLM) -> None:
         """Unfreeze the LM head parameters after LoRA wrapping"""
         # First find the actual lm_head - need to check both possible locations
-        if hasattr(model.base_model.model, "lm_head"):
-            lm_head = model.base_model.model.lm_head
-        elif hasattr(model, "lm_head"):
-            lm_head = model.lm_head
-        else:
-            raise AttributeError("Could not find lm_head in model")
+        lm_head = model.get_output_embeddings()
 
         # Unfreeze all parameters in the lm_head
         for param in lm_head.parameters():
@@ -151,8 +148,8 @@ class ModelAdapter:
 
     def _add_recurrence(self):
         """Add recurrent layers to the model"""
-        start, end = self._get_recurrent_layer_range(self.model.base_model.model)
-        layers = self.model.base_model.model.model.layers[start:end]
+        start, end = self._get_recurrent_layer_range(self.model)
+        layers = self.get_decoder_layers(self.model)[start:end]
 
         if self.config.recurrent_mode == "mamba":
             recurrent_layer = self._create_mamba_layer(len(layers))
@@ -167,7 +164,7 @@ class ModelAdapter:
                 self.device,
             )
 
-        self.model.base_model.model.model.layers[start] = RecurrentTransformerLayer(
+        layers[start] = RecurrentTransformerLayer(
             recurrent_layer,
             config=self.config,
             hidden_size=self.model.config.hidden_size,
@@ -175,7 +172,9 @@ class ModelAdapter:
 
         # Remove the original layers that were made recurrent
         for i in range(start + 1, end):
-            self.model.base_model.model.model.layers.pop(i)
+            layers.pop(i)
+
+        self.set_decoder_layers(self.model, layers)
 
         self.recurrent_layer_idx = start
 
@@ -209,11 +208,8 @@ class ModelAdapter:
     def _create_gated_layer(self, layers: list) -> SequentialTransformerLayer:
         new_layers = []
         for idx, layer in enumerate(layers):
-            print(layer)
             new_layer = GatedGemmaDecoderLayer(self.model.config, idx)
             new_layer = get_peft_model(new_layer, self.lora_config)
-            print(new_layer)
-            exit()
 
             new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
             new_layer.mlp.load_state_dict(layer.mlp.state_dict())

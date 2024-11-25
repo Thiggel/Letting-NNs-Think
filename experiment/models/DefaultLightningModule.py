@@ -5,7 +5,6 @@ from torch.optim import AdamW
 import torch
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
-from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from experiment.configs import ModelConfig, TrainingConfig, DataConfig
 
@@ -15,6 +14,7 @@ from .UninterruptedLanguageModel import UninterruptedLanguageModel
 from .ModelLogger import ModelLogger
 from .RecurrentLanguageModel import RecurrentLanguageModel
 from .MoDModel import MoDModel
+from .HasLayers import HasLayers
 
 
 class DefaultLightningModule(
@@ -23,6 +23,7 @@ class DefaultLightningModule(
     ModelLogger,
     RecurrentLanguageModel,
     MoDModel,
+    HasLayers,
 ):
     """Main Lightning Module for language model training"""
 
@@ -78,7 +79,7 @@ class DefaultLightningModule(
 
         parameters = [
             {
-                "params": self.model.base_model.model.model.layers.parameters(),
+                "params": self.get_decoder_layers().parameters(),
                 "lr": self.training_config.learning_rate,
             },
         ]
@@ -108,7 +109,6 @@ class DefaultLightningModule(
                 "frequency": 1,
             },
         }
-
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
         """Perform a single training/validation/test step"""

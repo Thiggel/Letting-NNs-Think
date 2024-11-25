@@ -41,8 +41,8 @@ class ModelLogger(ModelLoggerProtocol):
                 print()
 
             is_tied = (
-                self.model.base_model.model.model.embed_tokens.weight.data_ptr()
-                == self.model.base_model.model.lm_head.weight.data_ptr()
+                self.model.get_input_embeddings().weight.data_ptr()
+                == self.model.get_output_embeddings().weight.data_ptr()
             )
 
             print(f"Embedding and LM head weights are tied: {is_tied}")
