@@ -1,4 +1,5 @@
 from typing import Any
+from pathlib import Path
 import torch
 from lightning import Trainer
 from lightning.pytorch.callbacks import (
@@ -70,20 +71,25 @@ class TrainRunner(Runner, HasTokenizer):
         return {}
 
     def _setup_trainer(self, seed: int) -> Trainer:
+        checkpoint_dir = (
+            Path(os.environ.get("PYTORCH_LIGHTNING_HOME"))
+            / self.experiment_config.experiment_name
+        )
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
         callbacks = [
             ModelCheckpoint(
                 monitor="val_loss",
                 save_top_k=1,
                 mode="min",
-                dirpath=(
-                    os.environ.get("PYTORCH_LIGHTNING_HOME")
-                    if torch.cuda.is_available()
-                    else None
-                ),
+                dirpath=checkpoint_dir,
                 filename=self.experiment_config.experiment_name
                 + "_"
                 + str(seed)
                 + "_best-checkpoint-{epoch:02d}-{val_loss:.2f}",
+                every_n_train_steps=10000,
+                save_on_train_epoch_end=True,
+                save_last=True,
             ),
             DeviceStatsMonitor(),
             EarlyStopping(
@@ -122,7 +128,9 @@ class TrainRunner(Runner, HasTokenizer):
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
             "log_every_n_steps": 10,
             "max_epochs": self.training_config.max_epochs,
-            "max_time": {"days": 4, "hours": 12},
+            "max_time": {
+                "days": 4,
+            },
             "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": grad_acc_steps,
             "devices": "auto",
