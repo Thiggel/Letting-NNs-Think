@@ -52,7 +52,7 @@ class DefaultLightningModule(
     def generate(self, *args, **kwargs):
         self._dump_first_batch(kwargs)
 
-        class DebugLayer:
+        class DebugLayer(torch.nn.Module):
             def __init__(self, layer):
                 self.layer = layer
 
