@@ -117,7 +117,7 @@ class UninterruptedLanguageModel:
         seq_len = input_embeddings.shape[1]
         num_steps = min(seq_len - 1, self.config.uninterrupted_recurrence_depth)
 
-        for _ in range(num_steps):
+        for i in range(num_steps):
             outputs = self._forward(self.model, sequence, attention_mask, labels)
 
             last_hidden_states = outputs.hidden_states[-1]
@@ -125,6 +125,20 @@ class UninterruptedLanguageModel:
             prediction_loss = outputs.loss
             similarity_loss = self._get_similarity_loss(
                 last_hidden_states, input_embeddings, attention_mask
+            )
+
+            self.log(
+                f"{mode}_prediction_loss_step_{i}",
+                prediction_loss,
+                sync_dist=True,
+                batch_size=self.data_config.batch_size,
+            )
+
+            self.log(
+                f"{mode}_similarity_loss_step_{i}",
+                similarity_loss,
+                sync_dist=True,
+                batch_size=self.data_config.batch_size,
             )
 
             sequence = torch.cat(

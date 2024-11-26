@@ -79,7 +79,7 @@ class DefaultLightningModule(
 
         parameters = [
             {
-                "params": self.get_decoder_layers().parameters(),
+                "params": self.get_decoder_layers(self.model).parameters(),
                 "lr": self.training_config.learning_rate,
             },
         ]
