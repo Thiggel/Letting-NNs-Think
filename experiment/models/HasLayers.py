@@ -3,7 +3,7 @@ from torch import nn
 
 
 class HasLayers:
-    def get_decoder_layers(self, model: AutoModel):
+    def get_decoder_layers(self, model: AutoModel) -> nn.ModuleList:
         if hasattr(model, "model") and hasattr(model.model, "layers"):
             # Gemma2 and similar architectures
             return model.model.layers

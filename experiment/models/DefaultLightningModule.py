@@ -7,6 +7,7 @@ from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
 from experiment.configs import ModelConfig, TrainingConfig, DataConfig
+from experiment.models.GatedLM import GatedLM
 
 from .ModelAdapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
@@ -24,6 +25,7 @@ class DefaultLightningModule(
     RecurrentLanguageModel,
     MoDModel,
     HasLayers,
+    GatedLM,
 ):
     """Main Lightning Module for language model training"""
 
@@ -126,6 +128,7 @@ class DefaultLightningModule(
         self.metrics_logger.log_loss(loss, mode)
         loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
+        loss += self.get_gate_loss()
 
         return loss
 
