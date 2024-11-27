@@ -11,7 +11,7 @@ from transformers.models.gemma.modeling_gemma import (
     repeat_kv,
 )
 from transformers.activations import ACT2FN
-from transformers.ui import logging
+from transformers.utils import logging
 
 logger = logging.get_logger(__name__)
 

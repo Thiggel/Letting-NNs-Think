@@ -54,6 +54,10 @@ class DefaultLightningModule(
         """Log gradient norms before optimization step"""
         self.metrics_logger.log_gradient_norms()
 
+    def on_after_optimizer_step(self, _):
+        if self.config.enable_normalization:
+
+
     def forward(self, input_ids, **kwargs):
         return self.model(input_ids, **kwargs)
 
