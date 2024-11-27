@@ -171,6 +171,7 @@ class TrainRunner(Runner, HasTokenizer):
         return {
             "strategy": strategy,
             "precision": "bf16",
+            "accelerator": "gpu",
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
         }
 

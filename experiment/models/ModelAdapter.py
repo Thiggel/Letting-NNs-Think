@@ -149,12 +149,13 @@ class ModelAdapter(HasLayers):
     def _add_recurrence(self):
         """Add recurrent layers to the model"""
         start, end = self._get_recurrent_layer_range(self.model)
-        layers = self.get_decoder_layers(self.model)[start:end]
+        layers = self.get_decoder_layers(self.model)
+        recurrent_layers = layers[start:end]
 
         if self.config.recurrent_mode == "mamba":
-            recurrent_layer = self._create_mamba_layer(len(layers))
+            recurrent_layer = self._create_mamba_layer(len(recurrent_layers))
         else:
-            recurrent_layer = SequentialTransformerLayer(*layers)
+            recurrent_layer = SequentialTransformerLayer(*recurrent_layers)
 
         if self.config.use_dynamic_vera:
             recurrent_layer = DynamicVeraLayer(
@@ -174,7 +175,7 @@ class ModelAdapter(HasLayers):
         for i in range(start + 1, end):
             layers.pop(i)
 
-        self.set_decoder_layers(self.model, layers)
+        self.model = self.set_decoder_layers(self.model, layers)
 
         self.recurrent_layer_idx = start
 
