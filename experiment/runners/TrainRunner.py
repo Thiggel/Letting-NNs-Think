@@ -61,14 +61,21 @@ class TrainRunner(Runner, HasTokenizer):
 
         trainer.fit(model=model, datamodule=data_module)
 
-        if (
-            self.evaluation_config.save_to_checkpoint
-            and trainer.checkpoint_callback
-            and trainer.checkpoint_callback.best_model_path
-        ):
-            self._save_checkpoint(trainer.checkpoint_callback.best_model_path, seed)
+        if self.evaluation_config.save_to_checkpoint:
+            self._save_checkpoint(self.get_checkpoint_path(), seed)
 
         return {}
+
+    def get_checkpoint_path(checkpoint_dir, experiment_name, seed):
+        best_checkpoint_path = self.epoch_checkpoint.best_model_path
+        last_step_checkpoint = step_checkpoint.last_model_path
+
+        if best_epoch_checkpoint and os.path.exists(best_epoch_checkpoint):
+            return best_epoch_checkpoint
+        elif last_step_checkpoint and os.path.exists(last_step_checkpoint):
+            return last_step_checkpoint
+
+        return ""
 
     def _setup_trainer(self, seed: int) -> Trainer:
         checkpoint_dir = (
@@ -77,20 +84,33 @@ class TrainRunner(Runner, HasTokenizer):
         )
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
+        self.step_checkpoint = ModelCheckpoint(
+            monitor=None,
+            every_n_train_steps=1000,
+            save_on_train_epoch_end=False,
+            dirpath=checkpoint_dir,
+            filename=self.experiment_config.experiment_name
+            + "_"
+            + str(seed)
+            + "_step-checkpoint-{step:06d}",
+            save_last=True,
+        )
+
+        self.epoch_checkpoint = ModelCheckpoint(
+            monitor="val_loss",
+            save_top_k=1,
+            mode="min",
+            save_on_train_epoch_end=True,
+            dirpath=checkpoint_dir,
+            filename=self.experiment_config.experiment_name
+            + "_"
+            + str(seed)
+            + "_epoch-checkpoint-{epoch:02d}-{val_loss:.2f}",
+        )
+
         callbacks = [
-            ModelCheckpoint(
-                monitor="val_loss",
-                save_top_k=1,
-                mode="min",
-                dirpath=checkpoint_dir,
-                filename=self.experiment_config.experiment_name
-                + "_"
-                + str(seed)
-                + "_best-checkpoint-{epoch:02d}-{val_loss:.2f}",
-                every_n_train_steps=10000,
-                save_on_train_epoch_end=True,
-                save_last=True,
-            ),
+            self.step_checkpoint,
+            self.epoch_checkpoint,
             DeviceStatsMonitor(),
             EarlyStopping(
                 monitor="val_loss", patience=1, mode="min", min_delta=0.00, verbose=True
