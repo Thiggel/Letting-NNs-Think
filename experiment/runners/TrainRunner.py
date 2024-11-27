@@ -85,14 +85,14 @@ class TrainRunner(Runner, HasTokenizer):
 
         self.step_checkpoint = ModelCheckpoint(
             monitor=None,
-            every_n_train_steps=1000,
+            every_n_train_steps=20,
             save_on_train_epoch_end=False,
             dirpath=checkpoint_dir,
             filename=self.experiment_config.experiment_name
             + "_"
             + str(seed)
             + "_step-checkpoint-{step:06d}",
-            save_last=True,
+            save_last="link",
         )
 
         self.epoch_checkpoint = ModelCheckpoint(
@@ -148,7 +148,7 @@ class TrainRunner(Runner, HasTokenizer):
             "log_every_n_steps": 10,
             "max_epochs": self.training_config.max_epochs,
             "max_time": {
-                "days": 4,
+                "hours": 18,
             },
             "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": grad_acc_steps,
