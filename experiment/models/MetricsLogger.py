@@ -2,15 +2,54 @@ import math
 from lightning import LightningModule
 import torch
 from deepspeed.utils import safe_get_full_grad
+from transformers import PreTrainedTokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 
 class MetricsLogger:
     """Handles metric logging logic"""
 
-    def __init__(self, lightning_module: LightningModule, batch_size: int):
+    def __init__(
+        self,
+        lightning_module: LightningModule,
+        tokenizer: PreTrainedTokenizer,
+        batch_size: int,
+    ):
         self.module = lightning_module
+        self.tokenizer = tokenizer
         self.batch_size = batch_size
+
+    def dump_first_batch(self, batch: dict[str, torch.Tensor]) -> None:
+        try:
+            if self.trainer.global_rank > 0:
+                return
+        except Exception:
+            pass
+
+        MAX_DUMPS = 5
+
+        if not hasattr(self, "num_dumped_first_batch"):
+            self.num_dumped_first_batch = 0
+
+        if self.num_dumped_first_batch < MAX_DUMPS and self.tokenizer is not None:
+            input_ids = batch["input_ids"]
+            for i in range(min(len(input_ids), 3)):
+                ids = input_ids[i]
+
+                decoded = self.tokenizer.decode(ids)
+                print()
+                print(decoded)
+                print()
+
+            is_tied = (
+                self.module.model.get_input_embeddings().weight.data_ptr()
+                == self.module.model.get_output_embeddings().weight.data_ptr()
+            )
+
+            print(f"Embedding and LM head weights are tied: {is_tied}")
+            print()
+
+            self.num_dumped_first_batch += 1
 
     def log_loss(self, loss: torch.Tensor, mode: str):
         self.module.log(

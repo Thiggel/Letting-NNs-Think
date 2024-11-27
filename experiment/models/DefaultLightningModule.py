@@ -12,7 +12,6 @@ from experiment.models.GatedLM import GatedLM
 from .ModelAdapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
 from .UninterruptedLanguageModel import UninterruptedLanguageModel
-from .ModelLogger import ModelLogger
 from .RecurrentLanguageModel import RecurrentLanguageModel
 from .MoDModel import MoDModel
 from .HasLayers import HasLayers
@@ -21,7 +20,6 @@ from .HasLayers import HasLayers
 class DefaultLightningModule(
     LightningModule,
     UninterruptedLanguageModel,
-    ModelLogger,
     RecurrentLanguageModel,
     MoDModel,
     HasLayers,
@@ -48,13 +46,19 @@ class DefaultLightningModule(
 
         print(self.model)
 
-        self.metrics_logger = MetricsLogger(self, self.data_config.batch_size)
+        self.metrics_logger = MetricsLogger(
+            self, self.tokenizer, self.data_config.batch_size
+        )
+
+    def on_before_optimizer_step(self, _):
+        """Log gradient norms before optimization step"""
+        self.metrics_logger.log_gradient_norms()
 
     def forward(self, input_ids, **kwargs):
         return self.model(input_ids, **kwargs)
 
     def generate(self, *args, **kwargs):
-        self._dump_first_batch(kwargs)
+        self.metrics_logger.dump_first_batch(kwargs)
         return self.model.generate(*args, **kwargs)
 
     def lr_lambda(self, current_step: int) -> float:
@@ -114,7 +118,7 @@ class DefaultLightningModule(
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
         """Perform a single training/validation/test step"""
-        self._dump_first_batch(batch)
+        self.metrics_logger.dump_first_batch(batch)
 
         if self.config.make_uninterrupted:
             batch["output_hidden_states"] = True
