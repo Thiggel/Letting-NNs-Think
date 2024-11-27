@@ -6,6 +6,7 @@ from .UninterruptedTransformerConfig import UninterruptedTransformerConfig
 from .LoraConfig import LoraConfig
 from .DynamicVeraConfig import DynamicVeraConfig
 from .MixtureOfDepthsConfig import MixtureOfDepthsConfig
+from .NormalizedLanguageModelConfig import NormalizedLanguageModelConfig
 
 
 class FinetuneMode(str, Enum):
@@ -22,6 +23,7 @@ class ModelConfig(
     LoraConfig,
     DynamicVeraConfig,
     MixtureOfDepthsConfig,
+    NormalizedLanguageModelConfig,
 ):
     """Configuration for model architecture and behavior"""
 

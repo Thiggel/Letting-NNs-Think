@@ -7,6 +7,7 @@ from experiment.layers import (
     MambaTransformerLayer,
     GatedGemmaDecoderLayer,
     SequentialTransformerLayer,
+    NormalizedGemmaDecoderLayer,
 )
 from experiment.layers.mixture_of_depths import MoDLayer
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
@@ -43,6 +44,9 @@ class ModelAdapter(HasLayers):
 
         if self.config.use_gating:
             model = self._add_gating(model)
+
+        if self.config.enable_normalization:
+            model = self._add_normalization(model)
 
         if self.config.use_mod:
             model = self._add_mod(model)
@@ -131,9 +135,23 @@ class ModelAdapter(HasLayers):
 
         return model
 
+    def _add_normalization(self, model: nn.Module):
+        layers = self.get_decoder_layers(model)
+
+        for idx in range(len(layers)):
+            layer = layers[idx]
+            new_layer = NormalizedGemmaDecoderLayer(model.config, idx)
+            new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
+            new_layer.mlp.load_state_dict(layer.mlp.state_dict())
+            layers[idx] = new_layer
+
+        model = self.set_decoder_layers(model, layers)
+
+        return model
+
     def _add_gating(self, model: nn.Module):
         start, end = self._get_recurrent_layer_range(model)
-        layers = model.model.layers
+        layers = self.get_decoder_layers(model)
 
         for idx in range(start, end):
             layer = layers[idx]
@@ -142,7 +160,7 @@ class ModelAdapter(HasLayers):
             new_layer.mlp.load_state_dict(layer.mlp.state_dict())
             layers[idx] = new_layer
 
-        model.model.layers = layers
+        model = self.set_decoder_layers(model, layers)
 
         return model
 

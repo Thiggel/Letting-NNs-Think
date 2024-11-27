@@ -9,7 +9,7 @@ from torch.optim.lr_scheduler import LambdaLR
 from experiment.configs import ModelConfig, TrainingConfig, DataConfig
 from experiment.models.GatedLM import GatedLM
 
-from .ModelAdapter import ModelAdapter
+from .model_adapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
 from .UninterruptedLanguageModel import UninterruptedLanguageModel
 from .RecurrentLanguageModel import RecurrentLanguageModel

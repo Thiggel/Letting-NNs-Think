@@ -17,11 +17,11 @@ logger = logging.get_logger(__name__)
 
 
 class CanNormalize:
-    def normalize(self, x: torch.Tensor) -> torch.Tensor:
-        return x / x.norm(p=2, dim=-1, keepdim=True)
+    def normalize(self, x: torch.Tensor, dim=-1) -> torch.Tensor:
+        return x / x.norm(p=2, dim=dim, keepdim=True)
 
 
-class NormalizedGemmaMLP(nn.Module):
+class NormalizedGemmaMLP(nn.Module, CanNormalize):
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -49,6 +49,11 @@ class NormalizedGemmaMLP(nn.Module):
         self.s_scaling = (self.s_init_value / self.s_init_scaling) * (
             self.config.hidden_size**0.5
         )
+
+    def normalize_weights(self):
+        self.up_proj.weight.data.copy_(self.normalize(self.up_proj.weight.data, 1))
+        self.gate_proj.weight.data.copy_(self.normalize(self.gate_proj.weight.data, 0))
+        print("Normalized MLP weights")
 
     def forward(self, x):
         gate = self.gate_proj(x)
@@ -81,6 +86,13 @@ class NormalizedGemmaSdpaAttention(GemmaAttention, CanNormalize):
         self.sqk = torch.nn.Parameter(
             self.sqk_init_scaling * torch.ones(self.config.n_embd, dtype=torch.float32)
         )
+
+    def normalize_weights(self):
+        self.q_proj.weight.data.copy_(self.normalize(self.q_proj.weight.data, 1))
+        self.k_proj.weight.data.copy_(self.normalize(self.k_proj.weight.data, 1))
+        self.v_proj.weight.data.copy_(self.normalize(self.v_proj.weight.data, 1))
+        self.o_proj.weight.data.copy_(self.normalize(self.o_proj.weight.data, 0))
+        print("Normalized SDPA weights")
 
     # Adapted from GemmaAttention.forward
     def forward(

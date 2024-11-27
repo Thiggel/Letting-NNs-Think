@@ -3,3 +3,4 @@ from .MambaTransformerLayer import MambaTransformerLayer
 from .S6 import S6
 from .SequentialTransformerLayer import SequentialTransformerLayer
 from .DynamicVeraLayer import DynamicVeraLayer
+from .NormalizedGemmaDecoderLayer import NormalizedGemmaDecoderLayer
