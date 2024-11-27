@@ -4,6 +4,9 @@ from torch import nn
 
 class HasLayers:
     def get_decoder_layers(self, model: AutoModel):
+        if hasattr(model, "base_model") and hasattr(model.base_model, "model"):
+            model = model.base_model.model
+
         if hasattr(model, "model") and hasattr(model.model, "layers"):
             # Gemma2 and similar architectures
             return model.model.layers

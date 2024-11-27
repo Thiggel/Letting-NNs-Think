@@ -18,7 +18,6 @@ from pydantic import BaseModel
 
 from experiment.experiment import Runner
 from experiment.datasets import LanguageDataModule
-from experiment.model_evaluator import ModelEvaluator
 from experiment.models import DefaultLightningModule
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
@@ -137,8 +136,20 @@ class TrainRunner(Runner, HasTokenizer):
         }
 
     def _get_cuda_specific_args(self) -> dict[str, Any]:
+        strategy = DeepSpeedStrategy(
+            config={
+                "zero_optimization": {
+                    "stage": 3,
+                    "offload_optimizer": {"device": "cpu"},
+                    "reduce_bucket_size": 1e7,
+                },
+                "bf16": {
+                    "enabled": True,
+                },
+            }
+        )
         return {
-            "strategy": "deepspeed_stage_3_offload",
+            "strategy": strategy,
             "precision": "bf16",
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
         }
