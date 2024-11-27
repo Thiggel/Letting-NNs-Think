@@ -63,13 +63,6 @@ class CustomInference:
         for _ in range(max_length):
             hidden_states = self.forward_only_transformer_layers(first_hidden_states)
 
-            print(first_hidden_states.shape)
-            print(2, last_hidden_states.shape)
-            exit()
-            if last_hidden_states is not None:
-                first_hidden_states[:, -1:, :] = last_hidden_states
-            print(first_hidden_states.shape)
-
             last_hidden_states = hidden_states[:, -1:, :]
             first_hidden_states = torch.cat(
                 (first_hidden_states, last_hidden_states), dim=1
