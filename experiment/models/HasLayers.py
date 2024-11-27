@@ -3,7 +3,7 @@ from torch import nn
 
 
 class HasLayers:
-    def get_decoder_layers(self, model: AutoModel):
+    def get_decoder_layers(self, model: AutoModel) -> nn.ModuleList:
         if hasattr(model, "base_model") and hasattr(model.base_model, "model"):
             model = model.base_model.model
 

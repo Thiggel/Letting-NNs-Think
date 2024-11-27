@@ -11,8 +11,18 @@ from transformers.models.gemma.modeling_gemma import (
 
 
 class GatedGemmaDecoderLayer(nn.Module):
-    def __init__(self, config: GemmaConfig, layer_idx: int):
+    def __init__(
+        self,
+        config: GemmaConfig,
+        layer_idx: int,
+        init_weight_std=0.01,
+        init_bias_val=2.2,
+        sparsity_loss_weight=0.01,
+        entropy_loss_weight=0.01,
+    ):
         super().__init__()
+        self.sparsity_loss_weight = sparsity_loss_weight
+        self.entropy_loss_weight = entropy_loss_weight
         self.hidden_size = config.hidden_size
 
         self.self_attn = GEMMA_ATTENTION_CLASSES[config._attn_implementation](
@@ -27,6 +37,43 @@ class GatedGemmaDecoderLayer(nn.Module):
 
         self.attn_gate = nn.Linear(config.hidden_size, config.hidden_size)
         self.mlp_gate = nn.Linear(config.hidden_size, config.hidden_size)
+
+        nn.init.normal_(self.attn_gate.weight, std=init_weight_std)
+        nn.init.constant_(self.attn_gate.bias, init_bias_val)
+
+        nn.init.normal_(self.mlp_gate.weight, std=init_weight_std)
+        nn.init.constant_(self.mlp_gate.bias, init_bias_val)
+
+        self.current_attn_gate_output: Optional[torch.Tensor] = None
+        self.current_mlp_gate_output: Optional[torch.Tensor] = None
+
+    def get_entropy_loss(self, gate_output: torch.Tensor) -> torch.Tensor:
+        eps = 1e-6
+        entropy_loss = -(
+            gate_output * (gate_output + eps).log()
+            + (1 - gate_output) * (1 - gate_output + eps).log()
+        )
+
+        return entropy_loss
+
+    def get_gate_loss(self) -> torch.Tensor:
+        loss = torch.tensor(0)
+        if self.current_attn_gate_output is not None:
+            loss += (
+                self.sparsity_loss_weight * self.current_attn_gate_output.abs().mean()
+            )
+            loss += self.entropy_loss_weight * self.get_entropy_loss(
+                self.current_attn_gate_output
+            )
+        if self.current_mlp_gate_output is not None:
+            loss += (
+                self.sparsity_loss_weight * self.current_mlp_gate_output.abs().mean()
+            )
+            loss += self.entropy_loss_weight * self.get_entropy_loss(
+                self.current_mlp_gate_output
+            )
+
+        return loss
 
     def forward(
         self,
@@ -76,6 +123,7 @@ class GatedGemmaDecoderLayer(nn.Module):
             **kwargs,
         )
         gate = torch.sigmoid(self.attn_gate(hidden_states))
+        self.current_attn_gate_output = gate
         hidden_states = gate * attn_output + (1 - gate) * residual
 
         # Fully Connected
@@ -84,6 +132,7 @@ class GatedGemmaDecoderLayer(nn.Module):
         mlp_output = self.mlp(hidden_states)
 
         gate = torch.sigmoid(self.mlp_gate(hidden_states))
+        self.current_mlp_gate_output = gate
         hidden_states = gate * mlp_output + (1 - gate) * residual
 
         outputs = (hidden_states,)

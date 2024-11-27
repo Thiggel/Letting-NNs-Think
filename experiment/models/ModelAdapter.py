@@ -204,13 +204,3 @@ class ModelAdapter(HasLayers):
                 for _ in range(num_layers)
             ]
         )
-
-    def _create_gated_layer(self, layers: list) -> SequentialTransformerLayer:
-        new_layers = []
-        for idx, layer in enumerate(layers):
-            new_layer = GatedGemmaDecoderLayer(self.model.config, idx)
-            new_layer = get_peft_model(new_layer, self.lora_config)
-
-            new_layer.self_attn.load_state_dict(layer.self_attn.state_dict())
-            new_layer.mlp.load_state_dict(layer.mlp.state_dict())
-            new_layers.append(new_layer)
