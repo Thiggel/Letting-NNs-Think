@@ -4,12 +4,11 @@ from torch import nn
 from transformers.cache_utils import Cache
 from transformers.models.gemma.modeling_gemma import (
     GemmaConfig,
-    GemmaMLP,
-    GemmaRMSNorm,
     GemmaAttention,
     apply_rotary_pos_emb,
     repeat_kv,
 )
+from transformers.models.gemma2.modeling_gemma2 import Gemma2ForCausalLM
 from transformers.activations import ACT2FN
 from transformers.utils import logging
 
@@ -43,26 +42,26 @@ class NormalizedGemmaMLP(nn.Module, CanNormalize):
 
         self.s_init_value = 1.0
         self.s_init_scaling = 1.0
-        self.s = torch.nn.Parameter(
-            self.s_init_scaling * torch.ones(2 * 4 * config.hidden_size)
+        self.s_up = torch.nn.Parameter(
+            self.s_init_scaling * torch.ones(config.intermediate_size)
+        )
+        self.s_gate = torch.nn.Parameter(
+            self.s_init_scaling * torch.ones(config.intermediate_size)
         )
         self.s_scaling = (self.s_init_value / self.s_init_scaling) * (
             self.config.hidden_size**0.5
         )
 
     def normalize_weights(self):
-        self.up_proj.weight.data.copy_(self.normalize(self.up_proj.weight.data, 1))
-        self.gate_proj.weight.data.copy_(self.normalize(self.gate_proj.weight.data, 0))
-        print("Normalized MLP weights")
+        self.up_proj.weight.data.copy_(self.normalize(self.up_proj.weight.data))
+        self.gate_proj.weight.data.copy_(self.normalize(self.gate_proj.weight.data))
 
     def forward(self, x):
         gate = self.gate_proj(x)
         up = self.up_proj(x)
 
-        s = self.s * self.s_scaling
-
-        gate = gate * s
-        up = up * s
+        gate = gate * self.s_gate * self.s_scaling
+        up = up * self.s_up
 
         output = self.act_fn(gate) * up
 
@@ -82,17 +81,26 @@ class NormalizedGemmaSdpaAttention(GemmaAttention, CanNormalize):
         super().__init__(config, layer_idx)
 
         self.sqk_init_value = 1.0
-        self.sqk_init_scaling = config.base_scale
-        self.sqk = torch.nn.Parameter(
-            self.sqk_init_scaling * torch.ones(self.config.n_embd, dtype=torch.float32)
+        self.sqk_init_scaling = 1.0 / (config.hidden_size**0.5)
+        self.sqk_query = torch.nn.Parameter(
+            self.sqk_init_scaling
+            * torch.ones(
+                self.config.num_attention_heads * self.head_dim, dtype=torch.float32
+            )
+        )
+        self.sqk_key = torch.nn.Parameter(
+            self.sqk_init_scaling
+            * torch.ones(
+                self.config.num_key_value_heads * self.head_dim,
+                dtype=torch.float32,
+            )
         )
 
     def normalize_weights(self):
-        self.q_proj.weight.data.copy_(self.normalize(self.q_proj.weight.data, 1))
-        self.k_proj.weight.data.copy_(self.normalize(self.k_proj.weight.data, 1))
-        self.v_proj.weight.data.copy_(self.normalize(self.v_proj.weight.data, 1))
+        self.q_proj.weight.data.copy_(self.normalize(self.q_proj.weight.data))
+        self.k_proj.weight.data.copy_(self.normalize(self.k_proj.weight.data))
+        self.v_proj.weight.data.copy_(self.normalize(self.v_proj.weight.data))
         self.o_proj.weight.data.copy_(self.normalize(self.o_proj.weight.data, 0))
-        print("Normalized SDPA weights")
 
     # Adapted from GemmaAttention.forward
     def forward(
@@ -142,11 +150,16 @@ class NormalizedGemmaSdpaAttention(GemmaAttention, CanNormalize):
             query_states, key_states, cos, sin
         )
 
-        sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(
-            1, 1, self.config.n_head, self.config.n_embd // self.config.n_head
+        sqk_query = (
+            self.sqk_query * (self.sqk_init_value / self.sqk_init_scaling)
+        ).view(1, self.config.num_attention_heads, 1, self.head_dim)
+
+        sqk_key = (self.sqk_key * (self.sqk_init_value / self.sqk_init_scaling)).view(
+            1, self.config.num_key_value_heads, 1, self.head_dim
         )
-        query_states = sqk * self.normalize(query_states)
-        key_states = sqk * self.normalize(key_states)
+
+        query_states = sqk_query * self.normalize(query_states)
+        key_states = sqk_key * self.normalize(key_states)
 
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
@@ -180,6 +193,7 @@ class NormalizedGemmaSdpaAttention(GemmaAttention, CanNormalize):
             attn_mask=causal_mask,
             dropout_p=self.attention_dropout if self.training else 0.0,
             is_causal=is_causal,
+            scale=self.hidden_size**0.5,
         )
 
         attn_output = attn_output.transpose(1, 2).contiguous()
@@ -199,24 +213,20 @@ class NormalizedGemmaDecoderLayer(nn.Module, CanNormalize):
             config=config, layer_idx=layer_idx
         )
 
-        self.mlp = GemmaMLP(config)
-        self.input_layernorm = GemmaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = GemmaRMSNorm(
-            config.hidden_size, eps=config.rms_norm_eps
-        )
+        self.mlp = NormalizedGemmaMLP(config)
 
         self.attn_alpha_init_value = 0.05
-        self.attn_alpha_init_scaling = config.base_scale
+        self.attn_alpha_init_scaling = 1.0 / (config.hidden_size**0.5)
         self.attn_alpha = torch.nn.Parameter(
             self.attn_alpha_init_scaling
-            * torch.ones(self.config.n_embd, dtype=torch.float32)
+            * torch.ones(config.hidden_size, dtype=torch.float32)
         )
 
         self.mlp_alpha_init_value = 0.05
-        self.mlp_alpha_init_scaling = config.base_scale
+        self.mlp_alpha_init_scaling = 1.0 / (config.hidden_size**0.5)
         self.mlp_alpha = torch.nn.Parameter(
             self.mlp_alpha_init_scaling
-            * torch.ones(self.config.n_embd, dtype=torch.float32)
+            * torch.ones(config.hidden_size, dtype=torch.float32)
         )
 
     def forward(
@@ -265,3 +275,19 @@ class NormalizedGemmaDecoderLayer(nn.Module, CanNormalize):
             outputs += (present_key_value,)
 
         return outputs
+
+
+class NormalizedGemmaLMHead(nn.Module):
+    def __init__(self, lm_head: nn.Linear):
+        super().__init__()
+        self.lm_head = lm_head
+        self.logit_scaling = nn.Parameter(torch.ones(lm_head.out_features))
+
+    @property
+    def weight(self):
+        return self.lm_head.weight
+
+    def forward(self, *args, **kwargs):
+        logits = self.lm_head(*args, **kwargs) * self.logit_scaling
+
+        return logits
