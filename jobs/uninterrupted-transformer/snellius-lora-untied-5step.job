@@ -4,7 +4,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=4:00:00
+#SBATCH --time=24:00:00
 #SBATCH --job-name=UninteruptedTransformer-FullLora-Untied-Recurrent-5Step
 #SBATCH --output=job_logs/Uninterrupted-Transformer-FullLora-Untied-Recurrent-5Step-%A.out
 
@@ -15,8 +15,8 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
   --dataset gsm8k \
-  --max-epochs 10 \
-  --batch-size 16 \
+  --max-epochs 20 \
+  --batch-size 12 \
   --learning-rate 1e-3 \
   --make-uninterrupted \
   --uninterrupted-recurrence-depth 5 \
