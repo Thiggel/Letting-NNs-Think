@@ -63,7 +63,6 @@ class EvaluationRunner(Runner, HasTokenizer):
         model.setup("test")
 
         print(model)
-        exit()
 
         if self.evaluation_config.load_from_checkpoint:
             checkpoint_path = os.path.join(
