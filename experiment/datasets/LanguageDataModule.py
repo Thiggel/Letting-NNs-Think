@@ -120,7 +120,7 @@ class LanguageDataModule(LightningDataModule):
         val_dataset = (
             self._process_split(ds[dataset_config["validation_field"]], dataset_config)
             if "validation_field" in dataset_config
-            else None
+            else self._create_validation_set(train_dataset)
         )
         test_dataset = (
             self._process_split(ds[dataset_config["test_field"]], dataset_config)
@@ -199,7 +199,7 @@ class LanguageDataModule(LightningDataModule):
 
     def _create_validation_set(self, train_dataset: IterableDataset) -> IterableDataset:
         validation_dataset = train_dataset.filter(
-            lambda _, idx: idx % 10 == 0, with_indices=True
+            lambda _, idx: idx < self.data_config.val_dataset_size, with_indices=True
         )
         return validation_dataset
 
@@ -216,9 +216,9 @@ class LanguageDataModule(LightningDataModule):
             drop_last=not isinstance(self.datasets.train, IterableDataset),
         )
 
-    def val_dataloader(self) -> Optional[DataLoader]:
+    def val_dataloader(self) -> DataLoader:
         if not self.datasets or not self.datasets.validation:
-            return None
+            raise ValueError("Validation dataset not initialized")
 
         return DataLoader(
             self.datasets.validation,

@@ -31,3 +31,6 @@ class TrainingConfig(BaseModel):
     use_random_intermediate_supervision: bool = Field(
         False, description="Whether to use random intermediate supervision"
     )
+    validate_every_n_steps: int = Field(
+        1000, description="The number of steps between validation runs"
+    )
