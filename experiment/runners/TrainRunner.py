@@ -147,6 +147,7 @@ class TrainRunner(Runner, HasTokenizer):
             "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": self.data_config.grad_acc_steps,
             "devices": "auto",
+            # TODO: must be lower than training batches so only add if lower than training batches
             # "val_check_interval": self.training_config.validate_every_n_steps,
         }
 
