@@ -120,7 +120,7 @@ class LanguageDataModule(LightningDataModule):
         val_dataset = (
             self._process_split(ds[dataset_config["validation_field"]], dataset_config)
             if "validation_field" in dataset_config
-            else self._create_validation_set(train_dataset)
+            else None
         )
         test_dataset = (
             self._process_split(ds[dataset_config["test_field"]], dataset_config)
