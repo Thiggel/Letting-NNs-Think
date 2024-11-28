@@ -22,7 +22,8 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
         """Get the recurrent layer if it exists"""
         if not hasattr(self.model_adapter, "recurrent_layer_idx"):
             return None
-        return self.model.model.layers[self.model_adapter.recurrent_layer_idx]
+        layers = self.model_adapter.get_decoder_layers(self.model)
+        return layers[self.model_adapter.recurrent_layer_idx]
 
     def get_loss_for_intermediate_supervision(self) -> torch.Tensor:
         layer = self.get_recurrent_layer()
