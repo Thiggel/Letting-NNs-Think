@@ -15,10 +15,10 @@ class DynamicVeraLayer(nn.Module):
 
         # Initialize A and B matrices with careful scaling
         scaling = 1.0 / (hidden_dim**0.5)
-        self.A = torch.empty(hidden_dim, vera_r).to(device=device, dtype=dtype)
+        self.A = torch.empty(hidden_dim, vera_r).to(device=device).bfloat16()
         nn.init.normal_(self.A, std=scaling)
 
-        self.B = torch.empty(vera_r, hidden_dim).to(device=device, dtype=dtype)
+        self.B = torch.empty(vera_r, hidden_dim).to(device=device).bfloat16()
         nn.init.normal_(self.B, std=scaling)
 
         # Smaller hypernets with carefully chosen dimensions
