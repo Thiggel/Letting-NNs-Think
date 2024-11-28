@@ -216,9 +216,9 @@ class LanguageDataModule(LightningDataModule):
             drop_last=not isinstance(self.datasets.train, IterableDataset),
         )
 
-    def val_dataloader(self) -> DataLoader:
+    def val_dataloader(self) -> Optional[DataLoader]:
         if not self.datasets or not self.datasets.validation:
-            raise ValueError("Validation dataset not initialized")
+            return None
 
         return DataLoader(
             self.datasets.validation,
