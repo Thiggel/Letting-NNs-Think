@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --job-name=Pythia_GSM8K_1Step
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=4:00:00
+#SBATCH --output=job_logs/Pythia_GSM8K_1Step_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "EleutherAI/pythia-70m" \
+  --dataset gsm8k \
+  --max-epochs 200 \
+  --batch-size 256 \
+  --finetune-mode full \
+  --experiment-name Pythia_GSM8K_1Step \
+  --save-to-checkpoint Pythia_GSM8K_1Step \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "EleutherAI/pythia-70m" \
+  --mode evaluate \
+  --finetune-mode full \
+  --eval-batch-size 2048 \
+  --evaluation-metrics gsm8k \
+  --load-from-checkpoint Pythia_GSM8K_1Step \
+  --experiment-name Pythia_GSM8K_1Step \
+  --enable-logging

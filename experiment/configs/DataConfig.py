@@ -7,3 +7,4 @@ class DataConfig(BaseModel):
     dataset: str = Field("gsm8k", description="The dataset to use for training")
     seq_length: int = Field(1024, description="The maximum sequence length")
     batch_size: int = Field(8, description="The batch size")
+    grad_acc_steps: int = Field(8, description="Number of gradient accumulation steps")

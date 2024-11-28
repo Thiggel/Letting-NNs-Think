@@ -135,12 +135,6 @@ class TrainRunner(Runner, HasTokenizer):
                 log_model="all",
             )
 
-        grad_acc_steps = (
-            1
-            if self.data_config.batch_size >= 64
-            else 64 // self.data_config.batch_size
-        )
-
         return {
             "callbacks": callbacks,
             "enable_checkpointing": True,
@@ -151,7 +145,7 @@ class TrainRunner(Runner, HasTokenizer):
                 "hours": 18,
             },
             "gradient_clip_val": self.training_config.max_grad_norm,
-            "accumulate_grad_batches": grad_acc_steps,
+            "accumulate_grad_batches": self.data_config.grad_acc_steps,
             "devices": "auto",
         }
 
