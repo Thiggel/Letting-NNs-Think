@@ -16,6 +16,8 @@ class HasLayers:
         elif hasattr(model, "decoder") and hasattr(model.decoder, "block"):
             # Models like T5 (encoder-decoder, but using decoder only)
             return model.decoder.block
+        elif hasattr(model, "gpt_neox") and hasattr(model.gpt_neox, "layers"):
+            return model.gpt_neox.layers
         else:
             raise ValueError(
                 "Unable to locate decoder layers. Inspect the model structure."
@@ -34,6 +36,8 @@ class HasLayers:
         elif hasattr(model, "decoder") and hasattr(model.decoder, "block"):
             # Models like T5 (encoder-decoder, but using decoder only)
             model.decoder.block = layers
+        elif hasattr(model, "gpt_neox") and hasattr(model.gpt_neox, "layers"):
+            model.gpt_neox.layers = layers
         else:
             raise ValueError(
                 "Unable to locate decoder layers. Inspect the model structure."
