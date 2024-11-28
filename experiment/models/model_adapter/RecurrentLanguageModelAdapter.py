@@ -46,6 +46,7 @@ class RecurrentLanguageModelAdapter:
                 model.config.hidden_size,
                 self.config.vera_r,
                 self.device,
+                model.dtype,
             )
 
         layers[start] = RecurrentTransformerLayer(

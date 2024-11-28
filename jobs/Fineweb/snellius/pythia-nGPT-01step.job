@@ -1,0 +1,21 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Pythia_Fineweb_nGPT_01step
+#SBATCH --time=1-00:00:00
+#SBATCH --output=job_logs/Pythia_Fineweb_nGPT_01step_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset fineweb \
+    --batch-size 16 \
+    --grad-acc-steps 128 \
+    --finetune-mode full \
+    --seq-len 4096

@@ -30,6 +30,7 @@ class EvaluationRunner(Runner, HasTokenizer):
         self.evaluation_config: EvaluationConfig = self.configs[
             EvaluationConfig.__name__
         ]
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def run(self, seed: int) -> dict[str, float]:
         model = self._load_model(seed)
@@ -58,7 +59,11 @@ class EvaluationRunner(Runner, HasTokenizer):
             self.data_config,
             self.tokenizer,
         )
+        model.to(self.device)
         model.setup("test")
+
+        print(model)
+        exit()
 
         if self.evaluation_config.load_from_checkpoint:
             checkpoint_path = os.path.join(
@@ -77,11 +82,6 @@ class EvaluationRunner(Runner, HasTokenizer):
             )
             print("Missing keys:", missing_keys)
             print("Unexpected keys:", unexpected_keys)
-
-            for key in missing_keys:
-                print("Weight for: ", key)
-                print(model.state_dict()[key])
-                print()
 
             return model
 

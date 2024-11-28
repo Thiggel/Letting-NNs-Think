@@ -25,6 +25,7 @@ class HasLayers:
 
     def set_decoder_layers(self, model: AutoModel, layers: nn.ModuleList):
         if hasattr(model, "base_model") and hasattr(model.base_model, "model"):
+            old_model = model
             model = model.base_model.model
 
         if hasattr(model, "model") and hasattr(model.model, "layers"):
@@ -42,5 +43,9 @@ class HasLayers:
             raise ValueError(
                 "Unable to locate decoder layers. Inspect the model structure."
             )
+
+        if hasattr(model, "base_model") and hasattr(model.base_model, "model"):
+            old_model.base_model.model = model
+            return old_model
 
         return model
