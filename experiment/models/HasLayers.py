@@ -46,12 +46,12 @@ class HasLayers:
                 "Unable to locate decoder layers. Inspect the model structure."
             )
 
-        if (
-            old_model is not None
-            and hasattr(old_model, "base_model")
-            and hasattr(old_model.base_model, "model")
-        ):
-            old_model.base_model.model = model
-            return old_model
+        # if (
+        #    old_model is not None
+        #    and hasattr(old_model, "base_model")
+        #    and hasattr(old_model.base_model, "model")
+        # ):
+        #    old_model.base_model.model = model
+        #    return old_model
 
         return model
