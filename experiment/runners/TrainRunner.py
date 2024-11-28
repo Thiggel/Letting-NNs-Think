@@ -147,7 +147,7 @@ class TrainRunner(Runner, HasTokenizer):
             "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": self.data_config.grad_acc_steps,
             "devices": "auto",
-            "val_check_interval": self.training_config.validate_every_n_steps,
+            # "val_check_interval": self.training_config.validate_every_n_steps,
         }
 
     def _get_cuda_specific_args(self) -> dict[str, Any]:
