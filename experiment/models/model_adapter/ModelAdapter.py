@@ -77,6 +77,6 @@ class ModelAdapter(
             model.gradient_checkpointing_enable()
 
         if self.config.make_layers_recurrent is not None:
-            self._add_recurrence()
+            model = self._add_recurrence(model)
 
         return model

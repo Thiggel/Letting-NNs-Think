@@ -198,15 +198,10 @@ class LanguageDataModule(LightningDataModule):
         return split["train"], split["test"]
 
     def _create_validation_set(self, train_dataset: IterableDataset) -> IterableDataset:
-        def validation_generator():
-            train_iter = iter(train_dataset)
-            for i, item in enumerate(train_iter):
-                if i % 10 == 0:  # Every 10th item goes to validation
-                    yield item
-                else:
-                    yield next(train_iter)
-
-        return IterableDataset.from_generator(validation_generator)
+        validation_dataset = train_dataset.filter(
+            lambda _, idx: idx % 10 == 0, with_indices=True
+        )
+        return validation_dataset
 
     def train_dataloader(self) -> DataLoader:
         if not self.datasets or not self.datasets.train:

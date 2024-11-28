@@ -3,7 +3,7 @@ from torch import nn
 from transformers import PreTrainedTokenizer
 from lm_eval.models.utils import MultiTokenEOSCriteria
 
-from experiment.models import DefaultLightningModule, ModelAdapter
+from experiment.models import DefaultLightningModule
 
 
 class CustomInference:

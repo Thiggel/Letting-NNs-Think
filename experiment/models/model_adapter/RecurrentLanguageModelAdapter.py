@@ -29,10 +29,10 @@ class RecurrentLanguageModelAdapterProtocol(Protocol):
 
 
 class RecurrentLanguageModelAdapter:
-    def _add_recurrence(self: RecurrentLanguageModelAdapterProtocol):
+    def _add_recurrence(self: RecurrentLanguageModelAdapterProtocol, model: nn.Module):
         """Add recurrent layers to the model"""
-        start, end = self._get_recurrent_layer_range(self.model)
-        layers = self.get_decoder_layers(self.model)
+        start, end = self._get_recurrent_layer_range(model)
+        layers = self.get_decoder_layers(model)
         recurrent_layers = layers[start:end]
 
         if self.config.recurrent_mode == "mamba":
@@ -43,7 +43,7 @@ class RecurrentLanguageModelAdapter:
         if self.config.use_dynamic_vera:
             recurrent_layer = DynamicVeraLayer(
                 recurrent_layer,
-                self.model.config.hidden_size,
+                model.config.hidden_size,
                 self.config.vera_r,
                 self.device,
             )
@@ -51,16 +51,18 @@ class RecurrentLanguageModelAdapter:
         layers[start] = RecurrentTransformerLayer(
             recurrent_layer,
             config=self.config,
-            hidden_size=self.model.config.hidden_size,
+            hidden_size=model.config.hidden_size,
         )
 
         # Remove the original layers that were made recurrent
         for i in range(start + 1, end):
             layers.pop(i)
 
-        self.model = self.set_decoder_layers(self.model, layers)
+        model = self.set_decoder_layers(model, layers)
 
         self.recurrent_layer_idx = start
+
+        return model
 
     def _get_recurrent_layer_range(
         self: RecurrentLanguageModelAdapterProtocol, model: nn.Module
@@ -73,10 +75,12 @@ class RecurrentLanguageModelAdapter:
             start = int(self.config.make_layers_recurrent)
             end = start + 1
 
+        layers = self.get_decoder_layers(model)
+
         if start < 0:
-            start = len(model.model.layers) + start
-        if end < 0 or end == 0:
-            end = len(model.model.layers) + end
+            start = len(layers) + start
+        if end <= 0:
+            end = len(layers) + end
 
         return start, end
 

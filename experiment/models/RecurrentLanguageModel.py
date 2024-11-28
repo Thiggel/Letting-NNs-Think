@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import TrainingConfig
 
-from .ModelAdapter import ModelAdapter
+from .model_adapter import ModelAdapter
 
 
 class RecurrentLanguageModelProtocol(Protocol):
