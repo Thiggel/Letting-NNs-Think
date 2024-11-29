@@ -70,10 +70,12 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         # Get eigen learning rates (either static or dynamic)
         attn_rates, mlp_rates = self.get_eigen_rates(hidden_states)
 
+        print(position_ids.squeeze().max(), self.config.max_position_embeddings)
+
         attention_layer_outputs = self.attention(
             hidden_states,
             attention_mask=attention_mask,
-            position_ids=position_ids,
+            position_ids=position_ids.squeeze(),
             layer_past=layer_past,
             head_mask=head_mask,
             use_cache=use_cache,
@@ -96,9 +98,6 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         mlp_output = self.normalize(mlp_output)
 
         hidden_states = self.normalize(hidden_states + mlp_rates * mlp_output)
-
-        print(hidden_states.shape)
-        exit()
 
         if use_cache:
             outputs = (

@@ -67,7 +67,6 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
             Tuple[torch.Tensor, torch.Tensor]
         ] = None,  # will become mandatory in v4.46
     ):
-        position_ids = position_ids.squeeze()
         # Compute QKV
         # Attention heads [batch, seq_len, hidden_size]
         #   --> [batch, seq_len, (np * 3 * head_size)]
@@ -103,8 +102,6 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
                 "`position_embeddings` (Tuple of tensors, containing cos and sin). In v4.46 `position_ids` will be "
                 "removed and `position_embeddings` will be mandatory."
             )
-            print("position_ids", torch.max(position_ids))
-            print(position_ids.shape)
             cos, sin = self.rotary_emb(value, position_ids)
         else:
             cos, sin = position_embeddings
