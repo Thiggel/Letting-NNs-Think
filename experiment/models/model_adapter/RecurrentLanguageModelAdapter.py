@@ -43,10 +43,8 @@ class RecurrentLanguageModelAdapter:
         if self.config.use_dynamic_vera:
             recurrent_layer = DynamicVeraLayer(
                 recurrent_layer,
-                model.config.hidden_size,
                 self.config.vera_r,
                 self.device,
-                model.dtype,
             )
 
         layers[start] = RecurrentTransformerLayer(
