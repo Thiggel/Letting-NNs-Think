@@ -51,6 +51,8 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
             * torch.ones(config.hidden_size, dtype=torch.float32)
         )
 
+        print(config.max_position_ids)
+
         self.setup(config)
 
     def forward(
@@ -70,7 +72,7 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         # Get eigen learning rates (either static or dynamic)
         attn_rates, mlp_rates = self.get_eigen_rates(hidden_states)
 
-        print(position_ids.squeeze().max(), self.config.max_position_embeddings)
+        print(position_ids.squeeze().max())
 
         attention_layer_outputs = self.attention(
             hidden_states,
