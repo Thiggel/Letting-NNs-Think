@@ -20,6 +20,7 @@ srun python -m experiment \
   --make-layers-recurrent -1 \
   --num-steps 3 \
   --batch-size 4 \
+  --grad-acc-steps 16 \
   --experiment-name GSM8K_3Step_DynamicVera_TimeEmbedding \
   --enable-logging \
   --save-to-checkpoint GSM8K_3Step_DynamicVera_TimeEmbedding
