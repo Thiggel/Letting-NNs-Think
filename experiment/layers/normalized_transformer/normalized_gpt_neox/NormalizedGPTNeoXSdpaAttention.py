@@ -82,12 +82,16 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
         key = qkv[..., self.head_size : 2 * self.head_size].permute(0, 2, 1, 3)
         value = qkv[..., 2 * self.head_size :].permute(0, 2, 1, 3)
 
+        print(1, query.shape, key.shape, value.shape)
+
         sqk = (self.sqk * (self.sqk_init_value / self.sqk_init_scaling)).view(
             1, self.config.num_attention_heads, 1, self.head_size
         )
 
         query = sqk * self.normalize(query)
         key = sqk * self.normalize(key)
+        print(2, query.shape, key.shape, value.shape)
+        exit()
 
         # Compute rotary embeddings on rotary_ndims
         query_rot = query[..., : self.rotary_ndims]
