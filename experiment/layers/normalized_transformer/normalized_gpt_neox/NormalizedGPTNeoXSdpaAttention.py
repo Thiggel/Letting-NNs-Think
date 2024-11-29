@@ -10,10 +10,12 @@ from transformers.models.gpt_neox.modeling_gpt_neox import (
     apply_rotary_pos_emb,
 )
 
+from ..CanNormalize import CanNormalize
+
 logger = logging.get_logger(__name__)
 
 
-class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention):
+class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
     """
     GPTNeoX attention module using torch.nn.functional.scaled_dot_product_attention. This module inherits from
     `GPTNeoXAttention` as the weights of the module stays untouched. The only changes are on the forward pass
