@@ -34,7 +34,10 @@ class NormalizedLanguageModelAdapter(CanNormalize):
     def _add_normalization(
         self: NormalizedLanguageModelAdapterProtocol, model: nn.Module
     ):
-        model.lm_head = NormalizedLMHead(model.lm_head)
+        if hasattr(model, "lm_head"):
+            model.lm_head = NormalizedLMHead(model.lm_head)
+        elif hasattr(model, "embed_out"):
+            model.embed_out = NormalizedLMHead(model.embed_out)
 
         layers = self.get_decoder_layers(model)
 
@@ -90,8 +93,16 @@ class NormalizedLanguageModelAdapter(CanNormalize):
         for layer in self.get_decoder_layers(self.model):
             if isinstance(layer, RecurrentTransformerLayer):
                 for recurrent_layer in layer.layer.layers:
-                    recurrent_layer.self_attn.normalize_weights()
-                    recurrent_layer.mlp.normalize_weights()
+                    if hasattr(recurrent_layer, "self_attn"):
+                        recurrent_layer.self_attn.normalize_weights()
+                    elif hasattr(recurrent_layer, "attention"):
+                        recurrent_layer.attention.normalize_weights()
+
+                        recurrent_layer.mlp.normalize_weights()
             else:
-                layer.self_attn.normalize_weights()
+                if hasattr(layer, "self_attn"):
+                    layer.self_attn.normalize_weights()
+                elif hasattr(layer, "attention"):
+                    layer.attention.normalize_weights()
+
                 layer.mlp.normalize_weights()

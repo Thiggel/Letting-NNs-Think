@@ -5,7 +5,7 @@ from transformers.utils import (
     get_torch_version,
     logging,
 )
-from transformers.models.gpt_neo.modeling_gpt_neo import (
+from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXAttention,
     apply_rotary_pos_emb,
 )
@@ -21,7 +21,7 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention):
     """
 
     def __init__(self, config, layer_idx=None):
-        super().__init__(config, layer_idx=layer_idx)
+        super().__init__(config)
 
         # SDPA with memory-efficient backend is broken in torch==2.1.2 when using non-contiguous inputs and a custom
         # attn_mask, so we need to call `.contiguous()`. This was fixed in torch==2.2.0.
@@ -35,7 +35,7 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention):
         self.sqk = torch.nn.Parameter(
             self.sqk_init_scaling
             * torch.ones(
-                self.config.num_attention_heads * self.head_dim, dtype=torch.float32
+                self.config.num_attention_heads * self.head_size, dtype=torch.float32
             )
         )
 
@@ -93,7 +93,7 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention):
         ).transpose(1, 2)
 
         sqk = (self.sqk_query * (self.sqk_init_value / self.sqk_init_scaling)).view(
-            1, self.config.num_attention_heads, 1, self.head_dim
+            1, self.config.num_attention_heads, 1, self.head_size
         )
 
         query = sqk * self.normalize(query)

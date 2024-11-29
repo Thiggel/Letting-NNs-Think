@@ -13,8 +13,17 @@ from .NormalizedGPTNeoXMLP import NormalizedGPTNeoXMLP
 
 
 class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
-    def __init__(self, config, layer_idx):
+    def __init__(
+        self,
+        config,
+        layer_idx,
+        use_dynamic_rates: bool = False,
+        use_momentum: bool = False,
+    ):
         super().__init__()
+        self.use_dynamic_rates = use_dynamic_rates
+        self.use_momentum = use_momentum
+
         self.use_parallel_residual = config.use_parallel_residual
         self.input_layernorm = nn.LayerNorm(
             config.hidden_size, eps=config.layer_norm_eps

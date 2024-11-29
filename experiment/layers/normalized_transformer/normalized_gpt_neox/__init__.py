@@ -1,1 +1,1 @@
-from NormalizedGPTNeoXLayer import NormalizedGPTNeoXLayer
+from .NormalizedGPTNeoXLayer import NormalizedGPTNeoXLayer
