@@ -2,8 +2,10 @@ import torch
 from torch import nn
 from transformers.activations import ACT2FN
 
+from ..CanNormalize import CanNormalize
 
-class NormalizedGPTNeoXMLP(nn.Module):
+
+class NormalizedGPTNeoXMLP(nn.Module.CanNormalize):
     def __init__(self, config):
         super().__init__()
         self.dense_h_to_4h = nn.Linear(config.hidden_size, config.intermediate_size)
