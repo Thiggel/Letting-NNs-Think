@@ -66,7 +66,7 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         attn_rates, mlp_rates = self.get_eigen_rates(hidden_states)
 
         attention_layer_outputs = self.attention(
-            self.input_layernorm(hidden_states),
+            hidden_states,
             attention_mask=attention_mask,
             position_ids=position_ids,
             layer_past=layer_past,
