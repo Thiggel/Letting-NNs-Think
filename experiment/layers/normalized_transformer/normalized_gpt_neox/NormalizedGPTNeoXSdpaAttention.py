@@ -62,11 +62,9 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
         position_ids: torch.LongTensor,
         layer_past: Optional[Tuple[torch.Tensor]] = None,
         use_cache: Optional[bool] = False,
-        cache_position: Optional[torch.LongTensor] = None,
-        position_embeddings: Optional[
-            Tuple[torch.Tensor, torch.Tensor]
-        ] = None,  # will become mandatory in v4.46
     ):
+        has_layer_past = layer_past is not None
+
         # Compute QKV
         # Attention heads [batch, seq_len, hidden_size]
         #   --> [batch, seq_len, (np * 3 * head_size)]
@@ -95,32 +93,24 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
         key_rot = key[..., : self.rotary_ndims]
         key_pass = key[..., self.rotary_ndims :]
 
-        if position_embeddings is None:
-            logger.warning_once(
-                "The attention layers in this model are transitioning from computing the RoPE embeddings internally "
-                "through `position_ids` (2D tensor with the indexes of the tokens), to using externally computed "
-                "`position_embeddings` (Tuple of tensors, containing cos and sin). In v4.46 `position_ids` will be "
-                "removed and `position_embeddings` will be mandatory."
-            )
-            cos, sin = self.rotary_emb(value, position_ids)
-        else:
-            cos, sin = position_embeddings
-        exit()
-        query, key = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
+        # Compute token offset for rotary embeddings (when decoding)
+        seq_len = key.shape[-2]
+        if has_layer_past:
+            seq_len += layer_past[0].shape[-2]
+        cos, sin = self.rotary_emb(value, seq_len=seq_len)
+        query, key = apply_rotary_pos_emb(query_rot, key_rot, cos, sin, position_ids)
         query = torch.cat((query, query_pass), dim=-1)
         key = torch.cat((key, key_pass), dim=-1)
 
         # Cache QKV values
-        if layer_past is not None:
-            cache_kwargs = {
-                "sin": sin,
-                "cos": cos,
-                "partial_rotation_size": self.rotary_ndims,
-                "cache_position": cache_position,
-            }
-            key, value = layer_past.update(key, value, self.layer_idx, cache_kwargs)
+        if has_layer_past:
+            past_key = layer_past[0]
+            past_value = layer_past[1]
+            key = torch.cat((past_key, key), dim=-2)
+            value = torch.cat((past_value, value), dim=-2)
+        present = (key, value) if use_cache else None
 
-        return query, key, value, layer_past
+        return query, key, value, present
 
     def forward(
         self,
@@ -162,13 +152,7 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
             position_ids=position_ids,
             layer_past=layer_past,
             use_cache=use_cache,
-            cache_position=cache_position,
-            position_embeddings=position_embeddings,
         )
-
-        causal_mask = attention_mask
-        if attention_mask is not None:
-            causal_mask = causal_mask[:, :, :, : key.shape[-2]]
 
         # GPT-neo-X casts query and key in fp32 to apply rotary embedding in full precision
         target_dtype = value.dtype
@@ -189,13 +173,13 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
 
         # We dispatch to SDPA's Flash Attention or Efficient kernels via this `is_causal` if statement instead of an inline conditional assignment
         # in SDPA to support both torch.compile's dynamic shapes and full graph options. An inline conditional prevents dynamic shapes from compiling.
-        is_causal = True if causal_mask is None and q_len > 1 else False
+        is_causal = True if attention_mask is None and q_len > 1 else False
 
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query=query,
             key=key,
             value=value,
-            attn_mask=causal_mask,
+            attn_mask=attention_mask,
             dropout_p=self.attention_dropout.p if self.training else 0.0,
             is_causal=is_causal,
         )

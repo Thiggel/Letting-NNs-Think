@@ -24,13 +24,6 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         self.use_dynamic_rates = use_dynamic_rates
         self.use_momentum = use_momentum
 
-        self.use_parallel_residual = config.use_parallel_residual
-        self.input_layernorm = nn.LayerNorm(
-            config.hidden_size, eps=config.layer_norm_eps
-        )
-        self.post_attention_layernorm = nn.LayerNorm(
-            config.hidden_size, eps=config.layer_norm_eps
-        )
         self.post_attention_dropout = nn.Dropout(config.hidden_dropout)
         self.post_mlp_dropout = nn.Dropout(config.hidden_dropout)
         self.attention = NormalizedGPTNeoXSdpaAttention(config, layer_idx)
@@ -72,18 +65,14 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         # Get eigen learning rates (either static or dynamic)
         attn_rates, mlp_rates = self.get_eigen_rates(hidden_states)
 
-        print(position_ids.squeeze().max())
-
         attention_layer_outputs = self.attention(
-            hidden_states,
+            self.input_layernorm(hidden_states),
             attention_mask=attention_mask,
-            position_ids=position_ids.squeeze(),
+            position_ids=position_ids,
             layer_past=layer_past,
             head_mask=head_mask,
             use_cache=use_cache,
             output_attentions=output_attentions,
-            cache_position=cache_position,
-            position_embeddings=position_embeddings,
         )
         attn_output = attention_layer_outputs[
             0
