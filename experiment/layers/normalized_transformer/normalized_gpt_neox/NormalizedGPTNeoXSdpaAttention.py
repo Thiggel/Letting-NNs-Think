@@ -82,18 +82,6 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
         key = qkv[..., self.head_size : 2 * self.head_size].permute(0, 2, 1, 3)
         value = qkv[..., 2 * self.head_size :].permute(0, 2, 1, 3)
 
-        bsz, q_len = query.shape[:2]
-
-        query = query.view(
-            bsz, q_len, self.num_attention_heads, self.head_size
-        ).transpose(1, 2)
-        key = key.view(bsz, q_len, self.num_attention_heads, self.head_size).transpose(
-            1, 2
-        )
-        value = value.view(
-            bsz, q_len, self.num_attention_heads, self.head_size
-        ).transpose(1, 2)
-
         sqk = (self.sqk_query * (self.sqk_init_value / self.sqk_init_scaling)).view(
             1, self.config.num_attention_heads, 1, self.head_size
         )
