@@ -65,12 +65,12 @@ class TrainRunner(Runner, HasTokenizer):
 
         return {}
 
-    def get_checkpoint_path(checkpoint_dir, experiment_name, seed):
+    def get_checkpoint_path(self):
         best_checkpoint_path = self.epoch_checkpoint.best_model_path
-        last_step_checkpoint = step_checkpoint.last_model_path
+        last_step_checkpoint = self.step_checkpoint.last_model_path
 
-        if best_epoch_checkpoint and os.path.exists(best_epoch_checkpoint):
-            return best_epoch_checkpoint
+        if best_checkpoint_path and os.path.exists(best_checkpoint_path):
+            return best_checkpoint_path
         elif last_step_checkpoint and os.path.exists(last_step_checkpoint):
             return last_step_checkpoint
 
