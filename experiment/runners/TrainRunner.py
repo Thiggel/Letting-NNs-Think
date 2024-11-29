@@ -135,7 +135,7 @@ class TrainRunner(Runner, HasTokenizer):
                 log_model="all",
             )
 
-        return {
+        trainer_args = {
             "callbacks": callbacks,
             "enable_checkpointing": True,
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
@@ -147,9 +147,14 @@ class TrainRunner(Runner, HasTokenizer):
             "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": self.data_config.grad_acc_steps,
             "devices": "auto",
-            # TODO: must be lower than training batches so only add if lower than training batches
-            # "val_check_interval": self.training_config.validate_every_n_steps,
         }
+
+        if self.training_config.validate_every_n_steps is not None:
+            trainer_args["val_check_interval"] = (
+                self.training_config.validate_every_n_steps
+            )
+
+        return trainer_args
 
     def _get_cuda_specific_args(self) -> dict[str, Any]:
         strategy = DeepSpeedStrategy(
