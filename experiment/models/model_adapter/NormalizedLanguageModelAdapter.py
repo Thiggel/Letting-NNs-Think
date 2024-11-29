@@ -69,7 +69,7 @@ class NormalizedLanguageModelAdapter(CanNormalize):
 
         for layer in self.get_decoder_layers(self.model):
             if isinstance(layer, RecurrentTransformerLayer):
-                for recurrent_layer in layer.layers:
+                for recurrent_layer in layer.layer.layers:
                     print("Normalizing weights for recurrent layer")
                     recurrent_layer.self_attn.normalize_weights()
                     recurrent_layer.mlp.normalize_weights()
