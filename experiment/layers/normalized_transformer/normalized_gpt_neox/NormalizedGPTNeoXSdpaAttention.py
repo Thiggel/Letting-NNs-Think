@@ -90,8 +90,6 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
 
         query = sqk * self.normalize(query)
         key = sqk * self.normalize(key)
-        print(2, query.shape, key.shape, value.shape)
-        exit()
 
         # Compute rotary embeddings on rotary_ndims
         query_rot = query[..., : self.rotary_ndims]
@@ -122,6 +120,9 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
                 "cache_position": cache_position,
             }
             key, value = layer_past.update(key, value, self.layer_idx, cache_kwargs)
+
+        print(position_ids.shape, torch.max(position_ids))
+        exit()
 
         return query, key, value, layer_past
 
