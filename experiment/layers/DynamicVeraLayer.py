@@ -16,8 +16,8 @@ class DynamicVeraProjection(nn.Module):
         scaling = 1.0 / (min(in_features, out_features) ** 0.5)
         A = torch.empty(in_features, vera_r).to(device)
         B = torch.empty(vera_r, out_features).to(device)
-        nn.init.normal_(self.A, std=scaling)
-        nn.init.normal_(self.B, std=scaling)
+        nn.init.normal_(A, std=scaling)
+        nn.init.normal_(B, std=scaling)
 
         self.register_buffer("A", A)
         self.register_buffer("B", B)
