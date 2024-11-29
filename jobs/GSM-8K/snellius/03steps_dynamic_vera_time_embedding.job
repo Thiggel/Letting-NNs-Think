@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --job-name=GSM8K_3Steps_DynamicVera_TimeEmbedding
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=4:00:00
+#SBATCH --time=1-00:00:00
 #SBATCH --output=job_logs/GSM8K_3Steps_DynamicVera_TimeEmbedding_%A.out
 
 cd $HOME/Letting-NNs-Think
@@ -19,7 +19,7 @@ srun python -m experiment \
   --use-time-embedding \
   --make-layers-recurrent -1 \
   --num-steps 3 \
-  --batch-size 8 \
+  --batch-size 4 \
   --experiment-name GSM8K_3Step_DynamicVera_TimeEmbedding \
   --enable-logging \
   --save-to-checkpoint GSM8K_3Step_DynamicVera_TimeEmbedding

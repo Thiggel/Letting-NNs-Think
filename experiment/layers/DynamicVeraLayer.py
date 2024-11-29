@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from typing import Optional, Dict, List
 from copy import deepcopy
 
 
@@ -69,7 +68,7 @@ class DynamicVeraLayer(nn.Module):
 
     def __init__(
         self,
-        layers: List[nn.Module],
+        layers: list[nn.Module],
         vera_r: int,
         device: torch.device,
     ):
