@@ -330,4 +330,4 @@ class NormalizedGemmaDecoderLayer(nn.Module, CanNormalize):
         if use_cache:
             outputs += (present_key_value,)
 
-        return outputs return logits
+        return outputs
