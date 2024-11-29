@@ -51,7 +51,7 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
             * torch.ones(config.hidden_size, dtype=torch.float32)
         )
 
-        print(config.max_position_ids)
+        print(config.max_position_embeddings)
 
         self.setup(config)
 
