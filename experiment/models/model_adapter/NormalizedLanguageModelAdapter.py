@@ -8,6 +8,7 @@ from experiment.layers.NormalizedGemmaDecoderLayer import (
     NormalizedGemmaLMHead,
 )
 from experiment.layers import NormalizedGemmaDecoderLayer
+from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 
 
 class NormalizedLanguageModelAdapterProtocol(Protocol):
@@ -67,5 +68,12 @@ class NormalizedLanguageModelAdapter(CanNormalize):
         )
 
         for layer in self.get_decoder_layers(self.model):
-            layer.self_attn.normalize_weights()
-            layer.mlp.normalize_weights()
+            if isinstance(layer, RecurrentTransformerLayer):
+                for recurrent_layer in layer.layers:
+                    print("Normalizing weights for recurrent layer")
+                    recurrent_layer.self_attn.normalize_weights()
+                    recurrent_layer.mlp.normalize_weights()
+            else:
+                print("Normalizing weights for layer")
+                layer.self_attn.normalize_weights()
+                layer.mlp.normalize_weights()
