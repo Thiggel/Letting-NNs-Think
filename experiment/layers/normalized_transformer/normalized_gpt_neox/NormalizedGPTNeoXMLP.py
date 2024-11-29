@@ -15,7 +15,7 @@ class NormalizedGPTNeoXMLP(nn.Module, CanNormalize):
         self.s_init_value = 1.0
         self.s_init_scaling = 1.0
         self.s_up = torch.nn.Parameter(
-            self.s_init_scaling * torch.ones(config.intermediate_size)
+            self.s_init_scaling * torch.ones(config.hidden_size * 4)
         )
         self.s_down = torch.nn.Parameter(
             self.s_init_scaling * torch.ones(config.intermediate_size)
