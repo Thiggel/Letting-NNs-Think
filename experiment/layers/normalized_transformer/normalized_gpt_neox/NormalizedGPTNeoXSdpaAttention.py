@@ -67,8 +67,7 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
             Tuple[torch.Tensor, torch.Tensor]
         ] = None,  # will become mandatory in v4.46
     ):
-        print(position_ids.shape, max(position_ids))
-        exit()
+        position_ids = position_ids.squeeze()
         # Compute QKV
         # Attention heads [batch, seq_len, hidden_size]
         #   --> [batch, seq_len, (np * 3 * head_size)]
