@@ -67,6 +67,8 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
             Tuple[torch.Tensor, torch.Tensor]
         ] = None,  # will become mandatory in v4.46
     ):
+        print(position_ids.shape, max(position_ids))
+        exit()
         # Compute QKV
         # Attention heads [batch, seq_len, hidden_size]
         #   --> [batch, seq_len, (np * 3 * head_size)]
@@ -86,8 +88,8 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
             1, self.config.num_attention_heads, 1, self.head_size
         )
 
-        # query = sqk * self.normalize(query)
-        # key = sqk * self.normalize(key)
+        query = sqk * self.normalize(query)
+        key = sqk * self.normalize(key)
 
         # Compute rotary embeddings on rotary_ndims
         query_rot = query[..., : self.rotary_ndims]
