@@ -2,6 +2,7 @@ from typing import Protocol
 from torch import nn, Tensor
 from transformers.models.gemma.modeling_gemma import GemmaForCausalLM
 
+from experiment.configs import ModelConfig
 from experiment.layers.NormalizedGemmaDecoderLayer import (
     CanNormalize,
     NormalizedGemmaLMHead,
@@ -11,6 +12,7 @@ from experiment.layers import NormalizedGemmaDecoderLayer
 
 class NormalizedLanguageModelAdapterProtocol(Protocol):
     model: GemmaForCausalLM
+    config: ModelConfig
 
     def get_decoder_layers(self, model: nn.Module) -> nn.ModuleList: ...
 
@@ -19,6 +21,8 @@ class NormalizedLanguageModelAdapterProtocol(Protocol):
     ) -> nn.Module: ...
 
     def normalize(self, tensor: Tensor, dim: int) -> Tensor: ...
+
+    def _get_recurrent_layer_range(self, model: nn.Module) -> tuple[int, int]: ...
 
 
 class NormalizedLanguageModelAdapter(CanNormalize):
@@ -29,9 +33,20 @@ class NormalizedLanguageModelAdapter(CanNormalize):
 
         layers = self.get_decoder_layers(model)
 
+        recurrent_layer_start, recurrent_layer_end = self._get_recurrent_layer_range(
+            model
+        )
+
         for idx in range(len(layers)):
             layer = layers[idx]
-            new_layer = NormalizedGemmaDecoderLayer(model.config, idx)
+            layer_is_recurrent = recurrent_layer_start <= idx < recurrent_layer_end
+            new_layer = NormalizedGemmaDecoderLayer(
+                model.config,
+                idx,
+                use_dynamic_rates=layer_is_recurrent
+                and self.config.use_dynamic_eigen_lrs,
+                use_momentum=layer_is_recurrent and self.config.use_momentum,
+            )
             new_layer.self_attn.load_state_dict(
                 layer.self_attn.state_dict(), strict=False
             )

@@ -205,16 +205,19 @@ class NormalizedGemmaSdpaAttention(GemmaAttention, CanNormalize):
 
 
 class NormalizedGemmaDecoderLayer(nn.Module, CanNormalize):
-    def __init__(self, config: GemmaConfig, layer_idx: int):
+    def __init__(self, config: GemmaConfig, layer_idx: int, use_dynamic_rates: bool = False, use_momentum: bool = False):
         super().__init__()
         self.hidden_size = config.hidden_size
+        self.use_dynamic_rates = use_dynamic_rates
+        self.use_momentum = use_momentum
 
+        # Core components
         self.self_attn = NormalizedGemmaSdpaAttention(
             config=config, layer_idx=layer_idx
         )
-
         self.mlp = NormalizedGemmaMLP(config)
 
+        # Static eigen learning rates (used when not dynamic)
         self.attn_alpha_init_value = 0.05
         self.attn_alpha_init_scaling = 1.0 / (config.hidden_size**0.5)
         self.attn_alpha = torch.nn.Parameter(
@@ -229,6 +232,46 @@ class NormalizedGemmaDecoderLayer(nn.Module, CanNormalize):
             * torch.ones(config.hidden_size, dtype=torch.float32)
         )
 
+        if use_dynamic_rates:
+            # Dynamic rate predictors
+            self.attn_rate_predictor = nn.Linear(config.hidden_size, config.hidden_size)
+            self.mlp_rate_predictor = nn.Linear(config.hidden_size, config.hidden_size)
+            
+            # Initialize close to static rates
+            with torch.no_grad():
+                self.attn_rate_predictor.bias.fill_(self.attn_alpha_init_value)
+                self.mlp_rate_predictor.bias.fill_(self.mlp_alpha_init_value)
+
+        if use_momentum:
+            # Momentum parameters
+            self.momentum_scale = nn.Parameter(torch.ones(config.hidden_size))
+            self.register_buffer("attn_momentum", torch.zeros(config.hidden_size))
+            self.register_buffer("mlp_momentum", torch.zeros(config.hidden_size))
+            self.momentum_decay = 0.9  # Hyperparameter for momentum decay
+
+    def get_eigen_rates(self, hidden_states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        if not self.use_dynamic_rates:
+            return self.attn_alpha, self.mlp_alpha
+
+        # Predict rates from current hidden state
+        attn_rates = torch.sigmoid(self.attn_rate_predictor(hidden_states))  # Sigmoid keeps rates positive
+        mlp_rates = torch.sigmoid(self.mlp_rate_predictor(hidden_states))
+        
+        return attn_rates, mlp_rates
+
+    def update_momentum(self, current_delta: torch.Tensor, momentum_buffer: torch.Tensor) -> torch.Tensor:
+        if not self.use_momentum:
+            return current_delta
+
+        # Update momentum as weighted sum of previous and current direction
+        new_momentum = self.momentum_decay * momentum_buffer + (1 - self.momentum_decay) * current_delta
+        
+        # Store for next iteration
+        momentum_buffer.copy_(new_momentum.detach())
+        
+        # Scale momentum by learnable parameter
+        return self.momentum_scale * new_momentum
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -239,10 +282,11 @@ class NormalizedGemmaDecoderLayer(nn.Module, CanNormalize):
         use_cache: Optional[bool] = False,
         cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
-    ) -> Tuple[
-        torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]
-    ]:
+    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         residual = hidden_states
+
+        # Get eigen learning rates (either static or dynamic)
+        attn_rates, mlp_rates = self.get_eigen_rates(hidden_states)
 
         # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
@@ -255,15 +299,27 @@ class NormalizedGemmaDecoderLayer(nn.Module, CanNormalize):
             cache_position=cache_position,
         )
         hidden_states = self.normalize(hidden_states)
+        
+        # Calculate attention update with optional momentum
+        attn_delta = hidden_states - residual
+        if self.use_momentum:
+            attn_delta = self.update_momentum(attn_delta, self.attn_momentum)
+        
         hidden_states = self.normalize(
-            residual + self.attn_alpha * (hidden_states - residual)
+            residual + attn_rates * attn_delta
         )
 
         # MLP
         residual = hidden_states
         hidden_states = self.normalize(self.mlp(hidden_states))
+        
+        # Calculate MLP update with optional momentum
+        mlp_delta = hidden_states - residual
+        if self.use_momentum:
+            mlp_delta = self.update_momentum(mlp_delta, self.mlp_momentum)
+            
         hidden_states = self.normalize(
-            residual + self.mlp_alpha * (hidden_states - residual)
+            residual + mlp_rates * mlp_delta
         )
 
         outputs = (hidden_states,)
@@ -274,20 +330,4 @@ class NormalizedGemmaDecoderLayer(nn.Module, CanNormalize):
         if use_cache:
             outputs += (present_key_value,)
 
-        return outputs
-
-
-class NormalizedGemmaLMHead(nn.Module):
-    def __init__(self, lm_head: nn.Linear):
-        super().__init__()
-        self.lm_head = lm_head
-        self.logit_scaling = nn.Parameter(torch.ones(lm_head.out_features))
-
-    @property
-    def weight(self):
-        return self.lm_head.weight
-
-    def forward(self, *args, **kwargs):
-        logits = self.lm_head(*args, **kwargs) * self.logit_scaling
-
-        return logits
+        return outputs return logits
