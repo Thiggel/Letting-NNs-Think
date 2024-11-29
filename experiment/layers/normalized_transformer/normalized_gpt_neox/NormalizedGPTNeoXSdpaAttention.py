@@ -103,12 +103,12 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
                 "`position_embeddings` (Tuple of tensors, containing cos and sin). In v4.46 `position_ids` will be "
                 "removed and `position_embeddings` will be mandatory."
             )
-            print("position_ids", position_ids)
+            print("position_ids", torch.max(position_ids))
             print(position_ids.shape)
-            exit()
             cos, sin = self.rotary_emb(value, position_ids)
         else:
             cos, sin = position_embeddings
+        exit()
         query, key = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
         query = torch.cat((query, query_pass), dim=-1)
         key = torch.cat((key, key_pass), dim=-1)
