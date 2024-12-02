@@ -85,8 +85,7 @@ class TrainRunner(Runner, HasTokenizer):
 
         self.step_checkpoint = ModelCheckpoint(
             monitor=None,
-            every_n_train_steps=20,
-            save_on_train_epoch_end=False,
+            every_n_train_steps=10,
             dirpath=checkpoint_dir,
             filename=self.experiment_config.experiment_name
             + "_"
