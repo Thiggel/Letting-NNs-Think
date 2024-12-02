@@ -159,7 +159,7 @@ class TrainRunner(Runner, HasTokenizer):
         strategy = DeepSpeedStrategy(
             config={
                 "zero_optimization": {
-                    "stage": 3,
+                    "stage": 2,
                     "offload_optimizer": {"device": "cpu"},
                     "reduce_bucket_size": 1e7,
                 },
