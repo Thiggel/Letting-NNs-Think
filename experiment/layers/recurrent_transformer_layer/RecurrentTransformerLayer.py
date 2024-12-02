@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 from .RecurrenceStrategy import RecurrenceStrategy
 from .FixedStepsStrategy import FixedStepsStrategy
 from .TimestepEmbedder import TimestepEmbedder
+from experiment.layers.normalized_transformer import NormalizedTimestepEmbedder
 from .exit_classifier_strategy import ExitClassifierStrategy
 from .FixedPointStrategy import FixedPointStrategy
 from experiment.configs.ModelConfig import ModelConfig
@@ -30,9 +31,12 @@ class RecurrentTransformerLayer(nn.Module):
     def _create_strategy(
         self, config: ModelConfig, hidden_size: int, max_steps: int
     ) -> RecurrenceStrategy:
-        self.timestep_embedder = (
-            TimestepEmbedder(hidden_size) if config.use_time_embedding else None
-        )
+        if config.use_time_embedding and config.enable_normalization:
+            self.timestep_embedder = NormalizedTimestepEmbedder(hidden_size)
+        elif config.use_time_embedding:
+            self.timestep_embedder = TimestepEmbedder(hidden_size)
+        else:
+            self.timestep_embedder = None
 
         if config.num_steps is None:
             return FixedStepsStrategy(max_steps, hidden_size, config.use_time_embedding)
