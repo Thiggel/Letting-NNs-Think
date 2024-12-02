@@ -40,6 +40,7 @@ class RecurrentLanguageModelAdapter:
         elif self.config.use_dynamic_vera:
             recurrent_layer = DynamicVeraLayer(
                 layers,
+                model.config.hidden_size,
                 self.config.vera_r,
                 self.device,
             )
@@ -55,7 +56,7 @@ class RecurrentLanguageModelAdapter:
 
         # Remove the original layers that were made recurrent
         for i in range(start + 1, end):
-            layers.pop(i)
+            layers.pop(1)
 
         model = self.set_decoder_layers(model, layers)
 

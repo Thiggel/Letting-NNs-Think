@@ -26,7 +26,7 @@ class NormalizedGPTNeoXMLP(nn.Module, CanNormalize):
             self.normalize(self.dense_h_to_4h.weight.data)
         )
         self.dense_4h_to_h.weight.data.copy_(
-            self.normalize(self.dense_4h_to_h.weight.data)
+            self.normalize(self.dense_4h_to_h.weight.data, 0)
         )
 
     def forward(self, hidden_states):

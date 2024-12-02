@@ -28,6 +28,7 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         self.post_mlp_dropout = nn.Dropout(config.hidden_dropout)
         self.attention = NormalizedGPTNeoXSdpaAttention(config, layer_idx)
         self.mlp = NormalizedGPTNeoXMLP(config)
+        self.hidden_size = config.hidden_size
 
         # Static eigen learning rates (used when not dynamic)
         self.attn_alpha_init_value = 0.05
@@ -44,8 +45,6 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
             * torch.ones(config.hidden_size, dtype=torch.float32)
         )
 
-        print(config.max_position_embeddings)
-
         self.setup(config)
 
     def forward(
@@ -61,6 +60,7 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         position_embeddings: Optional[
             Tuple[torch.Tensor, torch.Tensor]
         ] = None,  # will become mandatory in v4.46
+        **kwargs,
     ):
         # Get eigen learning rates (either static or dynamic)
         attn_rates, mlp_rates = self.get_eigen_rates(hidden_states)

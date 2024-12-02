@@ -46,9 +46,9 @@ class NormalizedGPTNeoXSdpaAttention(GPTNeoXAttention, CanNormalize):
         q_weight, k_weight, v_weight = self.query_key_value.weight.data.chunk(3, dim=0)
 
         # Normalize each portion separately
-        q_normalized = self.normalize(q_weight)
-        k_normalized = self.normalize(k_weight)
-        v_normalized = self.normalize(v_weight)
+        q_normalized = self.normalize(q_weight, 0)
+        k_normalized = self.normalize(k_weight, 0)
+        v_normalized = self.normalize(v_weight, 0)
 
         # Concatenate back together
         self.query_key_value.weight.data.copy_(

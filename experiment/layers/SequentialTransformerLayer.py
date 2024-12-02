@@ -1,4 +1,5 @@
 import torch.nn as nn
+import inspect
 
 
 class SequentialTransformerLayer(nn.Module):
@@ -7,8 +8,12 @@ class SequentialTransformerLayer(nn.Module):
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x, *args, **kwargs):
+        sig = inspect.signature(self.layers[0].forward)
+        supported_kwargs = {
+            key: value for key, value in kwargs.items() if key in sig.parameters
+        }
         for layer in self.layers:
-            x = layer(x, *args, **kwargs)
+            x = layer(x, *args, **supported_kwargs)
             if type(x) == tuple:
                 x = x[0]
 

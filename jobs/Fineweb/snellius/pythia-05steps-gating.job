@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Pythia_Fineweb_3Steps_TimeEmbedding_Gating
+#SBATCH --time=5-00:00:00
+#SBATCH --output=job_logs/Pythia_Fineweb_3Steps_TimeEmbedding_Gating_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "EleutherAI/pythia-70m" \
+  --dataset fineweb \
+  --max-hours 4 \
+  --use-time-embedding \
+  --use-gating \
+  --make-layers-recurrent 2:3 \
+  --num-steps 5 \
+  --batch-size 128 \
+  --finetune-mode full \
+  --learning-rate 3e-4 \
+  --warmup-steps 50000 \
+  --total-training-steps 400000 \
+  --experiment-name Pythia_Fineweb_3Step_TimeEmbedding_Gating \
+  --enable-logging \
+  --save-to-checkpoint Pythia_Fineweb_3Step_TimeEmbedding_Gating

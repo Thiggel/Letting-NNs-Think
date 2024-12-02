@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from typing import Optional, Tuple, Dict
 from weakref import ref
+import inspect
 
 from .MoDRouter import MoDRouter
 
@@ -25,9 +26,10 @@ class MoDLayer(nn.Module):
         self.router_hidden_dim = router_hidden_dim
         self.z_loss_weight = z_loss_weight
         self.capacity_loss_weight = capacity_loss_weight
+        self.hidden_size = model.config.hidden_size
 
         self.router = MoDRouter(
-            hidden_dim=layer.hidden_size, router_hidden_dim=router_hidden_dim
+            hidden_dim=self.hidden_size, router_hidden_dim=router_hidden_dim
         )
 
         self.reset_mod_loss = reset_mod_loss
@@ -102,7 +104,15 @@ class MoDLayer(nn.Module):
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
         cache_position: Optional[torch.LongTensor] = None,
+        **kwargs,
     ):
+        kwargs["past_key_value"] = past_key_value
+        kwargs["output_attentions"] = output_attentions
+        kwargs["use_cache"] = use_cache
+        kwargs["cache_position"] = cache_position
+        sig = inspect.signature(self.wrapped_layer.forward)
+        kwargs = {key: value for key, value in kwargs.items() if key in sig.parameters}
+
         if self.reset_mod_loss:
             self.model().mod_loss = torch.tensor(0.0, device=hidden_states.device)
 
@@ -128,10 +138,7 @@ class MoDLayer(nn.Module):
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
-                past_key_value=past_key_value,
-                output_attentions=output_attentions,
-                use_cache=use_cache,
-                cache_position=cache_position,
+                **kwargs,
             )
 
             processed_hidden_states = processed_output[0] * selected_mask.unsqueeze(-1)
@@ -211,25 +218,31 @@ class MoDLayer(nn.Module):
                 selected_attention_mask = None
 
             # Adjust position_ids if needed
-            if position_ids is not None:
-                if position_ids.dim() == 2:  # [1, seq_len]
-                    # Expand position_ids to match batch size before gathering
-                    position_ids = position_ids.expand(batch_size, -1)
-                    selected_position_ids = torch.gather(position_ids, 1, top_k_indices)
-                else:
-                    selected_position_ids = position_ids
-            else:
-                selected_position_ids = None
+            # if position_ids is not None:
+            #    # For 2D position_ids [batch_size/1, seq_len]
+            #    if position_ids.dim() == 2:
+            #        # If batch_size=1, expand to match batch_size of hidden_states
+            #        if position_ids.size(0) == 1:
+            #            position_ids = position_ids.expand(batch_size, -1)
+            #        # Gather correct positions for selected tokens
+            #        selected_position_ids = torch.gather(position_ids, 1, top_k_indices)
+            #    else:
+            #        # Handle other position_ids formats if needed
+            #        selected_position_ids = position_ids
+            # else:
+            #    # If no position_ids provided, create them from scratch for selected tokens
+            selected_position_ids = (
+                torch.arange(num_selected, device=hidden_states.device)
+                .unsqueeze(0)
+                .expand(batch_size, -1)
+            )
 
-                # Process selected tokens
+            # Process selected tokens
             processed_output = self.wrapped_layer(
                 selected_hidden_states,
                 attention_mask=selected_attention_mask,
                 position_ids=selected_position_ids,
-                past_key_value=past_key_value,
-                output_attentions=output_attentions,
-                use_cache=use_cache,
-                cache_position=cache_position,
+                **kwargs,
             )
 
             # Initialize output tensor with input hidden states
