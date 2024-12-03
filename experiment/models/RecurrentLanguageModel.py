@@ -87,17 +87,6 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
         print(f"Mean param min: {self.random_target_mean.min().item()}")
         print(f"Std param mean: {torch.exp(self.random_target_log_std).mean().item()}")
 
-        # Check if gradients are flowing
-        if loss.requires_grad:
-            loss.backward(retain_graph=True)
-            print(f"Mean param grad norm: {self.random_target_mean.grad.norm().item()}")
-            print(
-                f"Log std param grad norm: {self.random_target_log_std.grad.norm().item()}"
-            )
-            # Clear the gradients since we'll compute them again in the actual backward pass
-            self.random_target_mean.grad = None
-            self.random_target_log_std.grad = None
-
         reg_loss = 0.01 * (
             torch.sum(self.random_target_mean**2)
             + torch.sum(self.random_target_log_std**2)
