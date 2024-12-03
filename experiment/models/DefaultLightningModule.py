@@ -39,8 +39,7 @@ class DefaultLightningModule(
         self.training_config = training_config
         self.data_config = data_config
         self.tokenizer = tokenizer
-
-        self.setup_random_intermediate_supervision()
+        self.batch_size = self.data_config.batch_size
 
     def setup(self, stage):
         self.model_adapter = ModelAdapter(self.config, self.device)
@@ -51,6 +50,7 @@ class DefaultLightningModule(
         self.metrics_logger = MetricsLogger(
             self, self.tokenizer, self.data_config.batch_size
         )
+        self.setup_random_intermediate_supervision()
 
     def on_before_optimizer_step(self, _):
         """Log gradient norms before optimization step"""
