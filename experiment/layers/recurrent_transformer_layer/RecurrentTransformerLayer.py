@@ -24,9 +24,18 @@ class RecurrentTransformerLayer(nn.Module):
         hidden_size: int = 768,
     ):
         super().__init__()
+        self.config = config
         self.layer = layer
         self.strategy = self._create_strategy(config, hidden_size, config.max_steps)
         self.intermediate_outputs = None
+
+        if config.add_residual_connection and config.enable_normalization:
+            self.alpha_init_value = 0.05
+            self.alpha_init_scaling = 1.0 / (self.layer.config.hidden_size**0.5)
+            self.alpha = torch.nn.Parameter(
+                self.alpha_init_scaling
+                * torch.ones(self.layer.config.hidden_size, dtype=torch.float32)
+            )
 
     def _create_strategy(
         self, config: ModelConfig, hidden_size: int, max_steps: int
@@ -83,10 +92,21 @@ class RecurrentTransformerLayer(nn.Module):
         if hasattr(self.layer, "unsqueeze_seq_len"):
             output.hidden_states = self.layer.unsqueeze_seq_len(output.hidden_states)
 
+        if self.config.add_residual_connection and self.config.enable_normalization:
+            hidden_states = hidden_states + self.alpha * (
+                output.hidden_states - hidden_states
+            )
+
+        elif self.config.add_residual_connection:
+            hidden_states = hidden_states + output.hidden_states
+
+        else:
+            hidden_states = output.hidden_states
+
         self.intermediate_outputs = output.intermediate_outputs
 
         return (
-            output.hidden_states,
+            hidden_states,
             past_key_value,
             output.exit_probs,
         )
