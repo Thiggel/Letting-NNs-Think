@@ -71,7 +71,10 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
 
         # Transform noise using learned parameters
         std = torch.exp(self.random_target_log_std)
-        random_targets = eps * std + self.random_target_mean
+        random_targets = (
+            eps * std[None, None, None, :]
+            + self.random_target_mean[None, None, None, :]
+        )
 
         # If using nGPT-style normalization, normalize the random targets
         if self.config.enable_normalization:
@@ -79,10 +82,21 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
 
         loss = F.mse_loss(intermediate_outputs, random_targets)
         self.log("int_supervision_loss", loss, sync_dist=True, batch_size=batch_size)
-        print(
-            "Mean: ", self.random_target_mean, "Log std: ", self.random_target_log_std
-        )
-        print(f"Intermediate Supervision Loss: {loss.item()}")
+        print(f"Intermediate supervision loss: {loss.item()}")
+        print(f"Mean param max: {self.random_target_mean.max().item()}")
+        print(f"Mean param min: {self.random_target_mean.min().item()}")
+        print(f"Std param mean: {torch.exp(self.random_target_log_std).mean().item()}")
+
+        # Check if gradients are flowing
+        if loss.requires_grad:
+            loss.backward(retain_graph=True)
+            print(f"Mean param grad norm: {self.random_target_mean.grad.norm().item()}")
+            print(
+                f"Log std param grad norm: {self.random_target_log_std.grad.norm().item()}"
+            )
+            # Clear the gradients since we'll compute them again in the actual backward pass
+            self.random_target_mean.grad = None
+            self.random_target_log_std.grad = None
 
         reg_loss = 0.01 * (
             torch.sum(self.random_target_mean**2)
