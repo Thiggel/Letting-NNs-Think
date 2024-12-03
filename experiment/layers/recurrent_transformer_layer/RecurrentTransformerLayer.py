@@ -31,10 +31,9 @@ class RecurrentTransformerLayer(nn.Module):
 
         if config.add_residual_connection and config.enable_normalization:
             self.alpha_init_value = 0.05
-            self.alpha_init_scaling = 1.0 / (self.layer.config.hidden_size**0.5)
+            self.alpha_init_scaling = 1.0 / hidden_size**0.5
             self.alpha = torch.nn.Parameter(
-                self.alpha_init_scaling
-                * torch.ones(self.layer.config.hidden_size, dtype=torch.float32)
+                self.alpha_init_scaling * torch.ones(hidden_size, dtype=torch.float32)
             )
 
     def _create_strategy(
