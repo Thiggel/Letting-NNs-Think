@@ -1,11 +1,10 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_h100
-#SBATCH --gpus=1
-#SBATCH --cpus-per-task=16
-#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:4
+#SBATCH -C A5000
+#SBATCH --ntasks-per-node=4
 #SBATCH --job-name=Pythia_Fineweb_nGPT_10step_TimeEmbedding_ResidualConnection
-#SBATCH --time=08:30:00
+#SBATCH --time=2-04:30:00
 #SBATCH --output=job_logs/Pythia_Fineweb_nGPT_10Step_TimeEmbedding_ResidualConnection_%A.out
 
 cd $HOME/Letting-NNs-Think
@@ -18,12 +17,12 @@ srun python -m experiment \
     --finetune-mode full \
     --enable-normalization \
     --use-time-embedding \
-    --batch-size 64 \
-    --grad-acc-steps 4 \
+    --batch-size 8 \
+    --grad-acc-steps 32 \
     --learning-rate 3e-4 \
     --warmup-steps 20000 \
     --total-training-steps 4000000 \
-    --max-hours 8 \
+    --max-hours 72 \
     --make-layers-recurrent 3 \
     --num-steps 10 \
     --add-residual-connection \
