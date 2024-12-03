@@ -65,6 +65,7 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
             seq_len,
             hidden_size,
             device=intermediate_outputs.device,
+            dtype=intermediate_outputs.dtype,
             requires_grad=True,
         )
 
@@ -80,4 +81,9 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
         self.log("int_supervision_loss", loss, sync_dist=True, batch_size=batch_size)
         print(f"Intermediate Supervision Loss: {loss.item()}")
 
-        return loss
+        reg_loss = 0.01 * (
+            torch.sum(self.random_target_mean**2)
+            + torch.sum(self.random_target_log_std**2)
+        )
+
+        return loss + reg_loss
