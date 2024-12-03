@@ -87,6 +87,9 @@ class RecurrentTransformerLayer(nn.Module):
             hidden_states, attention_mask, self.layer, position_ids, **kwargs
         )
 
+        if self.config.add_residual_connection:
+            output.hidden_states += hidden_states
+
         # Handle special layer requirements
         if hasattr(self.layer, "unsqueeze_seq_len"):
             output.hidden_states = self.layer.unsqueeze_seq_len(output.hidden_states)

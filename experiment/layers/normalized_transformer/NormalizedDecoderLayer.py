@@ -51,10 +51,10 @@ class NormalizedDecoderLayer:
             return self.attn_alpha, self.mlp_alpha
 
         # Predict rates from current hidden state
-        attn_rates = (
-            torch.sigmoid(self.attn_rate_predictor(hidden_states)) / 50
+        attn_rates = torch.sigmoid(
+            self.attn_rate_predictor(hidden_states)
         )  # Sigmoid keeps rates positive
-        mlp_rates = torch.sigmoid(self.mlp_rate_predictor(hidden_states)) / 50
+        mlp_rates = torch.sigmoid(self.mlp_rate_predictor(hidden_states))
 
         return attn_rates, mlp_rates
 
