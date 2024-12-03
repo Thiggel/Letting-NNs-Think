@@ -61,5 +61,6 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
             random_targets = F.normalize(random_targets, dim=-1)
 
         loss = F.mse_loss(intermediate_outputs, random_targets)
+        print(f"Intermediate Supervision Loss: {loss.item()}")
 
         return loss
