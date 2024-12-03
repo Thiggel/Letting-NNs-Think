@@ -112,6 +112,7 @@ class LanguageDataModule(LightningDataModule):
             dataset_config.get("subset"),
             streaming=True,
             trust_remote_code=True,
+            timeout=300,
         )
 
         train_dataset = self._process_split(
