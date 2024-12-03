@@ -98,6 +98,7 @@ class RecurrentTransformerLayer(nn.Module):
             hidden_states = hidden_states + self.alpha * (
                 output.hidden_states - hidden_states
             )
+            print(111)
 
         elif self.config.add_residual_connection:
             hidden_states = hidden_states + output.hidden_states
