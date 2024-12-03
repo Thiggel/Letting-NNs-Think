@@ -79,6 +79,9 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
 
         loss = F.mse_loss(intermediate_outputs, random_targets)
         self.log("int_supervision_loss", loss, sync_dist=True, batch_size=batch_size)
+        print(
+            "Mean: ", self.random_target_mean, "Log std: ", self.random_target_log_std
+        )
         print(f"Intermediate Supervision Loss: {loss.item()}")
 
         reg_loss = 0.01 * (
