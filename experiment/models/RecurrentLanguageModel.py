@@ -32,7 +32,7 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
                 torch.zeros(self.model.config.hidden_size)
             )
             self.random_target_log_std = nn.Parameter(
-                torch.zeros(self.model.config.hidden_size)
+                torch.ones(self.model.config.hidden_size)
             )
 
     def get_loss_for_intermediate_supervision(self) -> torch.Tensor:
