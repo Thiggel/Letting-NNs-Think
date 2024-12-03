@@ -40,6 +40,8 @@ class DefaultLightningModule(
         self.data_config = data_config
         self.tokenizer = tokenizer
 
+        self.setup_random_intermediate_supervision()
+
     def setup(self, stage):
         self.model_adapter = ModelAdapter(self.config, self.device)
         self.model = self.model_adapter.model

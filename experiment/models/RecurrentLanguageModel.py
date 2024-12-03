@@ -4,7 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
-from experiment.configs import TrainingConfig
+from experiment.configs import ModelConfig, TrainingConfig
 
 from .model_adapter import ModelAdapter
 
@@ -12,6 +12,7 @@ from .model_adapter import ModelAdapter
 class RecurrentLanguageModelProtocol(Protocol):
     model_adapter: ModelAdapter
     model: nn.Module
+    config: ModelConfig
     training_config: TrainingConfig
 
     def get_recurrent_layer(self) -> Optional[RecurrentTransformerLayer]: ...
@@ -24,6 +25,15 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
             return None
         layers = self.model_adapter.get_decoder_layers(self.model)
         return layers[self.model_adapter.recurrent_layer_idx]
+
+    def setup_random_intermediate_supervision(self) -> None:
+        if self.training_config.use_random_intermediate_supervision:
+            self.random_target_mean = nn.Parameter(
+                torch.zeros(self.model.config.hidden_size)
+            )
+            self.random_target_log_std = nn.Parameter(
+                torch.zeros(self.model.config.hidden_size)
+            )
 
     def get_loss_for_intermediate_supervision(self) -> torch.Tensor:
         layer = self.get_recurrent_layer()
@@ -39,9 +49,17 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
 
         intermediate_outputs = torch.stack(layer.intermediate_outputs)
 
-        loss = F.mse_loss(
-            intermediate_outputs,
-            torch.randn_like(intermediate_outputs),
-        )
+        # Create random noise
+        eps = torch.randn_like(intermediate_outputs)
+
+        # Transform noise using learned parameters
+        std = torch.exp(self.random_target_log_std)
+        random_targets = eps * std + self.random_target_mean
+
+        # If using nGPT-style normalization, normalize the random targets
+        if self.config.enable_normalization:
+            random_targets = F.normalize(random_targets, dim=-1)
+
+        loss = F.mse_loss(intermediate_outputs, random_targets)
 
         return loss
