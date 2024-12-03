@@ -17,6 +17,14 @@ class RecurrentLanguageModelProtocol(Protocol):
 
     def get_recurrent_layer(self) -> Optional[RecurrentTransformerLayer]: ...
 
+    def log(
+        self,
+        name: str,
+        value: torch.Tensor,
+        sync_dist: bool = False,
+        batch_size: int = 1,
+    ) -> None: ...
+
 
 class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
     def get_recurrent_layer(self) -> Optional[RecurrentTransformerLayer]:
@@ -48,9 +56,17 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
             return torch.tensor(0)
 
         intermediate_outputs = torch.stack(layer.intermediate_outputs)
+        batch_size, num_steps, seq_len, hidden_size = intermediate_outputs.shape
 
         # Create random noise
-        eps = torch.randn_like(intermediate_outputs)
+        eps = torch.randn(
+            batch_size,
+            num_steps,
+            seq_len,
+            hidden_size,
+            device=intermediate_outputs.device,
+            requires_grad=True,
+        )
 
         # Transform noise using learned parameters
         std = torch.exp(self.random_target_log_std)
@@ -61,9 +77,7 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
             random_targets = F.normalize(random_targets, dim=-1)
 
         loss = F.mse_loss(intermediate_outputs, random_targets)
-        self.log(
-            "int_supervision_loss", loss, sync_dist=True, batch_size=self.batch_size
-        )
+        self.log("int_supervision_loss", loss, sync_dist=True, batch_size=batch_size)
         print(f"Intermediate Supervision Loss: {loss.item()}")
 
         return loss
