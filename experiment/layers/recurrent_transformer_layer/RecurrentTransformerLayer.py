@@ -24,6 +24,7 @@ class RecurrentTransformerLayer(nn.Module):
         hidden_size: int = 768,
     ):
         super().__init__()
+        self.config = config
         self.layer = layer
         self.strategy = self._create_strategy(config, hidden_size, config.max_steps)
         self.intermediate_outputs = None
@@ -78,6 +79,9 @@ class RecurrentTransformerLayer(nn.Module):
         output = self.strategy.forward(
             hidden_states, attention_mask, self.layer, position_ids, **kwargs
         )
+
+        if self.config.add_residual_connection:
+            output.hidden_states += hidden_states
 
         # Handle special layer requirements
         if hasattr(self.layer, "unsqueeze_seq_len"):

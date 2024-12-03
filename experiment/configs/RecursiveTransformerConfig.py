@@ -54,3 +54,7 @@ class RecursiveTransformerConfig:
         False, description="Whether to use a time embedding in the model"
     )
     use_gating: bool = Field(False, description="Whether to use a gating in the model")
+    add_residual_connection: bool = Field(
+        False,
+        description="Whether to add residual connections in the model around the recurrent layer",
+    )
