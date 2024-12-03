@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#SBATCH --gres=gpu:4
+#SBATCH -C A5000
+#SBATCH --ntasks-per-node=4
+#SBATCH --job-name=Pythia_Fineweb_05step_DynamicVera
+#SBATCH --time=04:30:00
+#SBATCH --output=job_logs/Pythia_Fineweb_05Step_DynamicVera_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset fineweb \
+    --finetune-mode full \
+    --enable-normalization \
+    --use-time-embedding \
+    --batch-size 14 \
+    --grad-acc-steps 18 \
+    --learning-rate 3e-4 \
+    --warmup-steps 50000 \
+    --total-training-steps 4000000 \
+    --max-hours 72 \
+    --make-layers-recurrent 3 \
+    --num-steps 5 \
+    --experiment-name Pythia_Fineweb_05step_DynamicVera \
+    --save-to-checkpoint Pythia_Fineweb_05step_DynamicVera \
+    --enable-logging

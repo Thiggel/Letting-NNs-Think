@@ -37,16 +37,16 @@ class RecurrentLanguageModelAdapter:
 
         if self.config.recurrent_mode == "mamba":
             recurrent_layer: nn.Module = self._create_mamba_layer(len(recurrent_layers))
-        elif self.config.use_dynamic_vera:
+        else:
+            recurrent_layer = SequentialTransformerLayer(*recurrent_layers)
+
+        if self.config.use_dynamic_vera:
             recurrent_layer = DynamicVeraLayer(
-                layers,
+                recurrent_layer,
                 model.config.hidden_size,
                 self.config.vera_r,
                 self.device,
             )
-
-        else:
-            recurrent_layer = SequentialTransformerLayer(*recurrent_layers)
 
         layers[start] = RecurrentTransformerLayer(
             recurrent_layer,

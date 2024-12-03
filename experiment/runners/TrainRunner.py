@@ -85,8 +85,7 @@ class TrainRunner(Runner, HasTokenizer):
 
         self.step_checkpoint = ModelCheckpoint(
             monitor=None,
-            every_n_train_steps=20,
-            save_on_train_epoch_end=False,
+            every_n_train_steps=10,
             dirpath=checkpoint_dir,
             filename=self.experiment_config.experiment_name
             + "_"
@@ -160,7 +159,7 @@ class TrainRunner(Runner, HasTokenizer):
         strategy = DeepSpeedStrategy(
             config={
                 "zero_optimization": {
-                    "stage": 3,
+                    "stage": 2,
                     "offload_optimizer": {"device": "cpu"},
                     "reduce_bucket_size": 1e7,
                 },
