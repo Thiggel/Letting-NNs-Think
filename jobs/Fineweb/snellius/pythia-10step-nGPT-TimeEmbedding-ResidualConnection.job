@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=Pythia_Fineweb_nGPT_10step_TimeEmbedding_ResidualConnection
-#SBATCH --time=08:30:00
+#SBATCH --time=12:30:00
 #SBATCH --output=job_logs/Pythia_Fineweb_nGPT_10Step_TimeEmbedding_ResidualConnection_%A.out
 
 cd $HOME/Letting-NNs-Think
@@ -25,7 +25,7 @@ srun python -m experiment \
     --total-training-steps 4000000 \
     --max-hours 8 \
     --make-layers-recurrent 3 \
-    --num-steps 10 \
+    --num-steps 12 \
     --add-residual-connection \
     --experiment-name Pythia_Fineweb_nGPT_10Step_TimeEmbedding_ResidualConnection \
     --save-to-checkpoint Pythia_Fineweb_nGPT_10Step_TimeEmbedding_ResidualConnection \
