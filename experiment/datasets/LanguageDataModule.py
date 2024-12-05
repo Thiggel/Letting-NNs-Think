@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 from lightning import LightningDataModule
 from datasets import Dataset, IterableDataset, load_dataset, disable_caching, config
+from functools import partial
 
 from experiment.configs import DataConfig, ModelConfig, TrainingConfig
 
@@ -18,7 +19,7 @@ from .DatasetConfigurator import DatasetConfigurator
 class LanguageDataModule(LightningDataModule):
     """Main data module for language modeling tasks"""
 
-def __init__(
+    def __init__(
         self,
         data_config: DataConfig,
         model_config: ModelConfig,
@@ -35,8 +36,13 @@ def __init__(
         self.tokenizer = tokenizer
         self.seed = seed
         self.dataset_manager = DatasetManager(
-            cache_dir if cache_dir is not None 
-            else (os.environ.get("BASE_CACHE_DIR", ".") if torch.cuda.is_available() else ".")
+            cache_dir
+            if cache_dir is not None
+            else (
+                os.environ.get("BASE_CACHE_DIR", ".")
+                if torch.cuda.is_available()
+                else "."
+            )
         )
         self.token_processor = TokenizationProcessor(tokenizer)
         self.batch_collator = BatchCollator(tokenizer, data_config.seq_length)
@@ -47,8 +53,10 @@ def __init__(
         disable_caching()
 
     def setup(self, stage: Optional[str] = None) -> None:
-        self.dataset_config = DatasetConfigurator.get_dataset_config(self.data_config.dataset)
-        
+        self.dataset_config = DatasetConfigurator.get_dataset_config(
+            self.data_config.dataset
+        )
+
         if self.dataset_config.get("process_on_the_fly", False):
             self.datasets = self._prepare_streaming_datasets()
         else:
@@ -104,45 +112,40 @@ def __init__(
             trust_remote_code=True,
         )
 
-        process_fn = partial(
-            self._process_streaming_sample,
-            q_func=self.dataset_config["q_func"],
-            ans_func=self.dataset_config["ans_func"],
-        )
-
-        train_dataset = ds[self.dataset_config["train_field"]].map(
-            process_fn,
-            remove_columns=ds[self.dataset_config["train_field"]].column_names
-        )
-
-        val_dataset = (
-            ds[self.dataset_config["validation_field"]].map(
-                process_fn,
-                remove_columns=ds[self.dataset_config["validation_field"]].column_names
+        def filter_and_process(sample):
+            processed = self._process_streaming_sample(
+                sample, self.dataset_config["q_func"], self.dataset_config["ans_func"]
             )
-            if "validation_field" in self.dataset_config
-            else self._create_validation_set(train_dataset)
-        )
+            return processed is not None
 
-        test_dataset = (
-            ds[self.dataset_config["test_field"]].map(
-                process_fn,
-                remove_columns=ds[self.dataset_config["test_field"]].column_names
+        train_dataset = (
+            ds[self.dataset_config["train_field"]]
+            .filter(filter_and_process)
+            .map(
+                partial(
+                    self._process_streaming_sample,
+                    q_func=self.dataset_config["q_func"],
+                    ans_func=self.dataset_config["ans_func"],
+                ),
+                remove_columns=ds[self.dataset_config["train_field"]].column_names,
             )
-            if "test_field" in self.dataset_config
-            else None
         )
 
-        return DatasetSplit(train_dataset, val_dataset, test_dataset)
+        # Create validation set from first N examples
+        val_dataset = train_dataset.take(self.dataset_config["val_subset"])
+
+        return DatasetSplit(train_dataset, val_dataset, None)
 
     def _process_streaming_sample(
         self, sample: dict[str, Any], q_func: callable, ans_func: callable
     ) -> dict[str, Any]:
         full_text = q_func(sample) + ans_func(sample)
-        
+
         tokenized = self.token_processor.tokenize_text(
             [full_text],
-            max_length=self.data_config.seq_length if self.data_config.seq_length > 0 else None
+            max_length=(
+                self.data_config.seq_length if self.data_config.seq_length > 0 else None
+            ),
         )
 
         if len(tokenized["input_ids"][0]) < self.data_config.seq_length:
