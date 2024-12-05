@@ -95,7 +95,12 @@ class LanguageDataModule(LightningDataModule):
             test_dataset = None
 
         train_dataset, val_dataset = self._split_dataset(
-            train_dataset, int(len(train_dataset) * 0.1)
+            train_dataset,
+            (
+                int(len(train_dataset) * 0.1)
+                if "val_subset" not in self.dataset_config
+                else int(self.dataset_config["val_subset"])
+            ),
         )
 
         return DatasetSplit(train_dataset, val_dataset, test_dataset)
