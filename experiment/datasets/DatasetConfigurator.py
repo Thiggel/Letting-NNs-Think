@@ -34,7 +34,7 @@ class DatasetConfigurator:
                 "q_func": lambda x: x["text"],
                 "ans_func": lambda x: "",
                 "train_field": "train",
-                "streaming": False,
+                "process_on_the_fly": True,
                 "val_subset": 1000,
             },
             "gsm8k": {

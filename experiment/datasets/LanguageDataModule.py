@@ -18,7 +18,7 @@ from .DatasetConfigurator import DatasetConfigurator
 class LanguageDataModule(LightningDataModule):
     """Main data module for language modeling tasks"""
 
-    def __init__(
+def __init__(
         self,
         data_config: DataConfig,
         model_config: ModelConfig,
@@ -28,47 +28,38 @@ class LanguageDataModule(LightningDataModule):
         cache_dir: Optional[str] = None,
     ):
         super().__init__()
-
         config.HF_DATASETS_TIMEOUT = 300
-
         self.data_config = data_config
         self.model_config = model_config
         self.training_config = training_config
-
         self.tokenizer = tokenizer
         self.seed = seed
-
         self.dataset_manager = DatasetManager(
-            cache_dir
-            if cache_dir is not None
-            else (
-                os.environ.get("BASE_CACHE_DIR", ".")
-                if torch.cuda.is_available()
-                else "."
-            )
+            cache_dir if cache_dir is not None 
+            else (os.environ.get("BASE_CACHE_DIR", ".") if torch.cuda.is_available() else ".")
         )
         self.token_processor = TokenizationProcessor(tokenizer)
         self.batch_collator = BatchCollator(tokenizer, data_config.seq_length)
         self.datasets: Optional[DatasetSplit] = None
-
         self.setup()
 
     def prepare_data(self) -> None:
         disable_caching()
 
     def setup(self, stage: Optional[str] = None) -> None:
-        self.dataset_config = DatasetConfigurator.get_dataset_config(
-            self.data_config.dataset
-        )
-        cache_path = self.dataset_manager.get_cache_path(
-            self.data_config, self.model_config, self.seed
-        )
-
-        if self.dataset_manager.cached_datasets_exist(cache_path):
-            self.datasets = self.dataset_manager.load_cached_datasets(cache_path)
+        self.dataset_config = DatasetConfigurator.get_dataset_config(self.data_config.dataset)
+        
+        if self.dataset_config.get("process_on_the_fly", False):
+            self.datasets = self._prepare_streaming_datasets()
         else:
-            self.datasets = self._prepare_datasets()
-            self.dataset_manager.save_datasets(self.datasets, cache_path)
+            cache_path = self.dataset_manager.get_cache_path(
+                self.data_config, self.model_config, self.seed
+            )
+            if self.dataset_manager.cached_datasets_exist(cache_path):
+                self.datasets = self.dataset_manager.load_cached_datasets(cache_path)
+            else:
+                self.datasets = self._prepare_datasets()
+                self.dataset_manager.save_datasets(self.datasets, cache_path)
 
     def _prepare_datasets(self) -> DatasetSplit:
         if self.dataset_config.get("streaming", False):
@@ -113,19 +104,55 @@ class LanguageDataModule(LightningDataModule):
             trust_remote_code=True,
         )
 
-        train_dataset = self._process_split(ds[self.dataset_config["train_field"]])
+        process_fn = partial(
+            self._process_streaming_sample,
+            q_func=self.dataset_config["q_func"],
+            ans_func=self.dataset_config["ans_func"],
+        )
+
+        train_dataset = ds[self.dataset_config["train_field"]].map(
+            process_fn,
+            remove_columns=ds[self.dataset_config["train_field"]].column_names
+        )
+
         val_dataset = (
-            self._process_split(ds[self.dataset_config["validation_field"]])
+            ds[self.dataset_config["validation_field"]].map(
+                process_fn,
+                remove_columns=ds[self.dataset_config["validation_field"]].column_names
+            )
             if "validation_field" in self.dataset_config
             else self._create_validation_set(train_dataset)
         )
+
         test_dataset = (
-            self._process_split(ds[self.dataset_config["test_field"]])
+            ds[self.dataset_config["test_field"]].map(
+                process_fn,
+                remove_columns=ds[self.dataset_config["test_field"]].column_names
+            )
             if "test_field" in self.dataset_config
             else None
         )
 
         return DatasetSplit(train_dataset, val_dataset, test_dataset)
+
+    def _process_streaming_sample(
+        self, sample: dict[str, Any], q_func: callable, ans_func: callable
+    ) -> dict[str, Any]:
+        full_text = q_func(sample) + ans_func(sample)
+        
+        tokenized = self.token_processor.tokenize_text(
+            [full_text],
+            max_length=self.data_config.seq_length if self.data_config.seq_length > 0 else None
+        )
+
+        if len(tokenized["input_ids"][0]) < self.data_config.seq_length:
+            return None
+
+        return {
+            "input_ids": tokenized["input_ids"][0],
+            "attention_mask": tokenized["attention_mask"][0],
+            "labels": tokenized["input_ids"][0],
+        }
 
     def _process_split(
         self, dataset: Union[Dataset, IterableDataset]
