@@ -4,12 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 from lightning import LightningDataModule
-from datasets import (
-    Dataset,
-    IterableDataset,
-    load_dataset,
-    disable_caching,
-)
+from datasets import Dataset, IterableDataset, load_dataset, disable_caching, config
 
 from experiment.configs import DataConfig, ModelConfig, TrainingConfig
 
@@ -34,6 +29,8 @@ class LanguageDataModule(LightningDataModule):
     ):
         super().__init__()
 
+        config.HF_DATASETS_TIMEOUT = 300
+
         self.data_config = data_config
         self.model_config = model_config
         self.training_config = training_config
@@ -43,7 +40,8 @@ class LanguageDataModule(LightningDataModule):
 
         self.dataset_manager = DatasetManager(
             cache_dir
-            or (
+            if cache_dir is not None
+            else (
                 os.environ.get("BASE_CACHE_DIR", ".")
                 if torch.cuda.is_available()
                 else "."
@@ -59,7 +57,7 @@ class LanguageDataModule(LightningDataModule):
         disable_caching()
 
     def setup(self, stage: Optional[str] = None) -> None:
-        dataset_config = DatasetConfigurator.get_dataset_config(
+        self.dataset_config = DatasetConfigurator.get_dataset_config(
             self.data_config.dataset
         )
         cache_path = self.dataset_manager.get_cache_path(
@@ -69,31 +67,29 @@ class LanguageDataModule(LightningDataModule):
         if self.dataset_manager.cached_datasets_exist(cache_path):
             self.datasets = self.dataset_manager.load_cached_datasets(cache_path)
         else:
-            self.datasets = self._prepare_datasets(dataset_config)
+            self.datasets = self._prepare_datasets()
             self.dataset_manager.save_datasets(self.datasets, cache_path)
 
-    def _prepare_datasets(self, dataset_config: dict[str, Any]) -> DatasetSplit:
-        if dataset_config.get("streaming", False):
-            return self._prepare_streaming_datasets(dataset_config)
+    def _prepare_datasets(self) -> DatasetSplit:
+        if self.dataset_config.get("streaming", False):
+            return self._prepare_streaming_datasets()
         else:
-            return self._prepare_static_datasets(dataset_config)
+            return self._prepare_static_datasets()
 
-    def _prepare_static_datasets(self, dataset_config: dict[str, Any]) -> DatasetSplit:
+    def _prepare_static_datasets(self) -> DatasetSplit:
         ds = load_dataset(
-            dataset_config["name"], dataset_config.get("subset"), trust_remote_code=True
+            self.dataset_config["name"],
+            self.dataset_config.get("subset"),
+            trust_remote_code=True,
         )
 
-        train_dataset = self._process_split(
-            ds[dataset_config["train_field"]], dataset_config
-        )
+        train_dataset = self._process_split(ds[self.dataset_config["train_field"]])
 
-        if "test_field" in dataset_config:
-            test_dataset = self._process_split(
-                ds[dataset_config["test_field"]], dataset_config
-            )
-        elif "test_subset" in dataset_config:
+        if "test_field" in self.dataset_config:
+            test_dataset = self._process_split(ds[self.dataset_config["test_field"]])
+        elif "test_subset" in self.dataset_config:
             train_dataset, test_dataset = self._split_dataset(
-                train_dataset, dataset_config["test_subset"]
+                train_dataset, self.dataset_config["test_subset"]
             )
         else:
             test_dataset = None
@@ -104,37 +100,33 @@ class LanguageDataModule(LightningDataModule):
 
         return DatasetSplit(train_dataset, val_dataset, test_dataset)
 
-    def _prepare_streaming_datasets(
-        self, dataset_config: dict[str, Any]
-    ) -> DatasetSplit:
+    def _prepare_streaming_datasets(self) -> DatasetSplit:
         ds = load_dataset(
-            dataset_config["name"],
-            dataset_config.get("subset"),
+            self.dataset_config["name"],
+            self.dataset_config.get("subset"),
             streaming=True,
             trust_remote_code=True,
         )
 
-        train_dataset = self._process_split(
-            ds[dataset_config["train_field"]], dataset_config
-        )
+        train_dataset = self._process_split(ds[self.dataset_config["train_field"]])
         val_dataset = (
-            self._process_split(ds[dataset_config["validation_field"]], dataset_config)
-            if "validation_field" in dataset_config
+            self._process_split(ds[self.dataset_config["validation_field"]])
+            if "validation_field" in self.dataset_config
             else self._create_validation_set(train_dataset)
         )
         test_dataset = (
-            self._process_split(ds[dataset_config["test_field"]], dataset_config)
-            if "test_field" in dataset_config
+            self._process_split(ds[self.dataset_config["test_field"]])
+            if "test_field" in self.dataset_config
             else None
         )
 
         return DatasetSplit(train_dataset, val_dataset, test_dataset)
 
     def _process_split(
-        self, dataset: Union[Dataset, IterableDataset], dataset_config: dict[str, Any]
+        self, dataset: Union[Dataset, IterableDataset]
     ) -> Union[Dataset, IterableDataset]:
         return dataset.map(
-            lambda samples: self._tokenize(samples, dataset_config),
+            lambda samples: self._tokenize(samples),
             remove_columns=dataset.column_names,
             batched=True,
         )
@@ -155,16 +147,14 @@ class LanguageDataModule(LightningDataModule):
 
         return filtered_input_ids, filtered_attention_mask
 
-    def _tokenize(
-        self, samples: dict[str, List[Any]], dataset_config: dict[str, Any]
-    ) -> dict[str, List[Any]]:
+    def _tokenize(self, samples: dict[str, List[Any]]) -> dict[str, List[Any]]:
         samples = [dict(zip(samples, i)) for i in zip(*samples.values())]
         full_text = [
-            dataset_config["q_func"](sample)
-            + dataset_config["ans_func"](sample)
+            self.dataset_config["q_func"](sample)
+            + self.dataset_config["ans_func"](sample)
             + (
                 self.tokenizer.eos_token
-                if not dataset_config.get("streaming", False)
+                if not self.dataset_config.get("streaming", False)
                 else ""
             )
             for sample in samples
@@ -177,7 +167,7 @@ class LanguageDataModule(LightningDataModule):
             ),
         )
 
-        if dataset_config.get("streaming", False):
+        if self.dataset_config.get("streaming", False):
             input_ids, attention_mask = self._filter_max_len(tokenized)
         else:
             input_ids = tokenized["input_ids"]
@@ -241,6 +231,9 @@ class LanguageDataModule(LightningDataModule):
         )
 
     def _get_num_workers(self) -> int:
+        if self.dataset_config.get("streaming", False):
+            return 1
+
         if hasattr(os, "sched_getaffinity"):
             try:
                 max_workers = len(os.sched_getaffinity(0))

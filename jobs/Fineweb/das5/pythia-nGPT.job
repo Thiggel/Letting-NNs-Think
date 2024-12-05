@@ -1,10 +1,9 @@
 #!/bin/bash
 
 #SBATCH --gres=gpu:4
-#SBATCH -C A5000
 #SBATCH --ntasks-per-node=4
 #SBATCH --job-name=Pythia_Fineweb_nGPT
-#SBATCH --time=2-04:30:00
+#SBATCH --time=5-0
 #SBATCH --output=job_logs/Pythia_Fineweb_%A.out
 
 cd $HOME/Letting-NNs-Think
@@ -21,7 +20,7 @@ srun python -m experiment \
     --learning-rate 3e-4 \
     --warmup-steps 20000 \
     --total-training-steps 4000000 \
-    --max-hours 72 \
+    --max-hours 120 \
     --experiment-name Pythia_Fineweb_nGPT \
     --save-to-checkpoint Pythia_Fineweb_nGPT \
     --enable-logging
