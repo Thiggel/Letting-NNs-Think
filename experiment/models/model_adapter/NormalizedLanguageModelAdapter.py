@@ -27,7 +27,7 @@ class NormalizedLanguageModelAdapterProtocol(Protocol):
 
     def normalize(self, tensor: Tensor, dim: int = -1) -> Tensor: ...
 
-    def _get_recurrent_layer_range(self, model: nn.Module) -> tuple[int, int]: ...
+    def _get_recurrent_layer_range(self, model: nn.Module) -> list[tuple[int, int]]: ...
 
 
 class NormalizedLanguageModelAdapter(CanNormalize):
@@ -41,41 +41,41 @@ class NormalizedLanguageModelAdapter(CanNormalize):
 
         layers = self.get_decoder_layers(model)
 
-        recurrent_layer_start, recurrent_layer_end = self._get_recurrent_layer_range(
-            model
-        )
+        for (
+            recurrent_layer_start,
+            recurrent_layer_end,
+        ) in self._get_recurrent_layer_range(model):
+            for idx in range(len(layers)):
+                layer = layers[idx]
+                layer_is_recurrent = recurrent_layer_start <= idx < recurrent_layer_end
+                if isinstance(layer, GemmaDecoderLayer) or isinstance(
+                    layer, Gemma2DecoderLayer
+                ):
+                    new_layer = NormalizedGemmaDecoderLayer(
+                        model.config,
+                        idx,
+                        use_dynamic_rates=layer_is_recurrent
+                        and self.config.use_dynamic_eigen_lrs,
+                        use_momentum=layer_is_recurrent and self.config.use_momentum,
+                    )
+                elif isinstance(layer, GPTNeoXLayer):
+                    new_layer = NormalizedGPTNeoXLayer(
+                        model.config,
+                        idx,
+                        use_dynamic_rates=layer_is_recurrent
+                        and self.config.use_dynamic_eigen_lrs,
+                        use_momentum=layer_is_recurrent and self.config.use_momentum,
+                    )
 
-        for idx in range(len(layers)):
-            layer = layers[idx]
-            layer_is_recurrent = recurrent_layer_start <= idx < recurrent_layer_end
-            if isinstance(layer, GemmaDecoderLayer) or isinstance(
-                layer, Gemma2DecoderLayer
-            ):
-                new_layer = NormalizedGemmaDecoderLayer(
-                    model.config,
-                    idx,
-                    use_dynamic_rates=layer_is_recurrent
-                    and self.config.use_dynamic_eigen_lrs,
-                    use_momentum=layer_is_recurrent and self.config.use_momentum,
+                missing_keys, unexpected_keys = new_layer.load_state_dict(
+                    layer.state_dict(), strict=False
                 )
-            elif isinstance(layer, GPTNeoXLayer):
-                new_layer = NormalizedGPTNeoXLayer(
-                    model.config,
-                    idx,
-                    use_dynamic_rates=layer_is_recurrent
-                    and self.config.use_dynamic_eigen_lrs,
-                    use_momentum=layer_is_recurrent and self.config.use_momentum,
-                )
 
-            missing_keys, unexpected_keys = new_layer.load_state_dict(
-                layer.state_dict(), strict=False
-            )
+                print(f"Layer {idx} changed to normalized layer")
+                print(f"Missing keys: {missing_keys}")
+                print(f"Unexpected keys: {unexpected_keys}")
 
-            print(f"Layer {idx} changed to normalized layer")
-            print(f"Missing keys: {missing_keys}")
-            print(f"Unexpected keys: {unexpected_keys}")
-
-            layers[idx] = new_layer
+                layers[idx] = new_layer
 
         model = self.set_decoder_layers(model, layers)
 

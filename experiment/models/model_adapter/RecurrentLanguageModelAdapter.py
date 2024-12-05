@@ -23,7 +23,11 @@ class RecurrentLanguageModelAdapterProtocol(Protocol):
         self, model: nn.Module, layers: nn.ModuleList
     ) -> nn.Module: ...
 
-    def _get_recurrent_layer_range(self, model: nn.Module) -> tuple[int, int]: ...
+    def _get_recurrent_layer_range(self, model: nn.Module) -> list[tuple[int, int]]: ...
+
+    def _add_recurrence_to_layer(
+        self, model: nn.Module, start: int, end: int
+    ) -> nn.Module: ...
 
     def _create_mamba_layer(self, num_layers: int) -> SequentialTransformerLayer: ...
 
@@ -31,7 +35,20 @@ class RecurrentLanguageModelAdapterProtocol(Protocol):
 class RecurrentLanguageModelAdapter:
     def _add_recurrence(self: RecurrentLanguageModelAdapterProtocol, model: nn.Module):
         """Add recurrent layers to the model"""
-        start, end = self._get_recurrent_layer_range(model)
+        recurrent_layer_ranges = self._get_recurrent_layer_range(model)
+
+        for start, end in recurrent_layer_ranges:
+            model = self._add_recurrence_to_layer(model, start, end)
+
+        return model
+
+    def _add_recurrence_to_layer(
+        self: RecurrentLanguageModelAdapterProtocol,
+        model: nn.Module,
+        start: int,
+        end: int,
+    ):
+        """Add recurrent layers to the model"""
         layers = self.get_decoder_layers(model)
         recurrent_layers = layers[start:end]
 
@@ -56,7 +73,8 @@ class RecurrentLanguageModelAdapter:
 
         # Remove the original layers that were made recurrent
         for i in range(start + 1, end):
-            layers.pop(1)
+            print(i)
+            layers.pop(start + 1)
 
         model = self.set_decoder_layers(model, layers)
 
@@ -66,9 +84,15 @@ class RecurrentLanguageModelAdapter:
 
     def _get_recurrent_layer_range(
         self: RecurrentLanguageModelAdapterProtocol, model: nn.Module
-    ) -> tuple[int, int]:
+    ) -> list[tuple[int, int]]:
+        if self.config.make_layers_recurrent == "all":
+            return [
+                (idx, idx + 1) for idx in range(len(self.get_decoder_layers(model)))
+            ]
+
         if self.config.make_layers_recurrent is None:
-            return 0, 0
+            return []
+
         if ":" in self.config.make_layers_recurrent:
             start, end = map(int, self.config.make_layers_recurrent.split(":"))
         else:
@@ -82,7 +106,7 @@ class RecurrentLanguageModelAdapter:
         if end <= 0:
             end = len(layers) + end
 
-        return start, end
+        return [(start, end)]
 
     def _create_mamba_layer(
         self: RecurrentLanguageModelAdapterProtocol, num_layers: int
