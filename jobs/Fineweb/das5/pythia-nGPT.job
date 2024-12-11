@@ -12,7 +12,7 @@ cd $HOME/Letting-NNs-Think
 . jobs/environment.sh
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-70m" \
+    --model-name "EleutherAI/pythia-160m" \
     --dataset fineweb \
     --finetune-mode full \
     --enable-normalization \
