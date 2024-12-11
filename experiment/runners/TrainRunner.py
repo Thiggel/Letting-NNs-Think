@@ -112,11 +112,13 @@ class TrainRunner(Runner, HasTokenizer):
             self.step_checkpoint,
             self.epoch_checkpoint,
             DeviceStatsMonitor(),
+            LearningRateMonitor(logging_interval="step"),
+        ]
+
+        if self.training_config.use_early_stopping:
             EarlyStopping(
                 monitor="val_loss", patience=1, mode="min", min_delta=0.00, verbose=True
             ),
-            LearningRateMonitor(logging_interval="step"),
-        ]
 
         trainer_args = self._get_trainer_args(callbacks, seed)
 
@@ -142,6 +144,7 @@ class TrainRunner(Runner, HasTokenizer):
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
             "log_every_n_steps": 10,
             "max_epochs": self.training_config.max_epochs,
+            "max_steps": self.training_config.max_training_steps,
             "max_time": {
                 "hours": self.training_config.max_hours,
             },
@@ -154,6 +157,7 @@ class TrainRunner(Runner, HasTokenizer):
             trainer_args["val_check_interval"] = (
                 self.training_config.validate_every_n_steps
             )
+            trainer_args.pop("max_epochs")
 
         return trainer_args
 

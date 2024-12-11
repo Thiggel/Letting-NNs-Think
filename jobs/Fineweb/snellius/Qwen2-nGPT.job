@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=4
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Qwen2_Fineweb_nGPT
+#SBATCH --time=1-00:00:00
+#SBATCH --output=job_logs/Qwen2_Fineweb_nGPT_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "Qwen/Qwen2.5-0.5B" \
+  --dataset fineweb \
+  --finetune-mode full \
+  --batch-size 16 \
+  --grad-acc-steps 16 \
+  --learning-rate 5e-5 \
+  --warmup-steps 50000 \
+  --validate-every-n-steps 1000 \
+  --max-hours 24 \
+  --max-training-steps 100000 \
+  --enable-normalization \
+  --experiment-name Qwen2_Fineweb_nGPT \
+  --save-to-checkpoint Qwen_Fineweb_nGPT \
+  --enable-logging

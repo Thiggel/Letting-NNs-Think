@@ -13,13 +13,14 @@ class TrainingProcedureType(str, Enum):
 class TrainingConfig(BaseModel):
     """Configuration for training parameters"""
 
-    max_epochs: int = Field(6, description="The maximum number of epochs")
+    max_epochs: int = Field(None, description="The maximum number of epochs")
+    max_training_steps: int = Field(None, description="The maximum number of epochs")
     max_hours: int = Field(4, description="The maximum number of hours to train")
+    use_early_stopping: bool = Field(
+        False, description="Whether to use early stopping during training"
+    )
     learning_rate: float = Field(1e-3, description="The learning rate for the model")
     warmup_steps: int = Field(50, description="The number of warmup steps")
-    total_training_steps: int = Field(
-        500, description="The total number of training steps"
-    )
     max_grad_norm: float = Field(
         1.0, description="The maximum gradient norm for gradient clipping"
     )

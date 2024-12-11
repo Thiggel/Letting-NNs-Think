@@ -1,8 +1,10 @@
 from typing import Protocol
 from torch import nn, Tensor
+import torch.nn.functional as F
 from transformers.models.gemma.modeling_gemma import GemmaDecoderLayer, GemmaForCausalLM
 from transformers.models.gemma2.modeling_gemma2 import Gemma2DecoderLayer
 from transformers.models.gpt_neox import GPTNeoXLayer
+from transformers.models.qwen2.modeling_qwen2 import Qwen2DecoderLayer
 
 from experiment.configs import ModelConfig
 from experiment.layers.normalized_transformer import CanNormalize, NormalizedLMHead
@@ -11,6 +13,9 @@ from experiment.layers.normalized_transformer.normalized_gemma import (
 )
 from experiment.layers.normalized_transformer.normalized_gpt_neox import (
     NormalizedGPTNeoXLayer,
+)
+from experiment.layers.normalized_transformer.normalized_qwen2 import (
+    NormalizedQwen2DecoderLayer,
 )
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 
@@ -68,6 +73,17 @@ class NormalizedLanguageModelAdapter(CanNormalize):
                     and self.config.use_dynamic_eigen_lrs,
                     use_momentum=layer_is_recurrent and self.config.use_momentum,
                 )
+            elif isinstance(layer, Qwen2DecoderLayer):
+                new_layer = NormalizedQwen2DecoderLayer(
+                    model.config,
+                    idx,
+                    use_dynamic_rates=layer_is_recurrent
+                    and self.config.use_dynamic_eigen_lrs,
+                    use_momentum=layer_is_recurrent and self.config.use_momentum,
+                )
+
+            else:
+                raise ValueError(f"Unsupported layer type: {type(layer)}")
 
             missing_keys, unexpected_keys = new_layer.load_state_dict(
                 layer.state_dict(), strict=False
@@ -85,11 +101,11 @@ class NormalizedLanguageModelAdapter(CanNormalize):
 
     def normalize_weights(self: NormalizedLanguageModelAdapterProtocol):
         self.model.get_input_embeddings().weight.data.copy_(
-            self.normalize(self.model.get_input_embeddings().weight.data)
+            F.normalize(self.model.get_input_embeddings().weight.data, dim=-1)
         )
 
         self.model.get_output_embeddings().weight.data.copy_(
-            self.normalize(self.model.get_output_embeddings().weight.data)
+            F.normalize(self.model.get_output_embeddings().weight.data, dim=-1)
         )
 
         for layer in self.get_decoder_layers(self.model):
