@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from transformers.models.gemma.modeling_gemma import GemmaDecoderLayer, GemmaForCausalLM
 from transformers.models.gemma2.modeling_gemma2 import Gemma2DecoderLayer
 from transformers.models.gpt_neox import GPTNeoXLayer
+from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from transformers.models.qwen2.modeling_qwen2 import Qwen2DecoderLayer
 
 from experiment.configs import ModelConfig
@@ -13,6 +14,9 @@ from experiment.layers.normalized_transformer.normalized_gemma import (
 )
 from experiment.layers.normalized_transformer.normalized_gpt_neox import (
     NormalizedGPTNeoXLayer,
+)
+from experiment.layers.normalized_transformer.normalized_llama import (
+    NormalizedLlamaDecoderLayer,
 )
 from experiment.layers.normalized_transformer.normalized_qwen2 import (
     NormalizedQwen2DecoderLayer,
@@ -65,6 +69,15 @@ class NormalizedLanguageModelAdapter(CanNormalize):
                     and self.config.use_dynamic_eigen_lrs,
                     use_momentum=layer_is_recurrent and self.config.use_momentum,
                 )
+            elif isinstance(layer, LlamaDecoderLayer):
+                new_layer = NormalizedLlamaDecoderLayer(
+                    model.config,
+                    idx,
+                    use_dynamic_rates=layer_is_recurrent
+                    and self.config.use_dynamic_eigen_lrs,
+                    use_momentum=layer_is_recurrent and self.config.use_momentum,
+                )
+
             elif isinstance(layer, GPTNeoXLayer):
                 new_layer = NormalizedGPTNeoXLayer(
                     model.config,

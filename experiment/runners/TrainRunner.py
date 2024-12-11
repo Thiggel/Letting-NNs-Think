@@ -164,6 +164,9 @@ class TrainRunner(Runner, HasTokenizer):
     def _get_cuda_specific_args(self) -> dict[str, Any]:
         strategy = DeepSpeedStrategy(
             config={
+                "batch_size": self.data_config.batch_size
+                * self.data_config.grad_acc_steps
+                * torch.cuda.device_count(),
                 "zero_optimization": {
                     "stage": 2,
                     "offload_optimizer": {"device": "cpu"},

@@ -30,7 +30,7 @@ class DatasetConfigurator:
             },
             "fineweb": {
                 "name": "HuggingFaceFW/fineweb",
-                "subset": "sample-10BT",
+                "subset": "sample-100BT",
                 "q_func": lambda x: x["text"],
                 "ans_func": lambda x: "",
                 "train_field": "train",
