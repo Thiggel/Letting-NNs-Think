@@ -4,7 +4,7 @@
 #SBATCH -C GTX1080Ti
 #SBATCH --ntasks-per-node=4
 #SBATCH --job-name=Pythia_Fineweb_nGPT
-#SBATCH --time=5-0
+#SBATCH --time=10-0
 #SBATCH --output=job_logs/Pythia_Fineweb_nGPT_%A.out
 
 cd $HOME/Letting-NNs-Think
@@ -18,10 +18,11 @@ srun python -m experiment \
     --enable-normalization \
     --batch-size 8 \
     --grad-acc-steps 32 \
-    --learning-rate 3e-4 \
-    --warmup-steps 20000 \
-    --total-training-steps 4000000 \
-    --max-hours 120 \
+    --learning-rate 5e-5 \
+    --warmup-steps 50000 \
+    --total-training-steps 5000000 \
+    --validate-every-n-steps 5000 \
+    --max-hours 240 \
     --experiment-name Pythia_Fineweb_nGPT \
     --save-to-checkpoint Pythia_Fineweb_nGPT \
     --enable-logging

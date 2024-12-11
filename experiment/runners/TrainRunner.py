@@ -92,6 +92,8 @@ class TrainRunner(Runner, HasTokenizer):
             + str(seed)
             + "_step-checkpoint-{step:06d}",
             save_last="link",
+            save_top_k=1,
+            verbose=True,
         )
 
         self.epoch_checkpoint = ModelCheckpoint(

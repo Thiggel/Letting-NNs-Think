@@ -62,6 +62,11 @@ class DefaultLightningModule(
         self.metrics_logger.dump_first_batch(kwargs)
         return self.model.generate(*args, **kwargs)
 
+    def on_validation_start(self):
+        string = self.tokenizer.encode("My dog is", return_tensors="pt").to(self.device)
+        generated = self.generate(string, max_length=100)
+        print("Sample generation: ", self.tokenizer.decode(generated[0]))
+
     def lr_lambda(self, current_step: int) -> float:
         """Get the learning rate for the given step using a lambda function"""
         warmup_steps = self.training_config.warmup_steps
