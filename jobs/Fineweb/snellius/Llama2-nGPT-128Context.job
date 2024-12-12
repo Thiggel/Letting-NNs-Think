@@ -28,5 +28,5 @@ srun python -m experiment \
   --max-epochs 1 \
   --enable-normalization \
   --experiment-name Llama2_Fineweb_nGPT_128Context \
-  --save-to-checkpoint Qwen_Fineweb_nGPT_128Context \
+  --save-to-checkpoint Llama2_Fineweb_nGPT_128Context \
   --enable-logging
