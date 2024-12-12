@@ -70,14 +70,24 @@ class DefaultLightningModule(
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
     def lr_lambda(self, current_step: int) -> float:
-        """Get the learning rate for the given step using a lambda function"""
+        """Get the learning rate for the given step using a lambda function
+
+        The scheduler starts from training_config.initial_lr and scales up to
+        training_config.learning_rate during warmup, then decays with cosine schedule
+        """
         warmup_steps = self.training_config.warmup_steps
         total_steps = self.training_config.max_training_steps
         min_lr_factor = 0.1
 
+        # Calculate the ratio between initial and target learning rate
+        lr_ratio = self.training_config.initial_lr / self.training_config.learning_rate
+
         if current_step < warmup_steps:
-            return float(current_step) / float(max(1, warmup_steps))
+            # Linear warmup from initial_lr to learning_rate
+            warmup_factor = float(current_step) / float(max(1, warmup_steps))
+            return lr_ratio + (1.0 - lr_ratio) * warmup_factor
         else:
+            # Cosine decay from learning_rate to min_lr
             progress = min(
                 1.0, (current_step - warmup_steps) / (total_steps - warmup_steps)
             )
@@ -85,8 +95,11 @@ class DefaultLightningModule(
             return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
 
     def configure_optimizers(self):
+        # Scale the initial learning rates based on the initial_lr parameter
+        base_lr = self.training_config.learning_rate
+
         adam_params = {
-            "lr": self.training_config.learning_rate,
+            "lr": base_lr,  # Keep the target learning rate
             "betas": (0.9, 0.95),
             "weight_decay": 0.001,
         }
@@ -94,7 +107,7 @@ class DefaultLightningModule(
         parameters = [
             {
                 "params": self.get_decoder_layers(self.model).parameters(),
-                "lr": self.training_config.learning_rate,
+                "lr": base_lr,  # Will be scaled by lr_lambda
             },
         ]
 
@@ -103,7 +116,7 @@ class DefaultLightningModule(
                 {
                     "params": list(self.model.get_output_embeddings().parameters())
                     + list(self.model.get_input_embeddings().parameters()),
-                    "lr": self.training_config.learning_rate / 10,
+                    "lr": base_lr / 10,  # Maintain the 1/10 ratio for these layers
                 }
             )
 
@@ -115,6 +128,7 @@ class DefaultLightningModule(
             optimizer = AdamW(parameters, **adam_params)
 
         scheduler = LambdaLR(optimizer, lr_lambda=self.lr_lambda)
+
         return {
             "optimizer": optimizer,
             "lr_scheduler": {

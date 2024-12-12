@@ -20,6 +20,7 @@ class TrainingConfig(BaseModel):
         False, description="Whether to use early stopping during training"
     )
     learning_rate: float = Field(1e-3, description="The learning rate for the model")
+    initial_lr: float = Field(0, description="The initial learning rate for the model")
     warmup_steps: int = Field(50, description="The number of warmup steps")
     max_grad_norm: float = Field(
         1.0, description="The maximum gradient norm for gradient clipping"
