@@ -69,7 +69,7 @@ class DefaultLightningModule(
         )
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
-    def lr_lambda(self, current_step: int) -> float:
+    def lr_lambda_warmup_decay(self, current_step: int) -> float:
         """Get the learning rate for the given step using a lambda function
 
         The scheduler starts from training_config.initial_lr and scales up to
@@ -94,6 +94,19 @@ class DefaultLightningModule(
             cosine_decay = 0.5 * (1.0 + math.cos(min(math.pi, progress * math.pi)))
             return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
 
+    def lr_lambda_decay(self, current_step: int) -> float:
+        """Get the learning rate for the given step using a lambda function
+
+        The scheduler starts from training_config.initial_lr and decays with cosine schedule
+        """
+        total_steps = self.training_config.max_training_steps
+        min_lr_factor = 0.1
+
+        # Cosine decay from learning_rate to min_lr
+        progress = min(1.0, current_step / total_steps)
+        cosine_decay = 0.5 * (1.0 + math.cos(min(math.pi, progress * math.pi)))
+        return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
+
     def configure_optimizers(self):
         # Scale the initial learning rates based on the initial_lr parameter
         base_lr = self.training_config.learning_rate
@@ -101,7 +114,7 @@ class DefaultLightningModule(
         adam_params = {
             "lr": base_lr,  # Keep the target learning rate
             "betas": (0.9, 0.95),
-            "weight_decay": 0.001,
+            "weight_decay": 0.001 if not self.config.enable_normalization else 0.0,
         }
 
         parameters = [
@@ -127,7 +140,14 @@ class DefaultLightningModule(
         else:
             optimizer = AdamW(parameters, **adam_params)
 
-        scheduler = LambdaLR(optimizer, lr_lambda=self.lr_lambda)
+        scheduler = LambdaLR(
+            optimizer,
+            lr_lambda=(
+                self.lr_lambda
+                if not self.config.enable_normalization
+                else self.lr_lambda_decay
+            ),
+        )
 
         return {
             "optimizer": optimizer,
