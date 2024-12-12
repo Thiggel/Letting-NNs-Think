@@ -1,19 +1,18 @@
 from typing import Any
 import wandb
-import os
 import torch
 from pydantic import BaseModel
 
-from experiment.models import DefaultLightningModule
 from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
 from experiment.model_evaluator import ModelEvaluator
 
 from .HasTokenizer import HasTokenizer
+from .HasModel import HasModel
 
 
-class EvaluationRunner(Runner, HasTokenizer):
+class EvaluationRunner(Runner, HasTokenizer, HasModel):
     """Handles model evaluation"""
 
     def __init__(self, configs: dict[str, BaseModel]):
@@ -34,6 +33,8 @@ class EvaluationRunner(Runner, HasTokenizer):
 
     def run(self, seed: int) -> dict[str, float]:
         model = self._load_model(seed)
+        model.to(self.device)
+        model.setup("test")
 
         evaluator = ModelEvaluator(
             model,
@@ -51,43 +52,6 @@ class EvaluationRunner(Runner, HasTokenizer):
             self._log_results(results, seed)
 
         return self._format_results(results)
-
-    def _load_model(self, seed: int) -> DefaultLightningModule:
-        model = DefaultLightningModule(
-            self.model_config,
-            self.training_config,
-            self.data_config,
-            self.tokenizer,
-        )
-        model.to(self.device)
-        model.setup("test")
-
-        print(model)
-
-        if self.evaluation_config.load_from_checkpoint:
-            checkpoint_path = os.path.join(
-                os.environ["BASE_CACHE_DIR"],
-                f"{self.evaluation_config.load_from_checkpoint}_{seed}.pt",
-            )
-            print("Loading from checkpoint", checkpoint_path)
-
-            checkpoint = torch.load(checkpoint_path)
-
-            state_dict = (
-                checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
-            )
-            missing_keys, unexpected_keys = model.load_state_dict(
-                state_dict, strict=False
-            )
-            print("Missing keys:", missing_keys)
-            print("Unexpected keys:", unexpected_keys)
-
-            return model
-
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = model.to(device)
-
-        return model
 
     def _log_results(self, results: dict[str, Any], seed):
         wandb.init(

@@ -23,9 +23,10 @@ from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
 
 from .HasTokenizer import HasTokenizer
+from .HasModel import HasModel
 
 
-class TrainRunner(Runner, HasTokenizer):
+class TrainRunner(Runner, HasTokenizer, HasModel):
     """Handles model training using PyTorch Lightning"""
 
     def __init__(self, configs: dict[str, BaseModel]):
@@ -51,9 +52,9 @@ class TrainRunner(Runner, HasTokenizer):
             self.tokenizer,
             seed,
         )
-        model = DefaultLightningModule(
-            self.model_config, self.training_config, self.data_config, self.tokenizer
-        )
+
+        model = self._load_model(seed)
+
         trainer = self._setup_trainer(seed)
 
         print(model)
