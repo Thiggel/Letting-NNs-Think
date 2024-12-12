@@ -1,5 +1,7 @@
 from transformers import AutoModelForCausalLM, PreTrainedModel
+import math
 import torch
+from torch import nn
 from peft import get_peft_model, LoraConfig, TaskType
 from experiment.configs import ModelConfig
 
@@ -36,6 +38,12 @@ class ModelAdapter(
 
         self.model = self._initialize_model()
 
+        if not self.config.pretrained:
+            self._init_embeddings()
+
+        if self.config.enable_normalization:
+            self.normalize_weights()
+
     def _get_peft_model(self, model: PreTrainedModel) -> PreTrainedModel:
         if self.config.finetune_mode == "lora":
             print("Using LoRA")
@@ -52,10 +60,22 @@ class ModelAdapter(
 
         return model
 
+    def _init_embeddings(self):
+        std = 1.0 / math.sqrt(self.model.config.hidden_size)
+        nn.init.normal_(self.model.get_input_embeddings().weight, std=std)
+        nn.init.normal_(self.model.get_output_embeddings().weight, std=std)
+
     def _initialize_model(self) -> PreTrainedModel:
-        model = AutoModelForCausalLM.from_pretrained(
-            self.config.model_name, attn_implementation="eager"
-        )
+        if self.config.pretrained:
+            model = AutoModelForCausalLM.from_pretrained(
+                self.config.model_name, attn_implementation="eager"
+            )
+        else:
+            config = AutoConfig.from_pretrained(self.config.model_name)
+            model = AutoModelForCausalLM.from_config(
+                config, attn_implementation="eager"
+            )
+
         model.use_cache = False
         model.train()
 

@@ -1,5 +1,7 @@
 from typing import Optional, Tuple
+import math
 import torch
+from torch import nn
 import torch.nn.functional as F
 from transformers.cache_utils import Cache
 from transformers.models.llama.modeling_llama import (
@@ -23,6 +25,7 @@ class NormalizedLlamaSdpaAttention(LlamaAttention):
     def __init__(self, config: LlamaConfig, layer_idx: int):
         super().__init__(config, layer_idx)
 
+        self.config = config
         self.sqk_init_value = 1.0
         self.sqk_init_scaling = 1.0 / (config.hidden_size**0.5)
         self.sqk_query = torch.nn.Parameter(
@@ -38,6 +41,21 @@ class NormalizedLlamaSdpaAttention(LlamaAttention):
                 dtype=torch.float32,
             )
         )
+
+        self._init_weights()
+        self.normalize_weights()
+
+    def _init_weights(self):
+        # Input matrices
+        std = 1.0 / math.sqrt(self.config.hidden_size)
+        # Output matrices - scaled by sqrt(2 × num_layers) per paper
+        out_std = std * math.sqrt(2.0 * self.config.num_hidden_layers)
+
+        # Attention
+        nn.init.normal_(self.q_proj.weight, std=std)
+        nn.init.normal_(self.k_proj.weight, std=std)
+        nn.init.normal_(self.v_proj.weight, std=std)
+        nn.init.normal_(self.o_proj.weight, std=out_std)  # Output projection
 
     def normalize_weights(self):
         self.q_proj.weight.data.copy_(F.normalize(self.q_proj.weight.data, dim=-1))

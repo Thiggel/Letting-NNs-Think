@@ -28,6 +28,9 @@ class ModelConfig(
     """Configuration for model architecture and behavior"""
 
     model_name: str = Field("gpt2", description="The model name to be used")
+    pretrained: bool = Field(
+        False, description="Whether to use a pretrained model or not"
+    )
     finetune_mode: FinetuneMode = Field(
         "lora", description="The finetuning mode to use"
     )

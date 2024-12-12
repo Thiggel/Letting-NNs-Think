@@ -1,3 +1,4 @@
+import math
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -35,6 +36,19 @@ class NormalizedLlamaMLP(nn.Module):
         self.s_scaling = (self.s_init_value / self.s_init_scaling) * (
             config.hidden_size**0.5
         )
+
+        self._init_weights()
+        self.normalize_weights()
+
+    def _init_weights(self):
+        # Input matrices
+        std = 1.0 / math.sqrt(self.config.hidden_size)
+        # Output matrices - scaled by sqrt(2 × num_layers) per paper
+        out_std = std * math.sqrt(2.0 * self.config.num_hidden_layers)
+        # MLP
+        nn.init.normal_(self.up_proj.weight, std=std)
+        nn.init.normal_(self.gate_proj.weight, std=std)
+        nn.init.normal_(self.down_proj.weight, std=out_std)  # Output projection
 
     def normalize_weights(self):
         self.up_proj.weight.data.copy_(F.normalize(self.up_proj.weight.data, dim=-1))
