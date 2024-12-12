@@ -20,7 +20,7 @@ srun python -m experiment \
   --grad-acc-steps 1 \
   --seq-length 128 \
   --learning-rate 1e-4 \
-  --warmup-steps 36000 \ # 50000
+  --warmup-steps 36000 \
   --initial-lr 3e-6 \
   --validate-every-n-steps 1000 \
   --max-hours 144 \
