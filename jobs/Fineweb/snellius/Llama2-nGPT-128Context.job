@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=2
 #SBATCH --job-name=Llama2_Fineweb_nGPT_128Context
-#SBATCH --time=6-04:00:00
+#SBATCH --time=3-00:00:00
 #SBATCH --output=job_logs/Llama2_Fineweb_nGPT_128Context_%A.out
 
 cd $HOME/Letting-NNs-Think
