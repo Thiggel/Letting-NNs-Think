@@ -108,32 +108,17 @@ class SyntheticDataGenerator:
 
     def _generate_arithmetic_expression(self, num_steps: int) -> Tuple[str, float]:
         """Generate a complex arithmetic expression with given number of operations."""
-        operators = ["+", "-", "*", "/"]
+        operators = ["+", "-", "*"]
         numbers = []
         ops = []
 
         # Generate first number
-        numbers.append(random.randint(1, 20))
+        numbers.append(random.randint(1, 10))
 
         # Generate operations and numbers
         for _ in range(num_steps):
             op = random.choice(operators)
-            # For division, ensure clean division when possible
-            if op == "/":
-                current_result = eval(
-                    " ".join(
-                        map(
-                            str,
-                            [numbers[0]]
-                            + [f"{ops[i]} {numbers[i+1]}" for i in range(len(ops))],
-                        )
-                    )
-                )
-                num = random.randint(1, 10)
-                while current_result % num != 0 and len(str(current_result / num)) > 5:
-                    num = random.randint(1, 10)
-            else:
-                num = random.randint(1, 20)
+            num = random.randint(1, 20)
 
             numbers.append(num)
             ops.append(op)
@@ -266,10 +251,10 @@ def generate_all_datasets(num_samples: int = 1000000) -> Dict[str, Dataset]:
     generator = SyntheticDataGenerator()
 
     datasets = {
+        "arithmetic_task": generator.generate_arithmetic_task(num_samples),
         "copy_task": generator.generate_copy_task(num_samples),
         "reverse_task": generator.generate_reverse_task(num_samples),
         "sort_task": generator.generate_sort_task(num_samples),
-        "arithmetic_task": generator.generate_arithmetic_task(num_samples),
         "pattern_completion_task": generator.generate_pattern_completion_task(
             num_samples
         ),
@@ -288,8 +273,8 @@ if __name__ == "__main__":
     login(token=hf_token)
 
     # Generate datasets with 1M samples each
-    datasets = generate_all_datasets(10000000)
+    datasets = generate_all_datasets(5000000)
 
     # Push to Hub (you'll need to be logged in)
     for name, dataset in datasets.items():
-        dataset.push_to_hub(f"your-username/synthetic_{name}")
+        dataset.push_to_hub(f"flaitenberger/synthetic_{name}")
