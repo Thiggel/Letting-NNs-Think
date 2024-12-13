@@ -2,7 +2,7 @@ import numpy as np
 from dotenv import load_dotenv
 import os
 import pandas as pd
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Generator
 from datasets import Dataset
 import random
 from tqdm import tqdm
@@ -246,22 +246,23 @@ class SyntheticDataGenerator:
         return Dataset.from_pandas(pd.DataFrame(data))
 
 
-def generate_all_datasets(num_samples: int = 1000000) -> Dict[str, Dataset]:
+def generate_all_datasets(
+    num_samples: int = 1000000,
+) -> Generator[Tuple[str, Dataset], None, None]:
     """Generate all synthetic datasets."""
     generator = SyntheticDataGenerator()
 
     datasets = {
-        "arithmetic_task": generator.generate_arithmetic_task(num_samples),
-        "copy_task": generator.generate_copy_task(num_samples),
-        "reverse_task": generator.generate_reverse_task(num_samples),
-        "sort_task": generator.generate_sort_task(num_samples),
-        "pattern_completion_task": generator.generate_pattern_completion_task(
-            num_samples
-        ),
-        "bracket_matching_task": generator.generate_bracket_matching_task(num_samples),
+        "arithmetic_task": generator.generate_arithmetic_task,
+        "copy_task": generator.generate_copy_task,
+        "reverse_task": generator.generate_reverse_task,
+        "sort_task": generator.generate_sort_task,
+        "pattern_completion_task": generator.generate_pattern_completion_task,
+        "bracket_matching_task": generator.generate_bracket_matching_task,
     }
 
-    return datasets
+    for name, generator_func in datasets.items():
+        yield name, generator_func(num_samples)
 
 
 # Example usage:
@@ -276,5 +277,5 @@ if __name__ == "__main__":
     datasets = generate_all_datasets(5000000)
 
     # Push to Hub (you'll need to be logged in)
-    for name, dataset in datasets.items():
+    for name, dataset in datasets:
         dataset.push_to_hub(f"flaitenberger/synthetic_{name}")
