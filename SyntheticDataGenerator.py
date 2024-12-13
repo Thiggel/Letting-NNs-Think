@@ -288,7 +288,7 @@ if __name__ == "__main__":
     login(token=hf_token)
 
     # Generate datasets with 1M samples each
-    datasets = generate_all_datasets(1000000)
+    datasets = generate_all_datasets(10000000)
 
     # Push to Hub (you'll need to be logged in)
     for name, dataset in datasets.items():
