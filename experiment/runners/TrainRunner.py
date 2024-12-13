@@ -53,7 +53,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             seed,
         )
 
-        model = self._load_model(seed)
+        model = self._load_model(seed, mode="train")
 
         trainer = self._setup_trainer(seed)
 

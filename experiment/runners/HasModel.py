@@ -16,13 +16,16 @@ class HasModelProtocol(Protocol):
 
 
 class HasModel:
-    def _load_model(self: HasModelProtocol, seed: int) -> DefaultLightningModule:
+    def _load_model(
+        self: HasModelProtocol, seed: int, mode: str = "train"
+    ) -> DefaultLightningModule:
         model = DefaultLightningModule(
             self.model_config,
             self.training_config,
             self.data_config,
             self.tokenizer,
         )
+        model.setup(mode)
 
         print(model)
 

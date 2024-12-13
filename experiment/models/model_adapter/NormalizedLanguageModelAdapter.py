@@ -98,13 +98,15 @@ class NormalizedLanguageModelAdapter(CanNormalize):
             else:
                 raise ValueError(f"Unsupported layer type: {type(layer)}")
 
-            missing_keys, unexpected_keys = new_layer.load_state_dict(
-                layer.state_dict(), strict=False
-            )
-
             print(f"Layer {idx} changed to normalized layer")
-            print(f"Missing keys: {missing_keys}")
-            print(f"Unexpected keys: {unexpected_keys}")
+
+            if self.config.pretrained:
+                missing_keys, unexpected_keys = new_layer.load_state_dict(
+                    layer.state_dict(), strict=False
+                )
+
+                print(f"Missing keys: {missing_keys}")
+                print(f"Unexpected keys: {unexpected_keys}")
 
             layers[idx] = new_layer
 

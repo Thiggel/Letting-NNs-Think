@@ -119,7 +119,11 @@ class DefaultLightningModule(
 
         parameters = [
             {
-                "params": self.get_decoder_layers(self.model).parameters(),
+                "params": (
+                    self.get_decoder_layers(self.model).parameters()
+                    if not self.config.finetune_mode == "full"
+                    else self.model.parameters()
+                ),
                 "lr": base_lr,  # Will be scaled by lr_lambda
             },
         ]

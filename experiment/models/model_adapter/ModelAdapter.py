@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM, PreTrainedModel
+from transformers import AutoModelForCausalLM, PreTrainedModel, AutoConfig
 import math
 import torch
 from torch import nn

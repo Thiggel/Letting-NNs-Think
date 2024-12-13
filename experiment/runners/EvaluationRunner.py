@@ -32,9 +32,8 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def run(self, seed: int) -> dict[str, float]:
-        model = self._load_model(seed)
+        model = self._load_model(seed, mode="test")
         model.to(self.device)
-        model.setup("test")
 
         evaluator = ModelEvaluator(
             model,

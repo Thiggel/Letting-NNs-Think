@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH --partition=gpu_h100
-#SBATCH --gpus=2
+#SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
-#SBATCH --ntasks-per-node=2
+#SBATCH --ntasks-per-node=1
 #SBATCH --job-name=Llama2_Fineweb_nGPT_128Context
 #SBATCH --time=3-00:00:00
-#SBATCH --output=job_logs/Llama2_Fineweb_nGPT_128Context_%A.out
+#SBATCH --output=job_logs/Llama2_Fineweb_nGPT_128Context_FromScratch_%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -19,15 +19,15 @@ srun python -m experiment \
   --batch-size 128 \
   --grad-acc-steps 1 \
   --seq-length 128 \
-  --learning-rate 1e-4 \
-  --warmup-steps 36000 \
-  --initial-lr 3e-6 \
+  --learning-rate 1e-3 \
   --validate-every-n-steps 1000 \
   --max-hours 144 \
   --max-training-steps 3000000 \
   --max-epochs 1 \
+  --max-grad-norm 1.0 \
   --enable-normalization \
-  --experiment-name Llama2_Fineweb_nGPT_128Context \
-  --load-from-checkpoint Llama2_Fineweb_nGPT_128Context \
-  --save-to-checkpoint Llama2_Fineweb_nGPT_128Context \
+  --experiment-name Llama2_Fineweb_nGPT_128Context_FromScratch \
+  --load-from-checkpoint Llama2_Fineweb_nGPT_128Context_FromScratch \
+  --pretrained \
+  --save-to-checkpoint Llama2_Fineweb_nGPT_128Context_FromScratch \
   --enable-logging
