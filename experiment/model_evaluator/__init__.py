@@ -1,1 +1,2 @@
 from .ModelEvaluator import ModelEvaluator
+from .SyntheticDatasetEvaluator import SyntheticDatasetEvaluator

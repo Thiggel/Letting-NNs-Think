@@ -6,11 +6,10 @@ from pydantic import BaseModel
 from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
-from experiment.model_evaluator import ModelEvaluator
+from experiment.model_evaluator import ModelEvaluator, SyntheticDatasetEvaluator
 
 from .HasTokenizer import HasTokenizer
 from .HasModel import HasModel
-from .SyntheticDatasetEvaluator import SyntheticDatasetEvaluator
 
 
 class EvaluationRunner(Runner, HasTokenizer, HasModel):
