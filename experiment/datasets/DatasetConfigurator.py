@@ -13,7 +13,7 @@ class DatasetConfigurator:
 
     @staticmethod
     def get_all_dataset_configs() -> dict[str, dict[str, Any]]:
-        return {
+        base_configs = {
             "ultrafeedback": {
                 "name": "openbmb/UltraFeedback",
                 "q_func": lambda x: f"Question: {x['instruction']}\n\nAnswer:",
@@ -30,7 +30,7 @@ class DatasetConfigurator:
             },
             "fineweb": {
                 "name": "HuggingFaceFW/fineweb",
-                "subset": "CC-MAIN-2022-33",
+                "subset": "CC-MAIN-2023-50",
                 "q_func": lambda x: x["text"],
                 "ans_func": lambda x: "",
                 "train_field": "train",
@@ -45,4 +45,47 @@ class DatasetConfigurator:
                 "train_field": "train",
                 "test_field": "test",
             },
+            "synthetic_arithmetic_task": {
+                "name": "flaitenberger/synthetic_arithmetic_task",
+                "train_field": "train",
+                "q_func": lambda x: x["text"].split(" = ")[0],
+                "ans_func": lambda x: " = " + x["text"].split(" = ")[1],
+                "use_loss_mask": True,
+                "streaming": False,
+                "test_subset": 1000,
+                # Pass through the loss mask from the dataset
+                "process_func": lambda x: {
+                    "text": x["text"],
+                    "loss_mask": x["loss_mask"],
+                    "input_len": x["input_len"],
+                },
+            },
         }
+
+        # Add synthetic dataset configurations
+        synthetic_tasks = [
+            "copy_task",
+            "reverse_task",
+            "sort_task",
+            "pattern_completion_task",
+            "bracket_matching_task",
+        ]
+
+        for task in synthetic_tasks:
+            base_configs[f"synthetic_{task}"] = {
+                "name": f"flaitenberger/synthetic_{task}",
+                "train_field": "train",
+                "q_func": lambda x: x["text"].split(" -> ")[0],
+                "ans_func": lambda x: " -> " + x["text"].split(" -> ")[1],
+                "use_loss_mask": True,
+                "streaming": False,
+                "test_subset": 1000,
+                # Pass through the loss mask from the dataset
+                "process_func": lambda x: {
+                    "text": x["text"],
+                    "loss_mask": x["loss_mask"],
+                    "input_len": x["input_len"],
+                },
+            }
+
+        return base_configs

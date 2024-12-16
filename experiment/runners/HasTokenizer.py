@@ -1,92 +1,175 @@
-from transformers import AutoTokenizer, PreTrainedTokenizer
-from tokenizers import Tokenizer, models, normalizers, pre_tokenizers, trainers
-from tokenizers.processors import TemplateProcessing
-from datasets import Dataset, load_dataset
-from pathlib import Path
+from transformers import PreTrainedTokenizerFast, PreTrainedTokenizer
+from tokenizers import (
+    Tokenizer,
+    models,
+    normalizers,
+    pre_tokenizers,
+    trainers,
+    processors,
+)
 from pydantic import BaseModel
+from pathlib import Path
 import os
+from datasets import load_dataset
 
+from experiment.datasets import DatasetConfigurator
 from experiment.configs import ModelConfig, DataConfig
-from experiment.datasets.DatasetConfigurator import DatasetConfigurator
 
 
 class HasTokenizer:
     configs: dict[str, BaseModel]
 
+    def _get_tokenizer_path(self, dataset_name: str) -> Path:
+        """Get the path where tokenizers should be stored."""
+        return Path(
+            os.getenv("BASE_CACHE_DIR", "") + f"/tokenizers/{dataset_name}_tokenizer"
+        )
+
     def _initialize_tokenizer(self) -> PreTrainedTokenizer:
         model_config: ModelConfig = self.configs[ModelConfig.__name__]
         data_config: DataConfig = self.configs[DataConfig.__name__]
 
-        # Check if we should use a custom tokenizer
         tokenizer_path = self._get_tokenizer_path(data_config.dataset)
 
-        if tokenizer_path.exists():
+        if (tokenizer_path / "tokenizer.json").exists():
             print(f"Loading custom tokenizer from {tokenizer_path}")
-            return AutoTokenizer.from_pretrained(str(tokenizer_path))
+
+            fast_tokenizer = PreTrainedTokenizerFast(
+                tokenizer_file=str(tokenizer_path / "tokenizer.json"),
+                bos_token="[BOS]",
+                eos_token="[EOS]",
+                unk_token="[UNK]",
+                sep_token="[SEP]",
+                pad_token="[PAD]",
+            )
+
+            print("\nExample tokenizations:")
+            test_strings = ["1 * 9 + 8 + 4 * 18 + 19 - 2 + 3 + 8 = 117"]
+            for test in test_strings:
+                ids = fast_tokenizer.encode(str(test))
+                decoded = fast_tokenizer.decode(ids)
+                print(f"'{test}' -> {ids} -> '{decoded}'")
+
+            # Verify special token IDs
+            print("\nVerifying special token IDs:")
+            for token in fast_tokenizer.all_special_tokens:
+                print(f"{token}: {fast_tokenizer.convert_tokens_to_ids(token)}")
+
+            return fast_tokenizer
 
         if not model_config.pretrained:
             print("Training new tokenizer on dataset")
             return self._train_tokenizer(data_config.dataset)
 
-        # Fall back to pretrained tokenizer
+        print(f"Using pretrained tokenizer from {model_config.model_name}")
         tokenizer = AutoTokenizer.from_pretrained(model_config.model_name)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         return tokenizer
 
-    def _get_tokenizer_path(self, dataset_name: str) -> Path:
-        cache_dir = Path(os.getenv("BASE_CACHE_DIR", "."))
-        return cache_dir / "tokenizers" / f"{dataset_name}_tokenizer"
-
     def _train_tokenizer(self, dataset_name: str) -> PreTrainedTokenizer:
-        # Initialize a new tokenizer
+        """Train a simple tokenizer on any text dataset."""
+        print(f"Training new tokenizer for dataset: {dataset_name}")
+
+        # Initialize with BPE model
         tokenizer = Tokenizer(models.BPE())
 
-        # Add normalization and pre-tokenization
+        # Basic normalizer
         tokenizer.normalizer = normalizers.Sequence(
-            [normalizers.NFD(), normalizers.Lowercase(), normalizers.StripAccents()]
+            [
+                normalizers.Strip(),
+                normalizers.Lowercase(),
+                normalizers.NFD(),
+                normalizers.StripAccents(),
+            ]
         )
-        tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
 
-        # Get dataset config
+        # Enhanced pre-tokenizer
+        tokenizer.pre_tokenizer = pre_tokenizers.Sequence(
+            [
+                pre_tokenizers.Digits(individual_digits=True),
+                pre_tokenizers.Punctuation(),
+                pre_tokenizers.Whitespace(),
+            ]
+        )
+
+        # Get dataset config and prepare training data
         dataset_config = DatasetConfigurator.get_dataset_config(dataset_name)
-
-        # Load dataset
+        print("Loading dataset for tokenizer training...")
         ds = load_dataset(dataset_config["name"], dataset_config.get("subset"))
         train_data = ds[dataset_config["train_field"]]
 
-        # Prepare training data
         def get_training_corpus():
             for i in range(0, len(train_data), 1000):
                 batch = train_data[i : i + 1000]
-                texts = [
-                    dataset_config["q_func"](x) + dataset_config["ans_func"](x)
-                    for x in batch
-                ]
-                yield texts
+                yield [str(text) for text in batch["text"] if text is not None]
 
-        # Configure and train the tokenizer
+        # Define special tokens with unique IDs
+        special_tokens = {
+            "[PAD]": 0,
+            "[UNK]": 1,
+            "[BOS]": 2,
+            "[EOS]": 3,
+            "[SEP]": 4,
+        }
+
+        # Train with more robust parameters and explicit special token IDs
         trainer = trainers.BpeTrainer(
-            vocab_size=32000,
-            special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"],
+            vocab_size=8000,
+            special_tokens=list(special_tokens.keys()),
+            initial_alphabet=[
+                str(i) for i in range(10)
+            ],  # Add digits to initial alphabet
+            min_frequency=2,
+            show_progress=True,
         )
 
+        print("Training tokenizer...")
         tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
 
-        # Add post-processing
-        tokenizer.post_processor = TemplateProcessing(
-            single="[CLS] $A [SEP]",
-            pair="[CLS] $A [SEP] $B:1 [SEP]:1",
+        # Explicitly set token IDs for special tokens
+        for token, id_ in special_tokens.items():
+            tokenizer.add_special_tokens([token])
+            tokenizer.token_to_id(token)  # Ensure token is in vocabulary
+
+        # Post-processor for adding BOS/EOS tokens
+        tokenizer.post_processor = processors.TemplateProcessing(
+            single="[BOS] $A [EOS]",
+            pair="[BOS] $A [SEP] $B [EOS]",
             special_tokens=[
-                ("[CLS]", tokenizer.token_to_id("[CLS]")),
+                ("[BOS]", tokenizer.token_to_id("[BOS]")),
                 ("[SEP]", tokenizer.token_to_id("[SEP]")),
+                ("[EOS]", tokenizer.token_to_id("[EOS]")),
             ],
         )
 
-        # Save the tokenizer
+        # Save tokenizer
         save_path = self._get_tokenizer_path(dataset_name)
-        save_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Saving tokenizer files to {save_path}")
+
+        save_path.mkdir(parents=True, exist_ok=True)
         tokenizer.save(str(save_path / "tokenizer.json"))
 
-        # Convert to PreTrainedTokenizer
-        return AutoTokenizer.from_pretrained(str(save_path))
+        # Create and return the PreTrainedTokenizerFast
+        fast_tokenizer = PreTrainedTokenizerFast(
+            tokenizer_object=tokenizer,
+            bos_token="[BOS]",
+            eos_token="[EOS]",
+            unk_token="[UNK]",
+            sep_token="[SEP]",
+            pad_token="[PAD]",
+        )
+
+        print("\nExample tokenizations:")
+        test_strings = train_data["text"][:2]
+        for test in test_strings:
+            ids = fast_tokenizer.encode(str(test))
+            decoded = fast_tokenizer.decode(ids)
+            print(f"'{test}' -> {ids} -> '{decoded}'")
+
+        # Verify special token IDs
+        print("\nVerifying special token IDs:")
+        for token in special_tokens:
+            print(f"{token}: {fast_tokenizer.convert_tokens_to_ids(token)}")
+
+        return fast_tokenizer
