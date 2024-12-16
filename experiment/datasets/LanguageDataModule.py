@@ -232,7 +232,42 @@ class LanguageDataModule(LightningDataModule):
         if not self.datasets or not self.datasets.train:
             raise ValueError("Training dataset not initialized")
 
-        return DataLoader(
+        class RetryingDataLoader(DataLoader):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.samples_seen = 0
+
+            def __iter__(self):
+                max_retries = 10
+                while True:
+                    try:
+                        iterator = super().__iter__()
+                        for batch in iterator:
+                            self.samples_seen += len(batch["input_ids"])
+                            yield batch
+                    except FileNotFoundError:
+                        print(
+                            f"FileNotFoundError after {self.samples_seen} samples, retrying..."
+                        )
+                        for _ in range(max_retries):
+                            try:
+                                # Skip to approximately where we were
+                                self.dataset = load_dataset(
+                                    self.dataset.config["name"],
+                                    self.dataset.config.get("subset"),
+                                    streaming=True,
+                                    trust_remote_code=True,
+                                )[self.dataset.config["train_field"]].skip(
+                                    self.samples_seen
+                                )
+                                break
+                            except FileNotFoundError:
+                                import time
+
+                                time.sleep(5)
+                        continue
+
+        return RetryingDataLoader(
             self.datasets.train,
             batch_size=self.data_config.batch_size,
             shuffle=not isinstance(self.datasets.train, IterableDataset),
