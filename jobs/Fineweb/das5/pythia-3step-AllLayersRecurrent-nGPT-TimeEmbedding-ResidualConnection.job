@@ -1,0 +1,31 @@
+#!/bin/bash
+
+#SBATCH --gres=gpu:4
+#SBATCH -C GTX1080Ti
+#SBATCH --ntasks-per-node=4
+#SBATCH --job-name=Pythia_Fineweb_nGPT_3step_TimeEmbedding_ResidualConnection_AllLayersRecurrent
+#SBATCH --time=5-04:30:00
+#SBATCH --output=job_logs/Pythia_Fineweb_nGPT_1RecurrentLayer_3Step_TimeEmbedding_ResidualConnection_AllLayersRecurrent_%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset fineweb \
+    --finetune-mode full \
+    --enable-normalization \
+    --use-time-embedding \
+    --batch-size 8 \
+    --grad-acc-steps 32 \
+    --learning-rate 3e-4 \
+    --warmup-steps 20000 \
+    --total-training-steps 4000000 \
+    --max-hours 120 \
+    --make-layers-recurrent "all" \
+    --num-steps 3 \
+    --add-residual-connection \
+    --experiment-name Pythia_Fineweb_nGPT_3Step_TimeEmbedding_ResidualConnection_AllLayersRecurrent \
+    --save-to-checkpoint Pythia_Fineweb_nGPT_3Step_TimeEmbedding_ResidualConnection_AllLayersRecurrent \
+    --enable-logging

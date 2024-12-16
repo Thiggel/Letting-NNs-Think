@@ -6,7 +6,7 @@ from typing import Any
 
 
 class BatchCollator:
-    """Handles batch collation operations"""
+    """Handles batch collation operations with character to token mask conversion"""
 
     def __init__(self, tokenizer: PreTrainedTokenizer, max_length: int):
         self.tokenizer = tokenizer
@@ -24,11 +24,50 @@ class BatchCollator:
             [torch.tensor(item["labels"]) for item in batch], -100
         )
 
-        return {
+        result = {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "labels": labels,
         }
+
+        if "loss_mask" in batch[0]:
+            # Convert character-level masks to token-level masks
+            token_level_masks = []
+            for item in batch:
+                char_mask = item["loss_mask"]
+                text = self.tokenizer.decode(item["input_ids"])
+                token_mask = self._char_to_token_mask(text, char_mask)
+                token_level_masks.append(torch.tensor(token_mask))
+
+            loss_mask = self._pad_and_truncate(token_level_masks, 0)
+            result["loss_mask"] = loss_mask
+
+        return result
+
+    def _char_to_token_mask(self, text: str, char_mask: list[int]) -> list[int]:
+        """Convert character-level mask to token-level mask.
+
+        A token's mask value is 1 if any character within it has mask value 1.
+        This ensures we don't lose any masked positions during tokenization.
+        """
+        # Get the token to chars mapping
+        encoding = self.tokenizer(
+            text, return_offsets_mapping=True, add_special_tokens=False
+        )
+        token_mask = []
+
+        # For each token, check if any character in its span has mask value 1
+        for start, end in encoding.offset_mapping:
+            # If the token is a special token (offset_mapping contains None)
+            if start is None or end is None:
+                token_mask.append(0)
+                continue
+
+            # Check if any character in the token's span has mask value 1
+            span_mask = char_mask[start:end]
+            token_mask.append(1 if any(m == 1 for m in span_mask) else 0)
+
+        return token_mask
 
     def _pad_and_truncate(
         self, sequences: list[torch.Tensor], padding_value: int
