@@ -42,6 +42,8 @@ class FixedStepsStrategy(RecurrenceStrategy):
                 **kwargs,
             )[0:2]
 
+            print("present222", present)
+
             if step < self.num_steps - 1:
                 intermediate_outputs.append(hidden_states.clone())
 
