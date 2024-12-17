@@ -97,6 +97,4 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         else:
             outputs = (hidden_states,) + outputs[1:]  # hidden_states, (attn_weights)
 
-        print("outputs", outputs)
-
         return outputs

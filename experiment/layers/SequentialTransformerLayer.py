@@ -14,9 +14,13 @@ class SequentialTransformerLayer(nn.Module):
         }
         for layer in self.layers:
             x = layer(x, *args, **supported_kwargs)
+            print("xxx", x)
             if type(x) == tuple:
                 x = x[0]
                 rest = x[1:]
+
+        print("rest", rest)
+        exit()
 
         return x, rest
 

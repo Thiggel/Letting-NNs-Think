@@ -44,8 +44,6 @@ class FixedStepsStrategy(RecurrenceStrategy):
 
             hidden_states = output[0]
 
-            print("present222", output)
-
             if step < self.num_steps - 1:
                 intermediate_outputs.append(hidden_states.clone())
 
