@@ -25,7 +25,7 @@ from transformers.models.gpt_neox.modeling_gpt_neox import (
 logger = logging.get_logger(__name__)
 
 
-class GPTNeoXModel(GPTNeoXPreTrainedModel):
+class NormalizedGPTNeoXModel(GPTNeoXPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.config = config
@@ -193,6 +193,7 @@ class GPTNeoXModel(GPTNeoXPreTrainedModel):
                     position_embeddings,
                 )
             else:
+                print(f"Before layer {i}, past_key_values: {past_key_values}")
                 outputs = layer(
                     hidden_states,
                     attention_mask=causal_mask,

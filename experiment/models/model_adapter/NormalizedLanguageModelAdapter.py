@@ -14,6 +14,7 @@ from experiment.layers.normalized_transformer.normalized_gemma import (
 )
 from experiment.layers.normalized_transformer.normalized_gpt_neox import (
     NormalizedGPTNeoXLayer,
+    NormalizedGPTNeoXModel,
 )
 from experiment.layers.normalized_transformer.normalized_llama import (
     NormalizedLlamaDecoderLayer,
@@ -43,6 +44,9 @@ class NormalizedLanguageModelAdapter(CanNormalize):
     def _add_normalization(
         self: NormalizedLanguageModelAdapterProtocol, model: nn.Module
     ):
+        if has_attr(model, "gpt_neox"):
+            model.gpt_neox = NormalizedGPTNeoXModel(model.config)
+
         if hasattr(model, "lm_head"):
             model.lm_head = NormalizedLMHead(model.lm_head)
         elif hasattr(model, "embed_out"):
