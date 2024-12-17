@@ -35,13 +35,10 @@ class FixedStepsStrategy(RecurrenceStrategy):
             if self.use_time_embedding:
                 hidden_states = self.timestep_embedder(hidden_states, step)
 
-            print(args)
-
             hidden_states = layer(
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
-                *args,
                 **kwargs,
             )
 
