@@ -90,6 +90,8 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
 
         hidden_states = self.normalize(hidden_states + mlp_rates * mlp_output)
 
+        print("present", outputs[0])
+
         if use_cache:
             outputs = (
                 hidden_states,
