@@ -8,8 +8,8 @@ from transformers.cache_utils import Cache, DynamicCache, StaticCache
 from transformers.file_utils import (
     add_code_sample_docstrings,
     add_start_docstrings_to_model_forward,
-    logging,
 )
+from transformers.utils import logging
 
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXLayer,
