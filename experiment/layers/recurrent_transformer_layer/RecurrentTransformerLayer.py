@@ -71,7 +71,12 @@ class RecurrentTransformerLayer(nn.Module):
         position_ids: Optional[torch.Tensor] = None,
         *args,
         **kwargs,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
+    ) -> Tuple[
+        torch.Tensor,
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+    ]:
         # Handle special layer requirements
         if hasattr(self.layer, "squeeze_seq_len"):
             hidden_states = self.layer.squeeze_seq_len(hidden_states)
@@ -111,6 +116,7 @@ class RecurrentTransformerLayer(nn.Module):
             hidden_states = output.hidden_states
 
         self.intermediate_outputs = output.intermediate_outputs
+        print(output.present)
 
         return (
             hidden_states,
