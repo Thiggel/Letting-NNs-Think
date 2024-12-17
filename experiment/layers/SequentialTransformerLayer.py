@@ -12,6 +12,7 @@ class SequentialTransformerLayer(nn.Module):
         supported_kwargs = {
             key: value for key, value in kwargs.items() if key in sig.parameters
         }
+        rest = None
         for layer in self.layers:
             x = layer(x, *args, **supported_kwargs)
             print("xxx", x)
