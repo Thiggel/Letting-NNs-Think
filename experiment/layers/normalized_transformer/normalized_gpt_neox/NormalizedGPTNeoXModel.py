@@ -182,6 +182,7 @@ class NormalizedGPTNeoXModel(GPTNeoXPreTrainedModel):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             if self.gradient_checkpointing and self.training:
+                print("Using gradient checkpointing")
                 outputs = self._gradient_checkpointing_func(
                     layer.__call__,
                     hidden_states,
