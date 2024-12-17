@@ -124,7 +124,7 @@ class DefaultLightningModule(
                 "params": (
                     self.get_decoder_layers(self.model).parameters()
                     if not self.config.finetune_mode == "full"
-                    else self.model.parameters()
+                    else self.parameters()
                 ),
                 "lr": base_lr,  # Will be scaled by lr_lambda
             },
@@ -188,6 +188,51 @@ class DefaultLightningModule(
         return loss
 
     def training_step(self, batch, batch_idx):
+        def print_parameter_info(model):
+            """Print information about all parameters in the model with their indices."""
+            print("Parameter Index | Name | Shape | Module")
+            print("-" * 50)
+            for idx, (name, param) in enumerate(model.named_parameters()):
+                # Find the module this parameter belongs to
+                module_name = None
+                for module_path, module in model.named_modules():
+                    for param_name, module_param in module.named_parameters(
+                        recurse=False
+                    ):
+                        if param is module_param:
+                            module_name = module_path
+                            break
+                    if module_name:
+                        break
+
+                print(
+                    f"{idx:>14} | {name:<20} | {str(param.shape):<15} | {module_name}"
+                )
+                if idx == 75:  # Highlight the problematic parameter
+                    print("^" * 50)
+                    print(f"Parameter 75 found: {name} in module {module_name}")
+                    print("^" * 50)
+
+        def find_parameter_75(model):
+            """Specifically locate parameter 75 in the model."""
+            for idx, (name, param) in enumerate(model.named_parameters()):
+                if idx == 75:
+                    # Find which module this parameter belongs to
+                    for module_path, module in model.named_modules():
+                        for param_name, module_param in module.named_parameters(
+                            recurse=False
+                        ):
+                            if param is module_param:
+                                return {
+                                    "parameter_name": name,
+                                    "module_path": module_path,
+                                    "shape": param.shape,
+                                    "module_type": type(module).__name__,
+                                }
+            return None
+
+        print_parameter_info(self.model)
+        exit()
         return self._step(batch, batch_idx, mode="train")
 
     def validation_step(self, batch, batch_idx):
