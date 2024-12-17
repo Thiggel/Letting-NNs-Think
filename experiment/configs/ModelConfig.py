@@ -14,6 +14,7 @@ class FinetuneMode(str, Enum):
     LORA = "lora"
     UNINTERRUPTED = "lastlayer_lmhead"
     UNINTERRUPTED_LORA = "lmhead_lora"
+    FROZEN = "frozen"
 
 
 class ModelConfig(

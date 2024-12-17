@@ -1,9 +1,16 @@
 from pydantic import Field
+from enum import Enum
+
+
+class UninterruptedMode(Enum):
+    FIRST_LAST_STATE_MSE = "first_last_state_mse"
+    PROJECTION = "projection"
+    INTERRUPTED = "interrupted"
 
 
 class UninterruptedTransformerConfig:
-    make_uninterrupted: bool = Field(
-        False,
+    uninterrupted_mode: UninterruptedMode = Field(
+        "interrupted",
         description="Whether to make the model uninterrupted by making the last hidden state similar to the next token's first embedded state",
     )
     uninterrupted_loss_weight: float = Field(

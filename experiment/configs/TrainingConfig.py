@@ -6,8 +6,6 @@ from enum import Enum
 class TrainingProcedureType(str, Enum):
     DEFAULT = "default"
     REINFORCE = "reinforce"
-    UNINTERRUPTED = "uninterrupted"
-    MAKE_UNINTERRUPTED = "make_uninterrupted"
 
 
 class TrainingConfig(BaseModel):
