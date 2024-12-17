@@ -1,4 +1,4 @@
-from transformers import PreTrainedTokenizerFast, PreTrainedTokenizer
+from transformers import PreTrainedTokenizerFast, PreTrainedTokenizer, AutoTokenizer
 from tokenizers import (
     Tokenizer,
     models,
