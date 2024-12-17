@@ -193,7 +193,9 @@ class NormalizedGPTNeoXModel(GPTNeoXPreTrainedModel):
                     output_attentions,
                 )
             else:
-                print(f"Before layer {i}, past_key_values: {past_key_values}")
+                print(
+                    f"Before layer {i}, past_key_values: {past_key_values[0].shape if past_key_values is not None else None}"
+                )
                 outputs = layer(
                     hidden_states,
                     attention_mask=attention_mask,
