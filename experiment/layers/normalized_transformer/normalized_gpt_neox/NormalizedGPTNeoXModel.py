@@ -177,12 +177,18 @@ class NormalizedGPTNeoXModel(GPTNeoXPreTrainedModel):
         presents = () if use_cache else None
         all_attentions = () if output_attentions else None
         all_hidden_states = () if output_hidden_states else None
+        last_layer_past = None
         for i, (layer, layer_past) in enumerate(zip(self.layers, past_key_values)):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
+            if layer_past is not None:
+                last_layer_past = layer_past
+
+            if last_layer_past is not None:
+                layer_past = last_layer_past
+
             if self.gradient_checkpointing and self.training:
-                print("Using gradient checkpointing")
                 outputs = self._gradient_checkpointing_func(
                     layer.__call__,
                     hidden_states,
