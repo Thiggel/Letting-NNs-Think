@@ -14,8 +14,11 @@ class SequentialTransformerLayer(nn.Module):
         }
         for layer in self.layers:
             x = layer(x, *args, **supported_kwargs)
+            if type(x) == tuple:
+                x = x[0]
+                rest = x[1:]
 
-        return x
+        return x, rest
 
     def __getitem__(self, idx):
         return self.layers[idx]
