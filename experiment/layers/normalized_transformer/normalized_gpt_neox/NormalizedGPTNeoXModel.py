@@ -193,7 +193,7 @@ class NormalizedGPTNeoXModel(GPTNeoXPreTrainedModel):
                     output_attentions,
                 )
             else:
-                if past_key_values is not None:
+                if past_key_values is not None and past_key_values[0] is not None:
                     print(
                         f"Before layer {i}, past_key_values: {past_key_values[0].shape}"
                     )
