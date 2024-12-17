@@ -42,11 +42,11 @@ class FixedStepsStrategy(RecurrenceStrategy):
                 **kwargs,
             )[0:2]
 
-            print(present.shape if present is not None else None)
-
             if step < self.num_steps - 1:
                 intermediate_outputs.append(hidden_states.clone())
 
         return RecurrenceOutput(
-            hidden_states=hidden_states, intermediate_outputs=intermediate_outputs
+            hidden_states=hidden_states,
+            intermediate_outputs=intermediate_outputs,
+            present=present,
         )
