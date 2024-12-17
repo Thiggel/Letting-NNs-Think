@@ -62,10 +62,6 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         ] = None,  # will become mandatory in v4.46
         **kwargs,
     ):
-        if layer_past is not None:
-            print(layer_past[0].shape)
-        else:
-            print("No past")
         # Get eigen learning rates (either static or dynamic)
         attn_rates, mlp_rates = self.get_eigen_rates(hidden_states)
 

@@ -69,16 +69,14 @@ class RecurrentTransformerLayer(nn.Module):
         hidden_states: torch.Tensor,
         attention_mask: torch.Tensor,
         position_ids: Optional[torch.Tensor] = None,
+        **args,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
-        print('kwargs 1', kwargs)
         # Handle special layer requirements
         if hasattr(self.layer, "squeeze_seq_len"):
             hidden_states = self.layer.squeeze_seq_len(hidden_states)
         if hasattr(self.layer, "reset_state"):
             self.layer.reset_state(hidden_states)
-
-        print('kwargs 2', kwargs)
 
         # Clear caching arguments
         # kwargs["past_key_value"] = None
@@ -90,6 +88,7 @@ class RecurrentTransformerLayer(nn.Module):
             attention_mask,
             self.layer,
             position_ids,
+            **args,
             **kwargs,
         )
 
