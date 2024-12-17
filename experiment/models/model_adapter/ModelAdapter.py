@@ -93,9 +93,6 @@ class ModelAdapter(
         if self.config.untie_embedding_and_softmax:
             self._untie_embedding_and_softmax(model)
 
-        if self.config.uninterrupted_mode != "interrupted":
-            model.gradient_checkpointing_enable()
-
         if self.config.make_layers_recurrent is not None:
             model = self._add_recurrence(model)
 
