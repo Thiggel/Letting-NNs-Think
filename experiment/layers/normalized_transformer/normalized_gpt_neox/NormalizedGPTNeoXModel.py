@@ -222,7 +222,7 @@ class NormalizedGPTNeoXModel(GPTNeoXPreTrainedModel):
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
 
-        print(presents)
+        print("presents", presents)
 
         if not return_dict:
             return tuple(
