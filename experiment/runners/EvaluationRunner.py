@@ -55,6 +55,10 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
                 model,
                 self.tokenizer,
                 self.evaluation_config.eval_batch_size,
+                self.data_config,
+                self.model_config,
+                self.training_config,
+                seed,
             )
             for task in synthetic_metrics:
                 task_results = evaluator.evaluate(task)

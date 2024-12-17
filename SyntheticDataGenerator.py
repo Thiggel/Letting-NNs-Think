@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import os
 import pandas as pd
 from typing import Tuple, Dict, Generator
-from datasets import Dataset
+from datasets import Dataset, DatasetDict
 import random
 from tqdm import tqdm
 from huggingface_hub import login
@@ -54,7 +54,20 @@ class SyntheticDataGenerator:
                     "input_len": len(input_seq) + len(self.separator),
                 }
             )
-        return Dataset.from_pandas(pd.DataFrame(data))
+
+        # Create DataFrame and split into train/test
+        df = pd.DataFrame(data)
+        train_size = int(0.9 * len(df))
+        train_df = df[:train_size]
+        test_df = df[train_size:]
+
+        # Create DatasetDict with train and test splits
+        return DatasetDict(
+            {
+                "train": Dataset.from_pandas(train_df),
+                "test": Dataset.from_pandas(test_df),
+            }
+        )
 
     def generate_reverse_task(
         self, num_samples: int, min_len: int = 3, max_len: int = 50
@@ -79,7 +92,18 @@ class SyntheticDataGenerator:
                     "input_len": len(input_seq) + len(self.separator),
                 }
             )
-        return Dataset.from_pandas(pd.DataFrame(data))
+
+        df = pd.DataFrame(data)
+        train_size = int(0.9 * len(df))
+        train_df = df[:train_size]
+        test_df = df[train_size:]
+
+        return DatasetDict(
+            {
+                "train": Dataset.from_pandas(train_df),
+                "test": Dataset.from_pandas(test_df),
+            }
+        )
 
     def generate_sort_task(
         self, num_samples: int, min_len: int = 3, max_len: int = 50
@@ -104,7 +128,18 @@ class SyntheticDataGenerator:
                     "input_len": len(input_seq) + len(self.separator),
                 }
             )
-        return Dataset.from_pandas(pd.DataFrame(data))
+
+        df = pd.DataFrame(data)
+        train_size = int(0.9 * len(df))
+        train_df = df[:train_size]
+        test_df = df[train_size:]
+
+        return DatasetDict(
+            {
+                "train": Dataset.from_pandas(train_df),
+                "test": Dataset.from_pandas(test_df),
+            }
+        )
 
     def _generate_arithmetic_expression(self, num_steps: int) -> Tuple[str, float]:
         """Generate a complex arithmetic expression with given number of operations."""
@@ -160,7 +195,18 @@ class SyntheticDataGenerator:
                     "input_len": len(expression) + 3,
                 }
             )
-        return Dataset.from_pandas(pd.DataFrame(data))
+
+        df = pd.DataFrame(data)
+        train_size = int(0.9 * len(df))
+        train_df = df[:train_size]
+        test_df = df[train_size:]
+
+        return DatasetDict(
+            {
+                "train": Dataset.from_pandas(train_df),
+                "test": Dataset.from_pandas(test_df),
+            }
+        )
 
     def generate_pattern_completion_task(
         self, num_samples: int, sequence_length: int = 5
@@ -187,7 +233,18 @@ class SyntheticDataGenerator:
                     "input_len": len(input_seq) + len(self.separator),
                 }
             )
-        return Dataset.from_pandas(pd.DataFrame(data))
+
+        df = pd.DataFrame(data)
+        train_size = int(0.9 * len(df))
+        train_df = df[:train_size]
+        test_df = df[train_size:]
+
+        return DatasetDict(
+            {
+                "train": Dataset.from_pandas(train_df),
+                "test": Dataset.from_pandas(test_df),
+            }
+        )
 
     def generate_bracket_matching_task(
         self, num_samples: int, max_depth: int = 5
@@ -243,12 +300,23 @@ class SyntheticDataGenerator:
                     "input_len": len(sequence) + len(self.separator),
                 }
             )
-        return Dataset.from_pandas(pd.DataFrame(data))
+
+        df = pd.DataFrame(data)
+        train_size = int(0.9 * len(df))
+        train_df = df[:train_size]
+        test_df = df[train_size:]
+
+        return DatasetDict(
+            {
+                "train": Dataset.from_pandas(train_df),
+                "test": Dataset.from_pandas(test_df),
+            }
+        )
 
 
 def generate_all_datasets(
     num_samples: int = 1000000,
-) -> Generator[Tuple[str, Dataset], None, None]:
+) -> Generator[Tuple[str, DatasetDict], None, None]:
     """Generate all synthetic datasets."""
     generator = SyntheticDataGenerator()
 
@@ -273,9 +341,9 @@ if __name__ == "__main__":
 
     login(token=hf_token)
 
-    # Generate datasets with 1M samples each
+    # Generate datasets with train/test splits
     datasets = generate_all_datasets(5000000)
 
-    # Push to Hub (you'll need to be logged in)
+    # Push to Hub with overwrite=True to replace existing datasets
     for name, dataset in datasets:
         dataset.push_to_hub(f"flaitenberger/synthetic_{name}")

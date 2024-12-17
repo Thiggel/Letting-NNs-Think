@@ -2,11 +2,11 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 from typing import Dict, Any
-from datasets import load_dataset
 import numpy as np
 
+from experiment.configs import DataConfig, ModelConfig, TrainingConfig
 from experiment.models import DefaultLightningModule
-from experiment.datasets import BatchCollator
+from experiment.datasets import LanguageDataModule
 
 
 class SyntheticDatasetEvaluator:
@@ -17,23 +17,28 @@ class SyntheticDatasetEvaluator:
         model: DefaultLightningModule,
         tokenizer: PreTrainedTokenizer,
         batch_size: int = 32,
+        data_config: DataConfig = None,
+        model_config: ModelConfig = None,
+        training_config: TrainingConfig = None,
+        seed: int = 42,
     ):
         self.model = model
         self.tokenizer = tokenizer
         self.batch_size = batch_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.datamodule = LanguageDataModule(
+            tokenizer=tokenizer,
+            data_config=data_config,
+            model_config=model_config,
+            training_config=training_config,
+            seed=seed,
+        )
+
         self.model.to(self.device)
         self.model.eval()
 
     def evaluate(self, dataset_name: str) -> Dict[str, float]:
-        # Load dataset
-        dataset = load_dataset(f"flaitenberger/synthetic_{dataset_name}", split="test")
-
-        # Create dataloader
-        collator = BatchCollator(self.tokenizer, max_length=1024)
-        dataloader = DataLoader(
-            dataset, batch_size=self.batch_size, collate_fn=collator, num_workers=4
-        )
+        dataloader = self.datamodule.test_dataloader()
 
         metrics = {
             "copy_task": self._evaluate_copy_task,
@@ -120,13 +125,16 @@ class SyntheticDatasetEvaluator:
 
                 for i, output in enumerate(outputs):
                     pred_text = self.tokenizer.decode(output, skip_special_tokens=True)
-                    true_text = self.tokenizer.decode(
-                        batch["labels"][i], skip_special_tokens=True
-                    )
+                    labels = batch["labels"][i]
+                    labels = labels[labels != -100]
+                    true_text = self.tokenizer.decode(labels, skip_special_tokens=True)
+
+                    print(pred_text, true_text)
 
                     try:
-                        pred = float(pred_text.split("=")[-1].strip())
-                        target = float(true_text.split("=")[-1].strip())
+                        target = float(true_text.split("=")[-1].replace(" ", ""))
+                        pred = float(pred_text.split("=")[-1].replace(" ", ""))
+                        print(pred, target)
 
                         # Calculate relative error
                         rel_error = abs(pred - target) / (abs(target) + 1e-8)
@@ -135,7 +143,8 @@ class SyntheticDatasetEvaluator:
                         # Consider correct if relative error is small
                         if rel_error < 0.01:  # 1% relative error threshold
                             correct += 1
-                    except (ValueError, IndexError):
+                    except Exception as e:
+                        print(e)
                         pass
                     total += 1
 

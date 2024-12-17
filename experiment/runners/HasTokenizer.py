@@ -134,8 +134,8 @@ class HasTokenizer:
 
         # Post-processor for adding BOS/EOS tokens
         tokenizer.post_processor = processors.TemplateProcessing(
-            single="[BOS] $A [EOS]",
-            pair="[BOS] $A [SEP] $B [EOS]",
+            single="[BOS] $A",
+            pair="[BOS] $A [SEP] $B",
             special_tokens=[
                 ("[BOS]", tokenizer.token_to_id("[BOS]")),
                 ("[SEP]", tokenizer.token_to_id("[SEP]")),

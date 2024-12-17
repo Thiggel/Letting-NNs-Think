@@ -13,15 +13,16 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
     --model-name "EleutherAI/pythia-70m" \
     --dataset synthetic_arithmetic_task \
-    --pretrained true \
+    --pretrained \
     --finetune-mode full \
     --enable-normalization \
-    --batch-size 64 \
-    --grad-acc-steps 4 \
-    --learning-rate 3e-4 \
-    --warmup-steps 20000 \
-    --max-training-steps 4000000 \
+    --batch-size 1024 \
+    --grad-acc-steps 1 \
+    --learning-rate 3e-5 \
     --max-hours 4 \
+    --max-epochs 10 \
+    --max-training-steps 1000000 \
+    --use-early-stopping \
     --experiment-name Pythia_Arithmetic_nGPT \
     --save-to-checkpoint Pythia_Arithmetic_nGPT \
     --enable-logging \
@@ -30,12 +31,14 @@ srun python -m experiment \
 srun python -m experiment \
     --model-name "EleutherAI/pythia-70m" \
     --dataset synthetic_arithmetic_task \
-    --pretrained true \
+    --pretrained \
     --finetune-mode full \
     --enable-normalization \
     --experiment-name Pythia_Arithmetic_nGPT_Eval \
     --load-from-checkpoint Pythia_Arithmetic_nGPT \
     --evaluation-metrics arithmetic_task \
     --mode evaluate \
-    --eval-batch-size 32 \
+    --max-epochs 1 \
+    --max-training-steps 1000000 \
+    --eval-batch-size 1024 \
     --enable-logging
