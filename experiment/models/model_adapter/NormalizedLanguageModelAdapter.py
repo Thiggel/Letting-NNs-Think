@@ -44,8 +44,8 @@ class NormalizedLanguageModelAdapter(CanNormalize):
     def _add_normalization(
         self: NormalizedLanguageModelAdapterProtocol, model: nn.Module
     ):
-        if hasattr(model, "gpt_neox"):
-            model.gpt_neox = NormalizedGPTNeoXModel(model.config)
+        # if hasattr(model, "gpt_neox"):
+        #    model.gpt_neox = NormalizedGPTNeoXModel(model.config)
 
         if hasattr(model, "lm_head"):
             model.lm_head = NormalizedLMHead(model.lm_head)
