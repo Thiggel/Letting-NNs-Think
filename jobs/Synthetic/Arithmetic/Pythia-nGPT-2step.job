@@ -13,7 +13,6 @@ cd $HOME/Letting-NNs-Think
 srun python -m experiment \
     --model-name "EleutherAI/pythia-70m" \
     --dataset synthetic_arithmetic_task \
-    --pretrained \
     --finetune-mode full \
     --enable-normalization \
     --make-layers-recurrent 2:4 \
