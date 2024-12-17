@@ -119,7 +119,6 @@ class RecurrentTransformerLayer(nn.Module):
 
         return (
             hidden_states,
-            output.present,
-            kwargs.get("past_key_values", None),
+            kwargs.get("past_key_values", output.present or None),
             output.exit_probs,
         )
