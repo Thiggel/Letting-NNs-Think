@@ -35,12 +35,14 @@ class FixedStepsStrategy(RecurrenceStrategy):
             if self.use_time_embedding:
                 hidden_states = self.timestep_embedder(hidden_states, step)
 
-            hidden_states = layer(
+            hidden_states, present = layer(
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
                 **kwargs,
-            )
+            )[0:2]
+
+            print(present[0].shape if present is not None else None)
 
             if step < self.num_steps - 1:
                 intermediate_outputs.append(hidden_states.clone())
