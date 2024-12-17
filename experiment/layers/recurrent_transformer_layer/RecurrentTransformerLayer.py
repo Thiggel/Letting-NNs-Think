@@ -69,7 +69,7 @@ class RecurrentTransformerLayer(nn.Module):
         hidden_states: torch.Tensor,
         attention_mask: torch.Tensor,
         position_ids: Optional[torch.Tensor] = None,
-        **args,
+        *args,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         # Handle special layer requirements
@@ -88,7 +88,7 @@ class RecurrentTransformerLayer(nn.Module):
             attention_mask,
             self.layer,
             position_ids,
-            **args,
+            *args,
             **kwargs,
         )
 
