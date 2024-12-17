@@ -30,7 +30,7 @@ class UninterruptedLanguageModelProtocol(Protocol):
         attention_mask: torch.Tensor,
         labels: torch.Tensor,
     ) -> CausalLMOutputWithPast: ...
-    
+
     def _get_similarity_loss(
         self,
         last_hidden_states: torch.Tensor,
@@ -55,6 +55,21 @@ class UninterruptedLanguageModelProtocol(Protocol):
 
 
 class UninterruptedLanguageModel:
+    def _uninterruted_setup(self: UninterruptedLanguageModelProtocol) -> None:
+        self.uninterrupted_adapter = (
+            nn.Sequential(
+                nn.Linear(
+                    self.model.config.hidden_size, self.model.config.hidden_size * 4
+                ),
+                nn.ReLU(),
+                nn.Linear(
+                    self.model.config.hidden_size * 4, self.model.config.hidden_size
+                ),
+            )
+            if self.config.uninterrupted_mode == "projection"
+            else nn.Identity()
+        )
+
     def _get_similarity_loss(
         self: UninterruptedLanguageModelProtocol,
         last_hidden_states: torch.Tensor,
@@ -120,26 +135,30 @@ class UninterruptedLanguageModel:
         for i in range(num_steps):
             outputs = self._forward(self.model, sequence, attention_mask, labels)
 
-            last_hidden_states = outputs.hidden_states[-1]
+            last_hidden_states = self.uninterrupted_adapter(outputs.hidden_states[-1])
 
             prediction_loss = outputs.loss
-            similarity_loss = self._get_similarity_loss(
-                last_hidden_states, input_embeddings, attention_mask
-            )
 
-            self.log(
-                f"{mode}_prediction_loss_step_{i}",
-                prediction_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
+            if self.config.uninterrupted_mode == "first_last_state_mse":
+                self.log(
+                    f"{mode}_prediction_loss_step_{i}",
+                    prediction_loss,
+                    sync_dist=True,
+                    batch_size=self.data_config.batch_size,
+                )
 
-            self.log(
-                f"{mode}_similarity_loss_step_{i}",
-                similarity_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
+                similarity_loss = self._get_similarity_loss(
+                    last_hidden_states, input_embeddings, attention_mask
+                )
+
+                self.log(
+                    f"{mode}_similarity_loss_step_{i}",
+                    similarity_loss,
+                    sync_dist=True,
+                    batch_size=self.data_config.batch_size,
+                )
+
+                all_hidden_state_losses.append(similarity_loss)
 
             sequence = torch.cat(
                 [
@@ -150,10 +169,20 @@ class UninterruptedLanguageModel:
             )
 
             all_prediction_losses.append(prediction_loss)
-            all_hidden_state_losses.append(similarity_loss)
 
         avg_prediction_loss = torch.stack(all_prediction_losses).mean()
-        avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
+
+        avg_hidden_loss = 0
+
+        if self.config.uninterrupted_mode == "first_last_state_mse":
+            avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
+
+            self.log(
+                f"{mode}_recurrent_hidden_state_loss",
+                avg_hidden_loss,
+                sync_dist=True,
+                batch_size=self.data_config.batch_size,
+            )
 
         total_loss = (
             self.config.recurrent_prediction_weight * avg_prediction_loss
@@ -163,12 +192,6 @@ class UninterruptedLanguageModel:
         self.log(
             f"{mode}_recurrent_prediction_loss",
             avg_prediction_loss,
-            sync_dist=True,
-            batch_size=self.data_config.batch_size,
-        )
-        self.log(
-            f"{mode}_recurrent_hidden_state_loss",
-            avg_hidden_loss,
             sync_dist=True,
             batch_size=self.data_config.batch_size,
         )

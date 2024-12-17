@@ -46,6 +46,8 @@ class DefaultLightningModule(
 
         print(self.model)
 
+        self._uninterruted_setup()
+
         self.metrics_logger = MetricsLogger(
             self, self.tokenizer, self.data_config.batch_size
         )
@@ -122,7 +124,7 @@ class DefaultLightningModule(
                 "params": (
                     self.get_decoder_layers(self.model).parameters()
                     if not self.config.finetune_mode == "full"
-                    else self.model.parameters()
+                    else self.parameters()
                 ),
                 "lr": base_lr,  # Will be scaled by lr_lambda
             },
@@ -169,7 +171,7 @@ class DefaultLightningModule(
         """Perform a single training/validation/test step"""
         self.metrics_logger.dump_first_batch(batch)
 
-        if self.config.make_uninterrupted:
+        if self.config.uninterrupted_mode != "interrupted":
             batch["output_hidden_states"] = True
             loss = self.get_recurrent_prediction_loss(batch, mode)
 
