@@ -112,7 +112,7 @@ class RecurrentTransformerLayer(nn.Module):
 
         self.intermediate_outputs = output.intermediate_outputs
 
-        print(output.keys())
+        print(output)
 
         return (
             hidden_states,
