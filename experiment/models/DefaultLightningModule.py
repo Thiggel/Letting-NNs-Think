@@ -171,7 +171,7 @@ class DefaultLightningModule(
         """Perform a single training/validation/test step"""
         self.metrics_logger.dump_first_batch(batch)
 
-        if self.config.uninterrupted_mode != "interrupted":
+        if self.config.uninterrupted_mode in ["projection", "first_last_state_mse"]:
             batch["output_hidden_states"] = True
             loss = self.get_recurrent_prediction_loss(batch, mode)
 
