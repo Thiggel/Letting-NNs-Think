@@ -14,7 +14,6 @@ from experiment.layers.normalized_transformer.normalized_gemma import (
 )
 from experiment.layers.normalized_transformer.normalized_gpt_neox import (
     NormalizedGPTNeoXLayer,
-    NormalizedGPTNeoXModel,
 )
 from experiment.layers.normalized_transformer.normalized_llama import (
     NormalizedLlamaDecoderLayer,
