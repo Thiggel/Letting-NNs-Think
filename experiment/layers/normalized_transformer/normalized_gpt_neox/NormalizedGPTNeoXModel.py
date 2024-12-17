@@ -25,7 +25,7 @@ from transformers.models.gpt_neox.modeling_gpt_neox import (
 logger = logging.get_logger(__name__)
 
 
-class GPTNeoXModel(GPTNeoXPreTrainedModel):
+class NormalizedGPTNeoXModel(GPTNeoXPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.config = config
