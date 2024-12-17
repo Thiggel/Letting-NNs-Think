@@ -14,7 +14,7 @@ from transformers.utils import logging
 from transformers.models.gpt_neox.modeling_gpt_neox import (
     GPTNeoXLayer,
     GPTNeoXPreTrainedModel,
-    GPTNeoXRotaryEmbedding,
+    _prepare_4d_causal_attention_mask,
     GPT_NEOX_INPUTS_DOCSTRING,
     _CHECKPOINT_FOR_DOC,
     _CONFIG_FOR_DOC,
