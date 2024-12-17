@@ -188,6 +188,8 @@ class NormalizedGPTNeoXModel(GPTNeoXPreTrainedModel):
             if last_layer_past is not None:
                 layer_past = last_layer_past
 
+            print(layer_past[0].shape if layer_past is not None else None)
+
             if self.gradient_checkpointing and self.training:
                 outputs = self._gradient_checkpointing_func(
                     layer.__call__,
