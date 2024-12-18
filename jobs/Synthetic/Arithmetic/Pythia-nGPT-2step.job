@@ -11,7 +11,7 @@ cd $HOME/Letting-NNs-Think
 . jobs/environment.sh
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-70m" \
+    --model-name "EleutherAI/pythia-14m" \
     --dataset synthetic_arithmetic_task \
     --finetune-mode full \
     --enable-normalization \
@@ -21,7 +21,7 @@ srun python -m experiment \
     --grad-acc-steps 1 \
     --learning-rate 3e-5 \
     --max-hours 4 \
-    --max-epochs 4 \
+    --max-epochs 20 \
     --max-training-steps 1000000 \
     --use-early-stopping \
     --experiment-name Pythia_Arithmetic_nGPT_2Step \
@@ -30,7 +30,7 @@ srun python -m experiment \
     --mode train
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-70m" \
+    --model-name "EleutherAI/pythia-14m" \
     --dataset synthetic_arithmetic_task \
     --pretrained \
     --finetune-mode full \
