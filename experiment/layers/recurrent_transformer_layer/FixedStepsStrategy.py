@@ -26,6 +26,7 @@ class FixedStepsStrategy(RecurrenceStrategy):
         attention_mask: torch.Tensor,
         layer: TransformerLayerProtocol,
         position_ids: Optional[torch.Tensor] = None,
+        *args,
         **kwargs,
     ) -> RecurrenceOutput:
         intermediate_outputs = []
@@ -34,16 +35,21 @@ class FixedStepsStrategy(RecurrenceStrategy):
             if self.use_time_embedding:
                 hidden_states = self.timestep_embedder(hidden_states, step)
 
-            hidden_states = layer(
+            output = layer(
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
                 **kwargs,
             )
 
+            hidden_states = output[0]
+            present = output[1]
+
             if step < self.num_steps - 1:
                 intermediate_outputs.append(hidden_states.clone())
 
         return RecurrenceOutput(
-            hidden_states=hidden_states, intermediate_outputs=intermediate_outputs
+            hidden_states=hidden_states,
+            intermediate_outputs=intermediate_outputs,
+            present=present,
         )

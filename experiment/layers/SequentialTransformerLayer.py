@@ -12,12 +12,13 @@ class SequentialTransformerLayer(nn.Module):
         supported_kwargs = {
             key: value for key, value in kwargs.items() if key in sig.parameters
         }
-        for layer in self.layers:
-            x = layer(x, *args, **supported_kwargs)
-            if type(x) == tuple:
-                x = x[0]
 
-        return x
+        for layer in self.layers:
+            outputs = layer(x, *args, **supported_kwargs)
+            if type(x) == tuple:
+                x = outputs[0]
+
+        return outputs
 
     def __getitem__(self, idx):
         return self.layers[idx]

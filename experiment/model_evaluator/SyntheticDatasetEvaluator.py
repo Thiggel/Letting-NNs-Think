@@ -110,16 +110,45 @@ class SyntheticDatasetEvaluator:
 
         return {"accuracy": correct / total if total > 0 else 0}
 
+    def _shift_padding_left(self, input_ids, attention_mask):
+        """Shifts padding tokens from right to left side"""
+        batch_size = input_ids.size(0)
+        shifted_inputs = []
+        shifted_masks = []
+
+        for i in range(batch_size):
+            # Get non-padded tokens
+            seq_len = attention_mask[i].sum().item()
+            valid_tokens = input_ids[i, :seq_len]
+
+            # Create new tensor with left padding
+            padded = torch.full_like(input_ids[i], self.tokenizer.pad_token_id)
+            padded[-seq_len:] = valid_tokens
+
+            # Create corresponding attention mask
+            new_mask = torch.zeros_like(attention_mask[i])
+            new_mask[-seq_len:] = 1
+
+            shifted_inputs.append(padded)
+            shifted_masks.append(new_mask)
+
+        return torch.stack(shifted_inputs), torch.stack(shifted_masks)
+
     def _evaluate_arithmetic_task(self, dataloader: DataLoader) -> Dict[str, float]:
         correct = total = 0
         relative_errors = []
 
         with torch.no_grad():
             for batch in dataloader:
+                input_ids, attention_mask = self._shift_padding_left(
+                    batch["input_ids"].to(self.device),
+                    batch["attention_mask"].to(self.device),
+                )
+
                 outputs = self.model.generate(
-                    input_ids=batch["input_ids"].to(self.device),
+                    input_ids=input_ids,
                     max_new_tokens=20,
-                    attention_mask=batch["attention_mask"].to(self.device),
+                    attention_mask=attention_mask,
                     pad_token_id=self.tokenizer.pad_token_id,
                 )
 
@@ -129,12 +158,14 @@ class SyntheticDatasetEvaluator:
                     labels = labels[labels != -100]
                     true_text = self.tokenizer.decode(labels, skip_special_tokens=True)
 
-                    print(pred_text, true_text)
+                    print(pred_text)
+                    print(true_text)
 
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
                         pred = float(pred_text.split("=")[-1].replace(" ", ""))
                         print(pred, target)
+                        print()
 
                         # Calculate relative error
                         rel_error = abs(pred - target) / (abs(target) + 1e-8)
@@ -165,10 +196,14 @@ class SyntheticDatasetEvaluator:
 
         with torch.no_grad():
             for batch in dataloader:
+                input_ids, attention_mask = self._shift_padding_left(
+                    batch["input_ids"].to(self.device),
+                    batch["attention_mask"].to(self.device),
+                )
                 outputs = self.model.generate(
-                    input_ids=batch["input_ids"].to(self.device),
+                    input_ids=input_ids,
                     max_new_tokens=20,
-                    attention_mask=batch["attention_mask"].to(self.device),
+                    attention_mask=attention_mask,
                     pad_token_id=self.tokenizer.pad_token_id,
                 )
 

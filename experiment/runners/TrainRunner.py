@@ -117,9 +117,15 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         ]
 
         if self.training_config.use_early_stopping:
-            EarlyStopping(
-                monitor="val_loss", patience=1, mode="min", min_delta=0.00, verbose=True
-            ),
+            callbacks.append(
+                EarlyStopping(
+                    monitor="val_loss",
+                    patience=1,
+                    mode="min",
+                    min_delta=0.00,
+                    verbose=True,
+                )
+            )
 
         trainer_args = self._get_trainer_args(callbacks, seed)
 
