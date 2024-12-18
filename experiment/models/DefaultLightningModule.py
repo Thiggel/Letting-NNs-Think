@@ -6,7 +6,7 @@ import torch
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
-from experiment.configs import ModelConfig, TrainingConfig, DataConfig
+from experiment.configs import ModelConfig, TrainingConfig, DataConfig, UninterruptedMode
 from experiment.models.GatedLM import GatedLM
 
 from .model_adapter import ModelAdapter
@@ -110,38 +110,45 @@ class DefaultLightningModule(
         return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
 
     def configure_optimizers(self):
-        # Scale the initial learning rates based on the initial_lr parameter
         base_lr = self.training_config.learning_rate
-
         adam_params = {
-            "lr": base_lr,  # Keep the target learning rate
+            "lr": base_lr,
             "betas": (0.9, 0.95),
             "weight_decay": 0.001 if not self.config.enable_normalization else 0.0,
         }
 
+        # Filter trainable parameters for each group
+        main_params = [p for p in self.get_decoder_layers(self.model).parameters() 
+                      if p.requires_grad]
+        
+        if self.config.uninterrupted_mode == UninterruptedMode.PROJECTION:
+            print("Uninterrupted Projection finetuning")
+            main_params += [p for p in self.uninterrupted_adapter.parameters() 
+                           if p.requires_grad]
+        
+        embedding_params = [p for p in self.model.get_input_embeddings().parameters() 
+                           if p.requires_grad]
+        
+        if self.config.untie_embedding_and_softmax:
+            embedding_params += [p for p in self.model.get_output_embeddings().parameters() 
+                               if p.requires_grad]
+        
         parameters = [
             {
-                "params": (
-                    self.get_decoder_layers(self.model).parameters()
-                    if not self.config.finetune_mode == "full"
-                    else self.parameters()
-                ),
-                "lr": base_lr,  # Will be scaled by lr_lambda
+                "params": main_params,
+                "lr": base_lr,
             },
+            {
+                "params": embedding_params,
+                "lr": base_lr / 10,
+            }
         ]
 
-        if self.config.finetune_mode in ["lastlayer_lmhead", "lmhead_lora"]:
-            parameters.append(
-                {
-                    "params": list(self.model.get_output_embeddings().parameters())
-                    + list(self.model.get_input_embeddings().parameters()),
-                    "lr": base_lr / 10,  # Maintain the 1/10 ratio for these layers
-                }
-            )
+        # Only create parameter groups if they have parameters
+        parameters = [group for group in parameters if len(group["params"]) > 0]
 
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
-
             optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
         else:
             optimizer = AdamW(parameters, **adam_params)
@@ -149,12 +156,12 @@ class DefaultLightningModule(
         scheduler = LambdaLR(
             optimizer,
             lr_lambda=(
-                self.lr_lambda
+                self.lr_lambda_warmup_decay
                 if not self.config.enable_normalization
                 else self.lr_lambda_decay
             ),
         )
-
+        
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -171,7 +178,7 @@ class DefaultLightningModule(
         """Perform a single training/validation/test step"""
         self.metrics_logger.dump_first_batch(batch)
 
-        if self.config.uninterrupted_mode != "interrupted":
+        if self.config.uninterrupted_mode != UninterruptedMode.INTERRUPTED:
             batch["output_hidden_states"] = True
             loss = self.get_recurrent_prediction_loss(batch, mode)
 

@@ -6,7 +6,7 @@ from torch import nn
 import torch.nn.functional as F
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
-from experiment.configs import ModelConfig, DataConfig
+from experiment.configs import ModelConfig, DataConfig, UninterruptedMode, FinetuneMode
 
 
 class UninterruptedLanguageModelProtocol(Protocol):
@@ -66,7 +66,7 @@ class UninterruptedLanguageModel:
                     self.model.config.hidden_size * 4, self.model.config.hidden_size
                 ),
             )
-            if self.config.uninterrupted_mode == "projection"
+            if self.config.uninterrupted_mode == UninterruptedMode.PROJECTION
             else nn.Identity()
         )
 
@@ -111,6 +111,7 @@ class UninterruptedLanguageModel:
             labels=labels,
             output_hidden_states=True,
             return_dict=True,
+            use_cache=False,
         )
 
         return outputs
@@ -135,18 +136,20 @@ class UninterruptedLanguageModel:
         for i in range(num_steps):
             outputs = self._forward(self.model, sequence, attention_mask, labels)
 
-            last_hidden_states = self.uninterrupted_adapter(outputs.hidden_states[-1])
+            last_hidden_states = outputs.hidden_states[-1]
+            projected_states = self.uninterrupted_adapter(last_hidden_states)
 
             prediction_loss = outputs.loss
 
-            if self.config.uninterrupted_mode == "first_last_state_mse":
-                self.log(
-                    f"{mode}_prediction_loss_step_{i}",
-                    prediction_loss,
-                    sync_dist=True,
-                    batch_size=self.data_config.batch_size,
-                )
+            self.log(
+                f"{mode}_prediction_loss_step_{i}",
+                prediction_loss,
+                sync_dist=True,
+                batch_size=self.data_config.batch_size,
+            )
 
+
+            if self.config.uninterrupted_mode == UninterruptedMode.FIRST_LAST_STATE_MSE:
                 similarity_loss = self._get_similarity_loss(
                     last_hidden_states, input_embeddings, attention_mask
                 )
@@ -163,14 +166,16 @@ class UninterruptedLanguageModel:
             sequence = torch.cat(
                 [
                     input_embeddings[:, :1],
-                    sequence[:, :-1],
+                    projected_states[:, :-1],
                 ],
                 dim=1,
             )
 
-            all_prediction_losses.append(prediction_loss)
+            if not (self.config.finetune_mode == FinetuneMode.FROZEN and i == 0):
+                all_prediction_losses.append(prediction_loss)
 
         avg_prediction_loss = torch.stack(all_prediction_losses).mean()
+        loss = avg_prediction_loss
 
         avg_hidden_loss = 0
 

@@ -3,7 +3,7 @@ import math
 import torch
 from torch import nn
 from peft import get_peft_model, LoraConfig, TaskType
-from experiment.configs import ModelConfig
+from experiment.configs import ModelConfig, FinetuneMode
 
 from ..HasLayers import HasLayers
 from .MoDAdapter import MoDAdapter
@@ -45,18 +45,27 @@ class ModelAdapter(
             self.normalize_weights()
 
     def _get_peft_model(self, model: PreTrainedModel) -> PreTrainedModel:
-        if self.config.finetune_mode == "lora":
+        if self.config.finetune_mode == FinetuneMode.LORA:
             print("Using LoRA")
             model = get_peft_model(model, self.lora_config)
             model.print_trainable_parameters()
-        elif self.config.finetune_mode == "full":
-            print("Using full finetuning")
-        elif self.config.finetune_mode == "lastlayer_lmhead":
+
+            return model
+
+        for param in model.parameters():
+            param.requires_grad = False
+
+        if self.config.finetune_mode == FinetuneMode.UNINTERRUPTED:
             self._unfreeze_last_layer(model)
-        elif self.config.finetune_mode == "lmhead_lora":
+
+        elif self.config.finetune_mode == FinetuneMode.UNINTERRUPTED_LORA:
             model = get_peft_model(model, self.lora_config)
             self._unfreeze_lm_head(model)
             model.print_trainable_parameters()
+
+        elif self.config.finetune_mode == FinetuneMode.FULL:
+            for param in model.model.parameters():
+                param.requires_grad = True
 
         return model
 
@@ -92,9 +101,6 @@ class ModelAdapter(
 
         if self.config.untie_embedding_and_softmax:
             self._untie_embedding_and_softmax(model)
-
-        if self.config.uninterrupted_mode != "interrupted":
-            model.gradient_checkpointing_enable()
 
         if self.config.make_layers_recurrent is not None:
             model = self._add_recurrence(model)
