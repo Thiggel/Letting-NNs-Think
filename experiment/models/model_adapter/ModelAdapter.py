@@ -38,11 +38,24 @@ class ModelAdapter(
 
         self.model = self._initialize_model()
 
+        self.model = self.remove_layers(self.model)
+
         if not self.config.pretrained:
             self._init_embeddings()
 
         if self.config.enable_normalization:
             self.normalize_weights()
+
+    def remove_layers(self, model: PreTrainedModel) -> PreTrainedModel:
+        if self.config.remove_layers is not None:
+            removed_layers = self._get_removed_layer_range()
+            layers = self.get_decoder_layers(model)
+            layers = nn.ModuleList(
+                [layer for idx, layer in enumerate(layers) if idx not in removed_layers]
+            )
+            model = self.set_decoder_layers(model, layers)
+
+        return model
 
     def _get_peft_model(self, model: PreTrainedModel) -> PreTrainedModel:
         if self.config.finetune_mode == FinetuneMode.LORA:
@@ -106,3 +119,6 @@ class ModelAdapter(
             model = self._add_recurrence(model)
 
         return model
+
+    def _get_removed_layer_range(self) -> list[tuple[int, int]]:
+        return self._get_layer_range(self.model, self.config.remove_layers)

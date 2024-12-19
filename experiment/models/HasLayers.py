@@ -1,5 +1,8 @@
+from typing import Annotated, Optional
 from transformers import AutoModel
 from torch import nn
+
+from experiment.configs import LayerRange
 
 
 class HasLayers:
@@ -55,3 +58,29 @@ class HasLayers:
             return old_model
 
         return model
+
+    def _get_layer_range(
+        self, model: AutoModel, layer_range: Optional[Annotated[str, LayerRange]]
+    ) -> list[tuple[int, int]]:
+        if layer_range == "all":
+            return [
+                (idx, idx + 1) for idx in range(len(self.get_decoder_layers(model)))
+            ]
+
+        if layer_range is None:
+            return []
+
+        if ":" in layer_range:
+            start, end = map(int, layer_range.split(":"))
+        else:
+            start = int(layer_range)
+            end = start + 1
+
+        layers = self.get_decoder_layers(model)
+
+        if start < 0:
+            start = len(layers) + start
+        if end <= 0:
+            end = len(layers) + end
+
+        return [(start, end)]
