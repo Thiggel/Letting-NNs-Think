@@ -1,0 +1,40 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=8:00:00
+#SBATCH --job-name=LlamaGSM8KBaseline 
+#SBATCH --output=job_logs/LlamaGSM8KBaseline-%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset gsm8k \
+  --pretrained \
+  --batch-size 8 \
+  --grad-acc-steps 8 \
+  --learning-rate 1e-5 \
+  --warmup-steps 500 \
+  --max-epochs 6 \
+  --max-training-steps 20000 \
+  --finetune-mode full \
+  --experiment-name LlamaGSM8KBaseline \
+  --save-to-checkpoint LlamaGSM8KBaseline \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --mode evaluate \
+  --pretrained \
+  --finetune-mode frozen \
+  --evaluation-metrics gsm8k \
+  --load-from-checkpoint LlamaGSM8KBaseline \
+  --experiment-name LlamaGSM8KBaselineEval \
+  --max-epochs 1 \
+  --max-training-steps 1 \
+  --enable-logging

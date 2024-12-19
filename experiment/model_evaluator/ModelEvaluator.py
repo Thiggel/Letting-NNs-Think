@@ -19,8 +19,10 @@ class ModelEvaluator:
         tokenizer: PreTrainedTokenizer,
         is_uninterrupted: bool = False,
         eval_batch_size: int = 128,
+        num_fewshot: int = 0,
     ):
         self.eval_batch_size = eval_batch_size
+        self.num_fewshot = num_fewshot
 
         if is_uninterrupted:
             self.model = CustomInference(model, tokenizer)
@@ -41,7 +43,7 @@ class ModelEvaluator:
             pretrained=self.model,
             tokenizer=self.tokenizer,
             batch_size=self.eval_batch_size,
-            max_length=512,
+            max_length=4096,
             backend="causal",
             device=self.device,
             add_bos_token=True,
@@ -50,7 +52,7 @@ class ModelEvaluator:
         output = evaluator.simple_evaluate(
             model=wrapped_model,
             tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
-            num_fewshot=0,
+            num_fewshot=self.num_fewshot,
             batch_size=self.eval_batch_size,
             random_seed=seed,
             numpy_random_seed=seed,

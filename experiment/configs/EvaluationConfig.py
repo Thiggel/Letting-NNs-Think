@@ -21,3 +21,6 @@ class EvaluationConfig(BaseModel):
     eval_batch_size: int = Field(
         128, description="The batch size to use for evaluation"
     )
+    num_fewshot: int = Field(
+        0, description="The number of few-shot examples to use"
+    )
