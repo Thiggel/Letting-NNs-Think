@@ -186,14 +186,6 @@ class SyntheticDatasetEvaluator:
                     batch["attention_mask"].to(self.device),
                 )
 
-                for i in range(5):
-                    print(self.tokenizer.decode(input_ids[i], skip_special_tokens=True))
-                    labels = batch["labels"][i]
-                    labels = labels[labels != -100]
-                    print(self.tokenizer.decode(labels, skip_special_tokens=True))
-                    print()
-                exit()
-
                 outputs = self.model.generate(
                     input_ids=input_ids,
                     max_new_tokens=20,
