@@ -188,11 +188,9 @@ class SyntheticDatasetEvaluator:
 
                 for i in range(5):
                     print(self.tokenizer.decode(input_ids[i], skip_special_tokens=True))
-                    print(
-                        self.tokenizer.decode(
-                            batch["labels"][i], skip_special_tokens=True
-                        )
-                    )
+                    labels = batch["labels"][i]
+                    labels = labels[labels != -100]
+                    print(self.tokenizer.decode(labels, skip_special_tokens=True))
                     print()
                 exit()
 
