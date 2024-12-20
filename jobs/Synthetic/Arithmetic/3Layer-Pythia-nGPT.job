@@ -27,6 +27,7 @@ srun python -m experiment \
     --max-training-steps 1000000 \
     --experiment-name 3Layer_Pythia_Arithmetic_nGPT \
     --save-to-checkpoint 3Layer_Pythia_Arithmetic_nGPT \
+    --load-from-checkpoint 3Layer_Pythia_Arithmetic_nGPT \
     --enable-logging \
     --mode train
 
