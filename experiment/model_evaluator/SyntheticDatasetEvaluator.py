@@ -199,9 +199,9 @@ class SyntheticDatasetEvaluator:
                     labels = labels[labels != -100]
                     true_text = self.tokenizer.decode(labels, skip_special_tokens=True)
 
-                    print(pred_text)
-                    print(true_text)
-                    exit()
+                    print("PRED", pred_text)
+                    print("TARGET", true_text)
+                    exit("-" * 50)
 
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
