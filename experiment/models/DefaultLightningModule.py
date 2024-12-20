@@ -6,7 +6,12 @@ import torch
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
-from experiment.configs import ModelConfig, TrainingConfig, DataConfig, UninterruptedMode
+from experiment.configs import (
+    ModelConfig,
+    TrainingConfig,
+    DataConfig,
+    UninterruptedMode,
+)
 from experiment.models.GatedLM import GatedLM
 
 from .model_adapter import ModelAdapter
@@ -41,7 +46,7 @@ class DefaultLightningModule(
         self.tokenizer = tokenizer
 
     def setup(self, stage):
-        self.model_adapter = ModelAdapter(self.config, self.device)
+        self.model_adapter = ModelAdapter(self.config, self.tokenizer, self.device)
         self.model = self.model_adapter.model
 
         print(self.model)
@@ -118,21 +123,29 @@ class DefaultLightningModule(
         }
 
         # Filter trainable parameters for each group
-        main_params = [p for p in self.get_decoder_layers(self.model).parameters() 
-                      if p.requires_grad]
-        
+        main_params = [
+            p
+            for p in self.get_decoder_layers(self.model).parameters()
+            if p.requires_grad
+        ]
+
         if self.config.uninterrupted_mode == UninterruptedMode.PROJECTION:
             print("Uninterrupted Projection finetuning")
-            main_params += [p for p in self.uninterrupted_adapter.parameters() 
-                           if p.requires_grad]
-        
-        embedding_params = [p for p in self.model.get_input_embeddings().parameters() 
-                           if p.requires_grad]
-        
+            main_params += [
+                p for p in self.uninterrupted_adapter.parameters() if p.requires_grad
+            ]
+
+        embedding_params = [
+            p for p in self.model.get_input_embeddings().parameters() if p.requires_grad
+        ]
+
         if self.config.untie_embedding_and_softmax:
-            embedding_params += [p for p in self.model.get_output_embeddings().parameters() 
-                               if p.requires_grad]
-        
+            embedding_params += [
+                p
+                for p in self.model.get_output_embeddings().parameters()
+                if p.requires_grad
+            ]
+
         parameters = [
             {
                 "params": main_params,
@@ -141,7 +154,7 @@ class DefaultLightningModule(
             {
                 "params": embedding_params,
                 "lr": base_lr / 10,
-            }
+            },
         ]
 
         # Only create parameter groups if they have parameters
@@ -149,6 +162,7 @@ class DefaultLightningModule(
 
         if torch.cuda.is_available():
             from deepspeed.ops.adam import DeepSpeedCPUAdam
+
             optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
         else:
             optimizer = AdamW(parameters, **adam_params)
@@ -161,7 +175,7 @@ class DefaultLightningModule(
                 else self.lr_lambda_decay
             ),
         )
-        
+
         return {
             "optimizer": optimizer,
             "lr_scheduler": {

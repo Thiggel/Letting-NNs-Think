@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 from typing import Dict, Any
 import numpy as np
+from tqdm import tqdm
 
 from experiment.configs import DataConfig, ModelConfig, TrainingConfig
 from experiment.models import DefaultLightningModule
@@ -16,7 +17,7 @@ class SyntheticDatasetEvaluator:
         self,
         model: DefaultLightningModule,
         tokenizer: PreTrainedTokenizer,
-        batch_size: int = 32,
+        eval_batch_size: int = 32,
         data_config: DataConfig = None,
         model_config: ModelConfig = None,
         training_config: TrainingConfig = None,
@@ -24,13 +25,14 @@ class SyntheticDatasetEvaluator:
     ):
         self.model = model
         self.tokenizer = tokenizer
-        self.batch_size = batch_size
+        self.eval_batch_size = eval_batch_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.datamodule = LanguageDataModule(
             tokenizer=tokenizer,
             data_config=data_config,
             model_config=model_config,
             training_config=training_config,
+            eval_batch_size=eval_batch_size,
             seed=seed,
         )
 
@@ -139,7 +141,7 @@ class SyntheticDatasetEvaluator:
         relative_errors = []
 
         with torch.no_grad():
-            for batch in dataloader:
+            for batch in tqdm(dataloader):
                 input_ids, attention_mask = self._shift_padding_left(
                     batch["input_ids"].to(self.device),
                     batch["attention_mask"].to(self.device),
@@ -152,20 +154,22 @@ class SyntheticDatasetEvaluator:
                     pad_token_id=self.tokenizer.pad_token_id,
                 )
 
-                for i, output in enumerate(outputs):
+                for i, output in tqdm(enumerate(outputs)):
                     pred_text = self.tokenizer.decode(output, skip_special_tokens=True)
                     labels = batch["labels"][i]
                     labels = labels[labels != -100]
                     true_text = self.tokenizer.decode(labels, skip_special_tokens=True)
 
-                    print(pred_text)
-                    print(true_text)
+                    if i % 1000 == 0:
+                        print(pred_text)
+                        print(true_text)
 
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
                         pred = float(pred_text.split("=")[-1].replace(" ", ""))
-                        print(pred, target)
-                        print()
+                        if i % 1000 == 0:
+                            print(pred, target)
+                            print()
 
                         # Calculate relative error
                         rel_error = abs(pred - target) / (abs(target) + 1e-8)

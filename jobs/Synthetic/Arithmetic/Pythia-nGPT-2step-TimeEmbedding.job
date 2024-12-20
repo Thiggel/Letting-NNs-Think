@@ -3,9 +3,9 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=Pythia_Arithmetic_nGPT
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_2Step_TimeEmbedding
 #SBATCH --time=04:30:00
-#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_%A.out
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_2Step_TimeEmbedding_%A.out
 
 cd $HOME/Letting-NNs-Think
 . jobs/environment.sh
@@ -15,14 +15,17 @@ srun python -m experiment \
     --dataset synthetic_arithmetic_task \
     --finetune-mode full \
     --enable-normalization \
+    --make-layers-recurrent 2:4 \
+    --num-steps 2 \
+    --use-time-embedding \
     --batch-size 512 \
     --grad-acc-steps 1 \
     --learning-rate 3e-5 \
     --max-hours 4 \
-    --max-epochs 10 \
+    --max-epochs 20 \
     --max-training-steps 1000000 \
-    --experiment-name Pythia_Arithmetic_nGPT \
-    --save-to-checkpoint Pythia_Arithmetic_nGPT \
+    --experiment-name Pythia_Arithmetic_nGPT_2Step_TimeEmbedding \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_2Step_TimeEmbedding \
     --enable-logging \
     --mode train
 
@@ -32,8 +35,11 @@ srun python -m experiment \
     --pretrained \
     --finetune-mode full \
     --enable-normalization \
-    --experiment-name Pythia_Arithmetic_nGPT_Eval \
-    --load-from-checkpoint Pythia_Arithmetic_nGPT \
+    --make-layers-recurrent 2:4 \
+    --num-steps 2 \
+    --use-time-embedding \
+    --experiment-name Pythia_Arithmetic_nGPT_2Step_TimeEmbedding_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_2Step_TimeEmbedding \
     --evaluation-metrics arithmetic_task \
     --mode evaluate \
     --max-epochs 1 \

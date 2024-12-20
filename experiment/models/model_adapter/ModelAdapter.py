@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM, PreTrainedModel, AutoConfig
+from transformers import AutoModelForCausalLM, PreTrainedModel, AutoConfig, PreTrainedTokenizer
 import math
 import torch
 from torch import nn
@@ -23,8 +23,9 @@ class ModelAdapter(
 ):
     """Handles model initialization and modification with LoRA support"""
 
-    def __init__(self, config: ModelConfig, device: torch.device):
+    def __init__(self, config: ModelConfig, tokenizer: PreTrainedTokenizer, device: torch.device):
         self.config = config
+        self.tokenizer = tokenizer
         self.device = device
 
         self.lora_config = LoraConfig(
@@ -46,9 +47,22 @@ class ModelAdapter(
         if self.config.enable_normalization:
             self.normalize_weights()
 
+    def _adjust_embedding_size(self, model: PreTrainedModel):
+        print(self.tokenizer.vocab_size, self.config.vocab_size)
+        print(model.get_input_embeddings().weight.shape)
+        print(model.get_output_embeddings().weight.shape)
+        print('-'*50)
+        if self.tokenizer.vocab_size != self.config.vocab_size:
+            model.resize_token_embeddings(self.tokenizer.vocab_size)
+
+        print(model.get_input_embeddings().weight.shape)
+        print(model.get_output_embeddings().weight.shape)
+
+        exit()
+
     def remove_layers(self, model: PreTrainedModel) -> PreTrainedModel:
         if self.config.remove_layers is not None:
-            removed_layers = self._get_removed_layer_range()
+            removed_layers = self._get_removed_layers()
             layers = self.get_decoder_layers(model)
             layers = nn.ModuleList(
                 [layer for idx, layer in enumerate(layers) if idx not in removed_layers]
@@ -77,7 +91,7 @@ class ModelAdapter(
             model.print_trainable_parameters()
 
         elif self.config.finetune_mode == FinetuneMode.FULL:
-            for param in model.model.parameters():
+            for param in model.parameters():
                 param.requires_grad = True
 
         return model
@@ -120,5 +134,5 @@ class ModelAdapter(
 
         return model
 
-    def _get_removed_layer_range(self) -> list[tuple[int, int]]:
-        return self._get_layer_range(self.model, self.config.remove_layers)
+    def _get_removed_layers(self) -> list[tuple[int, int]]:
+        return self._get_all_layers(self.model, self.config.remove_layers)

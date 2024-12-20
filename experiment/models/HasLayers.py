@@ -84,3 +84,12 @@ class HasLayers:
             end = len(layers) + end
 
         return [(start, end)]
+
+    def _get_all_layers(
+        self, model: AutoModel, layer_range: Optional[Annotated[str, LayerRange]]
+    ) -> list[int]:
+        return [
+            layer
+            for (start, end) in self._get_layer_range(model, layer_range)
+            for layer in range(start, end)
+        ]

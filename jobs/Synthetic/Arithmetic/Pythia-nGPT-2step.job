@@ -17,13 +17,12 @@ srun python -m experiment \
     --enable-normalization \
     --make-layers-recurrent 2:4 \
     --num-steps 2 \
-    --batch-size 2048 \
+    --batch-size 512 \
     --grad-acc-steps 1 \
     --learning-rate 3e-5 \
     --max-hours 4 \
-    --max-epochs 20 \
+    --max-epochs 10 \
     --max-training-steps 1000000 \
-    --use-early-stopping \
     --experiment-name Pythia_Arithmetic_nGPT_2Step \
     --save-to-checkpoint Pythia_Arithmetic_nGPT_2Step \
     --enable-logging \

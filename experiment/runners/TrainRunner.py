@@ -49,6 +49,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             self.data_config,
             self.model_config,
             self.training_config,
+            self.evaluation_config.eval_batch_size,
             self.tokenizer,
             seed,
         )
@@ -98,9 +99,9 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         )
 
         self.epoch_checkpoint = ModelCheckpoint(
-            monitor="val_loss",
+            monitor="val_top5_accuracy",
             save_top_k=1,
-            mode="min",
+            mode="max",
             save_on_train_epoch_end=True,
             dirpath=checkpoint_dir,
             filename=self.experiment_config.experiment_name
