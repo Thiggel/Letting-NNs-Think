@@ -194,14 +194,14 @@ class SyntheticDatasetEvaluator:
                 )
 
                 for i, output in tqdm(enumerate(outputs)):
-                    pred_text = self.tokenizer.decode(output, skip_special_tokens=True)
+                    pred_text = self.tokenizer.decode(output)
                     labels = batch["labels"][i]
                     labels = labels[labels != -100]
                     true_text = self.tokenizer.decode(labels, skip_special_tokens=True)
 
-                    if i % 1000 == 0:
-                        print(pred_text)
-                        print(true_text)
+                    print(pred_text)
+                    print(true_text)
+                    exit()
 
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
