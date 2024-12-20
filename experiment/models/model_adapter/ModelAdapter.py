@@ -35,13 +35,6 @@ class ModelAdapter(
         self.config = config
         self.tokenizer = tokenizer
         self.device = device
-        vocab = tokenizer.get_vocab()
-
-        # Print all tokens sorted by their index
-        for token, index in sorted(vocab.items(), key=lambda x: x[1]):
-            print(f"Token: {token}, Index: {index}")
-
-        exit()
 
         self.lora_config = LoraConfig(
             r=self.config.lora_r,
@@ -65,6 +58,8 @@ class ModelAdapter(
         print(model.get_input_embeddings().weight.shape)
         print(model.get_output_embeddings().weight.shape)
         print("-" * 50)
+        print(self.tokenizer.get_vocab())
+        exit()
         if self.tokenizer.vocab_size != model.config.vocab_size:
             model.resize_token_embeddings(self.tokenizer.vocab_size)
 
