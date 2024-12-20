@@ -17,6 +17,9 @@ class TrainingConfig(BaseModel):
     use_early_stopping: bool = Field(
         False, description="Whether to use early stopping during training"
     )
+    early_stopping_patience: int = Field(
+        1, description="The number of epochs to wait before stopping"
+    )
     learning_rate: float = Field(1e-3, description="The learning rate for the model")
     initial_lr: float = Field(0, description="The initial learning rate for the model")
     warmup_steps: int = Field(50, description="The number of warmup steps")

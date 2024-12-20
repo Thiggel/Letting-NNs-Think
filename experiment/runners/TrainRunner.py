@@ -120,7 +120,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             callbacks.append(
                 EarlyStopping(
                     monitor="val_loss",
-                    patience=1,
+                    patience=self.training_config.early_stopping_patience,
                     mode="min",
                     min_delta=0.00,
                     verbose=True,
