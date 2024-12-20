@@ -46,9 +46,6 @@ class ModelAdapter(
 
         self.model = self._initialize_model()
 
-        self.model = self.remove_layers(self.model)
-        self.model = self._adjust_embedding_size(self.model)
-
         if not self.config.pretrained:
             self._init_embeddings()
 
@@ -124,6 +121,9 @@ class ModelAdapter(
 
         model.use_cache = False
         model.train()
+
+        model = self.remove_layers(model)
+        model = self._adjust_embedding_size(model)
 
         if self.config.use_gating:
             model = self._add_gating(model)
