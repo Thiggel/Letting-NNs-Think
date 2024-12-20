@@ -186,8 +186,8 @@ class SyntheticDatasetEvaluator:
                     batch["attention_mask"].to(self.device),
                 )
 
-                print(input_ids[0][input_ids[0] == 0].sum())
-                print(attention_mask[0][attention_mask[0] == 0].sum())
+                print(input_ids[0][input_ids[0] == 0].size())
+                print(attention_mask[0][attention_mask[0] == 0].size())
                 exit()
 
                 outputs = self.model.generate(
