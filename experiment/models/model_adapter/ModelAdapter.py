@@ -1,4 +1,9 @@
-from transformers import AutoModelForCausalLM, PreTrainedModel, AutoConfig, PreTrainedTokenizer
+from transformers import (
+    AutoModelForCausalLM,
+    PreTrainedModel,
+    AutoConfig,
+    PreTrainedTokenizer,
+)
 import math
 import torch
 from torch import nn
@@ -23,7 +28,9 @@ class ModelAdapter(
 ):
     """Handles model initialization and modification with LoRA support"""
 
-    def __init__(self, config: ModelConfig, tokenizer: PreTrainedTokenizer, device: torch.device):
+    def __init__(
+        self, config: ModelConfig, tokenizer: PreTrainedTokenizer, device: torch.device
+    ):
         self.config = config
         self.tokenizer = tokenizer
         self.device = device
@@ -40,6 +47,7 @@ class ModelAdapter(
         self.model = self._initialize_model()
 
         self.model = self.remove_layers(self.model)
+        self.model = self._adjust_embedding_size(self.model)
 
         if not self.config.pretrained:
             self._init_embeddings()
@@ -47,11 +55,11 @@ class ModelAdapter(
         if self.config.enable_normalization:
             self.normalize_weights()
 
-    def _adjust_embedding_size(self, model: PreTrainedModel):
+    def _adjust_embedding_size(self, model: PreTrainedModel) -> PreTrainedModel:
         print(self.tokenizer.vocab_size, self.config.vocab_size)
         print(model.get_input_embeddings().weight.shape)
         print(model.get_output_embeddings().weight.shape)
-        print('-'*50)
+        print("-" * 50)
         if self.tokenizer.vocab_size != self.config.vocab_size:
             model.resize_token_embeddings(self.tokenizer.vocab_size)
 
@@ -59,6 +67,8 @@ class ModelAdapter(
         print(model.get_output_embeddings().weight.shape)
 
         exit()
+
+        return model
 
     def remove_layers(self, model: PreTrainedModel) -> PreTrainedModel:
         if self.config.remove_layers is not None:
