@@ -34,7 +34,7 @@ srun python -m experiment \
     --pretrained \
     --finetune-mode full \
     --enable-normalization \
-    --remove_layers 0:3 \
+    --remove-layers 0:3 \
     --experiment-name 3Layer_Pythia_Arithmetic_nGPT_Eval \
     --load-from-checkpoint 3Layer_Pythia_Arithmetic_nGPT \
     --evaluation-metrics arithmetic_task \
