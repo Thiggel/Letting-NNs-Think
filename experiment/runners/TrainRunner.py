@@ -18,7 +18,6 @@ from pydantic import BaseModel
 
 from experiment.experiment import Runner
 from experiment.datasets import LanguageDataModule
-from experiment.models import DefaultLightningModule
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
 
@@ -99,9 +98,9 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         )
 
         self.epoch_checkpoint = ModelCheckpoint(
-            monitor="val_top5_accuracy",
+            monitor="val_loss",
             save_top_k=1,
-            mode="max",
+            mode="min",
             save_on_train_epoch_end=True,
             dirpath=checkpoint_dir,
             filename=self.experiment_config.experiment_name
