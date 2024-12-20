@@ -201,7 +201,7 @@ class SyntheticDatasetEvaluator:
 
                     print("PRED", pred_text)
                     print("TARGET", true_text)
-                    exit("-" * 50)
+                    print("-" * 50)
 
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
