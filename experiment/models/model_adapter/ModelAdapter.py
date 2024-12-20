@@ -54,11 +54,11 @@ class ModelAdapter(
             self.normalize_weights()
 
     def _adjust_embedding_size(self, model: PreTrainedModel) -> PreTrainedModel:
-        print(self.tokenizer.vocab_size, self.model.config.vocab_size)
+        print(self.tokenizer.vocab_size, model.config.vocab_size)
         print(model.get_input_embeddings().weight.shape)
         print(model.get_output_embeddings().weight.shape)
         print("-" * 50)
-        if self.tokenizer.vocab_size != self.model.config.vocab_size:
+        if self.tokenizer.vocab_size != model.config.vocab_size:
             model.resize_token_embeddings(self.tokenizer.vocab_size)
 
         print(model.get_input_embeddings().weight.shape)
@@ -68,7 +68,7 @@ class ModelAdapter(
 
         return model
 
-    def remove_layers(self, model: PreTrainedModel) -> PreTrainedModel:
+    def _remove_layers(self, model: PreTrainedModel) -> PreTrainedModel:
         if self.config.remove_layers is not None:
             removed_layers = self._get_removed_layers(model)
             layers = self.get_decoder_layers(model)
@@ -123,7 +123,7 @@ class ModelAdapter(
         model.use_cache = False
         model.train()
 
-        model = self.remove_layers(model)
+        model = self._remove_layers(model)
         model = self._adjust_embedding_size(model)
 
         if self.config.use_gating:
