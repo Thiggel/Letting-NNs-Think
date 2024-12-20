@@ -15,7 +15,7 @@ srun python -m experiment \
     --dataset synthetic_arithmetic_task \
     --finetune-mode full \
     --enable-normalization \
-    --remove_layers 0:3 \
+    --remove-layers 0:3 \
     --batch-size 8192 \
     --eval-batch-size 32768
     --grad-acc-steps 1 \
@@ -41,5 +41,5 @@ srun python -m experiment \
     --mode evaluate \
     --max-epochs 1 \
     --max-training-steps 1 \
-    --eval-batch-size 32768
+    --eval-batch-size 32768 \
     --enable-logging
