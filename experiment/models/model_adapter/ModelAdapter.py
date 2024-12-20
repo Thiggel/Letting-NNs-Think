@@ -54,17 +54,8 @@ class ModelAdapter(
             self.normalize_weights()
 
     def _adjust_embedding_size(self, model: PreTrainedModel) -> PreTrainedModel:
-        print(self.tokenizer.vocab_size, model.config.vocab_size)
-        print(model.get_input_embeddings().weight.shape)
-        print(model.get_output_embeddings().weight.shape)
-        print("-" * 50)
         if self.tokenizer.vocab_size != model.config.vocab_size:
             model.resize_token_embeddings(self.tokenizer.vocab_size)
-
-        print(model.get_input_embeddings().weight.shape)
-        print(model.get_output_embeddings().weight.shape)
-
-        exit()
 
         return model
 
