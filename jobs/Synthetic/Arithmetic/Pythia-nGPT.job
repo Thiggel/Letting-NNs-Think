@@ -11,7 +11,7 @@ cd $HOME/Letting-NNs-Think
 . jobs/environment.sh
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-14m" \
+    --model-name "EleutherAI/pythia-70m" \
     --dataset synthetic_arithmetic_task \
     --finetune-mode full \
     --enable-normalization \
@@ -27,7 +27,7 @@ srun python -m experiment \
     --mode train
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-14m" \
+    --model-name "EleutherAI/pythia-70m" \
     --dataset synthetic_arithmetic_task \
     --pretrained \
     --finetune-mode full \

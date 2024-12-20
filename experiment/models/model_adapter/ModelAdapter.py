@@ -115,7 +115,7 @@ class ModelAdapter(
         model.train()
 
         model = self._remove_layers(model)
-        # model = self._adjust_embedding_size(model)
+        model = self._adjust_embedding_size(model)
 
         if self.config.use_gating:
             model = self._add_gating(model)
