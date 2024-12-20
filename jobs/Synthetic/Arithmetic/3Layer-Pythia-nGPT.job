@@ -17,7 +17,7 @@ srun python -m experiment \
     --enable-normalization \
     --remove-layers 0:3 \
     --batch-size 8192 \
-    --eval-batch-size 32768
+    --eval-batch-size 32768 \
     --grad-acc-steps 1 \
     --learning-rate 1e-4 \
     --max-hours 4 \
