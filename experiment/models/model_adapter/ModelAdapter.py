@@ -1,4 +1,5 @@
 from transformers import (
+    AutoModel,
     AutoModelForCausalLM,
     PreTrainedModel,
     AutoConfig,
@@ -69,7 +70,7 @@ class ModelAdapter(
 
     def remove_layers(self, model: PreTrainedModel) -> PreTrainedModel:
         if self.config.remove_layers is not None:
-            removed_layers = self._get_removed_layers()
+            removed_layers = self._get_removed_layers(model)
             layers = self.get_decoder_layers(model)
             layers = nn.ModuleList(
                 [layer for idx, layer in enumerate(layers) if idx not in removed_layers]
@@ -144,5 +145,5 @@ class ModelAdapter(
 
         return model
 
-    def _get_removed_layers(self) -> list[tuple[int, int]]:
-        return self._get_all_layers(self.model, self.config.remove_layers)
+    def _get_removed_layers(self, model: AutoModel) -> list[tuple[int, int]]:
+        return self._get_all_layers(model, self.config.remove_layers)
