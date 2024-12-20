@@ -186,10 +186,6 @@ class SyntheticDatasetEvaluator:
                     batch["attention_mask"].to(self.device),
                 )
 
-                print(input_ids[0][input_ids[0] == 0].size())
-                print(attention_mask[0][attention_mask[0] == 0].size())
-                exit()
-
                 outputs = self.model.generate(
                     input_ids=input_ids,
                     max_new_tokens=20,
@@ -206,6 +202,7 @@ class SyntheticDatasetEvaluator:
                     print("PRED", pred_text)
                     print("TARGET", true_text)
                     print("-" * 50)
+                    exit()
 
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
