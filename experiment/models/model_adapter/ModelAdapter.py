@@ -58,7 +58,7 @@ class ModelAdapter(
         print(model.get_input_embeddings().weight.shape)
         print(model.get_output_embeddings().weight.shape)
         print("-" * 50)
-        print(self.tokenizer.get_vocab())
+        print(len(self.tokenizer.get_vocab()))
         exit()
         if self.tokenizer.vocab_size != model.config.vocab_size:
             model.resize_token_embeddings(self.tokenizer.vocab_size)
