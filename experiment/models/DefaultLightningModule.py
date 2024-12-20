@@ -153,7 +153,9 @@ class DefaultLightningModule(
             },
             {
                 "params": embedding_params,
-                "lr": base_lr / 10,
+                "lr": (
+                    base_lr / 10 if self.config.untie_embedding_and_softmax else base_lr
+                ),
             },
         ]
 
