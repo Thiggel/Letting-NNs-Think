@@ -35,6 +35,13 @@ class ModelAdapter(
         self.config = config
         self.tokenizer = tokenizer
         self.device = device
+        vocab = tokenizer.get_vocab()
+
+        # Print all tokens sorted by their index
+        for token, index in sorted(vocab.items(), key=lambda x: x[1]):
+            print(f"Token: {token}, Index: {index}")
+
+        exit()
 
         self.lora_config = LoraConfig(
             r=self.config.lora_r,
