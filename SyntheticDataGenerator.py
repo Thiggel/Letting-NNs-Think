@@ -145,19 +145,17 @@ class SyntheticDataGenerator:
         """Generate a complex arithmetic expression with given number of operations."""
         operators = [
             "+",
-            "-",
-            "*",
         ]
         numbers = []
         ops = []
 
         # Generate first number
-        numbers.append(random.randint(1, 10))
+        numbers.append(random.randint(0, 2))
 
         # Generate operations and numbers
         for _ in range(num_steps):
             op = random.choice(operators)
-            num = random.randint(1, 20)
+            num = random.randint(0, 2)
 
             numbers.append(num)
             ops.append(op)
@@ -179,7 +177,7 @@ class SyntheticDataGenerator:
         return expression, result
 
     def generate_arithmetic_task(
-        self, num_samples: int, min_steps: int = 5, max_steps: int = 20
+        self, num_samples: int, min_steps: int = 5, max_steps: int = 10
     ) -> Dataset:
         """Generate complex arithmetic problems with multiple operations."""
         data = []

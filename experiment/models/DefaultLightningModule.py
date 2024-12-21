@@ -72,7 +72,10 @@ class DefaultLightningModule(
     def on_validation_start(self):
         string = self.tokenizer.encode("5 + 10 =", return_tensors="pt").to(self.device)
         generated = self.model.generate(
-            input_ids=string, max_length=100, max_new_tokens=100
+            input_ids=string,
+            max_length=100,
+            max_new_tokens=100,
+            eos_token_id=self.tokenizer.eos_token_id,
         )
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
