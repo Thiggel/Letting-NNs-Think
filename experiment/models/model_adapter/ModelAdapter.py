@@ -117,6 +117,9 @@ class ModelAdapter(
         model = self._remove_layers(model)
         model = self._adjust_embedding_size(model)
 
+        if self.config.untie_embedding_and_softmax:
+            self._untie_embedding_and_softmax(model)
+
         if self.config.use_gating:
             model = self._add_gating(model)
 
@@ -128,11 +131,11 @@ class ModelAdapter(
 
         model = self._get_peft_model(model)
 
-        if self.config.untie_embedding_and_softmax:
-            self._untie_embedding_and_softmax(model)
-
         if self.config.make_layers_recurrent is not None:
             model = self._add_recurrence(model)
+
+        print(model.state_dict())
+        exit()
 
         return model
 

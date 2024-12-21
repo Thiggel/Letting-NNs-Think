@@ -44,39 +44,9 @@ class NormalizedLanguageModelAdapter(CanNormalize):
         self: NormalizedLanguageModelAdapterProtocol, model: nn.Module
     ):
         if hasattr(model, "lm_head"):
-            normalized_head = NormalizedLMHead(model.lm_head)
-            delattr(model, "lm_head")
-            model.add_module("lm_head", normalized_head)
+            model.lm_head = NormalizedLMHead(model.lm_head)
         elif hasattr(model, "embed_out"):
-            normalized_head = NormalizedLMHead(model.embed_out)
-            delattr(model, "embed_out")
-            model.add_module("embed_out", normalized_head)
-
-        if hasattr(model, "gpt_neox") and hasattr(model.gpt_neox, "final_layer_norm"):
-            print("HEEEEELLLOOOOO")
-            exit()
-            # Save the old layer norm weights
-            old_layer_norm = model.gpt_neox.final_layer_norm
-            weight_data = old_layer_norm.weight.data.clone()
-            bias_data = (
-                old_layer_norm.bias.data.clone()
-                if old_layer_norm.bias is not None
-                else None
-            )
-
-            # Create and register new layer norm with saved weights
-            new_layer_norm = nn.LayerNorm(
-                old_layer_norm.normalized_shape,
-                elementwise_affine=True,
-                bias=bias_data is not None,
-            )
-            new_layer_norm.weight.data.copy_(weight_data)
-            if bias_data is not None:
-                new_layer_norm.bias.data.copy_(bias_data)
-
-            # Properly register the new layer norm
-            delattr(model.gpt_neox, "final_layer_norm")
-            model.gpt_neox.add_module("final_layer_norm", new_layer_norm)
+            model.embed_out = NormalizedLMHead(model.embed_out)
 
         layers = self.get_decoder_layers(model)
 
