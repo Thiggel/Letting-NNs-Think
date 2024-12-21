@@ -197,18 +197,21 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
         )
 
-        # Load the Lightning checkpoint
-        checkpoint = torch.load(checkpoint_path)
+        # Load all files from DeepSpeed checkpoint directory
+        checkpoint_files = {}
+        for filename in os.listdir(checkpoint_path):
+            if filename.endswith(".pt"):
+                file_path = os.path.join(checkpoint_path, filename)
+                checkpoint_files[filename] = torch.load(file_path)
 
-        # Get the state dict directly from the checkpoint
-        state_dict = checkpoint["state_dict"]
+        # Combine the state dicts
+        combined_state_dict = {}
+        for checkpoint in checkpoint_files.values():
+            if isinstance(checkpoint, dict) and "module" in checkpoint:
+                state_dict = checkpoint["module"]
+                combined_state_dict.update(state_dict)
 
-        # Print state dict keys for debugging
-        print("State dict keys before saving:", state_dict.keys())
+        print("Combined state dict keys:", combined_state_dict.keys())
 
-        # Save it directly
-        torch.save(state_dict, output_path)
-
-        # Verify the save
-        saved_dict = torch.load(output_path)
-        print("Saved state dict keys:", saved_dict.keys())
+        # Save the combined state dict
+        torch.save(combined_state_dict, output_path)
