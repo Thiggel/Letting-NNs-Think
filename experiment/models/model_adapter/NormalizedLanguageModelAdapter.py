@@ -53,6 +53,8 @@ class NormalizedLanguageModelAdapter(CanNormalize):
             model.add_module("embed_out", normalized_head)
 
         if hasattr(model, "gpt_neox") and hasattr(model.gpt_neox, "final_layer_norm"):
+            print("HEEEEELLLOOOOO")
+            exit()
             # Save the old layer norm weights
             old_layer_norm = model.gpt_neox.final_layer_norm
             weight_data = old_layer_norm.weight.data.clone()
