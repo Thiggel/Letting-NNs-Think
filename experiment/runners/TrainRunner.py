@@ -178,6 +178,9 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                     "stage": 2,
                     "offload_optimizer": {"device": "cpu"},
                     "reduce_bucket_size": 1e7,
+                    "param_persistence_threshold": 0,  # Save all params
+                    "contiguous_gradients": True,
+                    "round_robin_gradients": True,
                 },
                 "bf16": {
                     "enabled": True,
