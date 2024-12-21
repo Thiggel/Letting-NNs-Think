@@ -196,11 +196,19 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             os.environ["BASE_CACHE_DIR"],
             f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
         )
-        convert_zero_checkpoint_to_fp32_state_dict(checkpoint_path, output_path)
 
-        print(
-            "After conversion - checking if output exists:", os.path.exists(output_path)
-        )
-        if os.path.exists(output_path):
-            state_dict = torch.load(output_path)["state_dict"]
-            print("State dict keys:", state_dict.keys())
+        # Load the Lightning checkpoint
+        checkpoint = torch.load(checkpoint_path)
+
+        # Get the state dict directly from the checkpoint
+        state_dict = checkpoint["state_dict"]
+
+        # Print state dict keys for debugging
+        print("State dict keys before saving:", state_dict.keys())
+
+        # Save it directly
+        torch.save(state_dict, output_path)
+
+        # Verify the save
+        saved_dict = torch.load(output_path)
+        print("Saved state dict keys:", saved_dict.keys())
