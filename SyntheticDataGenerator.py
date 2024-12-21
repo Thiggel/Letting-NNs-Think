@@ -143,7 +143,11 @@ class SyntheticDataGenerator:
 
     def _generate_arithmetic_expression(self, num_steps: int) -> Tuple[str, float]:
         """Generate a complex arithmetic expression with given number of operations."""
-        operators = ["+", "-", "*", "/"]
+        operators = [
+            "+",
+            "-",
+            "*",
+        ]
         numbers = []
         ops = []
 
@@ -153,7 +157,7 @@ class SyntheticDataGenerator:
         # Generate operations and numbers
         for _ in range(num_steps):
             op = random.choice(operators)
-            num = random.randint(1, 100)
+            num = random.randint(1, 20)
 
             numbers.append(num)
             ops.append(op)
@@ -175,7 +179,7 @@ class SyntheticDataGenerator:
         return expression, result
 
     def generate_arithmetic_task(
-        self, num_samples: int, min_steps: int = 20, max_steps: int = 100
+        self, num_samples: int, min_steps: int = 5, max_steps: int = 20
     ) -> Dataset:
         """Generate complex arithmetic problems with multiple operations."""
         data = []
