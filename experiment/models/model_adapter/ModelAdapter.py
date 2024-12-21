@@ -134,9 +134,6 @@ class ModelAdapter(
         if self.config.make_layers_recurrent is not None:
             model = self._add_recurrence(model)
 
-        print(model.state_dict())
-        exit()
-
         return model
 
     def _get_removed_layers(self, model: AutoModel) -> list[tuple[int, int]]:
