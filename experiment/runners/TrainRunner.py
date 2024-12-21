@@ -202,5 +202,5 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             "After conversion - checking if output exists:", os.path.exists(output_path)
         )
         if os.path.exists(output_path):
-            state_dict = torch.load(output_path)
+            state_dict = torch.load(output_path)["state_dict"]
             print("State dict keys:", state_dict.keys())
