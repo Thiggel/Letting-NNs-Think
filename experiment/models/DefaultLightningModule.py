@@ -70,7 +70,7 @@ class DefaultLightningModule(
         return self.model.generate(*args, **kwargs)
 
     def on_validation_start(self):
-        string = self.tokenizer.encode("My dog is", return_tensors="pt").to(self.device)
+        string = self.tokenizer.encode("5 + 10 =", return_tensors="pt").to(self.device)
         generated = self.model.generate(
             input_ids=string, max_length=100, max_new_tokens=100
         )
