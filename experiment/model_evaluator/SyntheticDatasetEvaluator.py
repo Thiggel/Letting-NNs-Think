@@ -190,13 +190,13 @@ class SyntheticDatasetEvaluator:
                     "wdhwhdu",
                     self.tokenizer.decode(input_ids[0][attention_mask[0] == 1]),
                 )
+                generated = self.model.generate(
+                    input_ids=input_ids[0][attention_mask[0] == 1].unsqueeze(0),
+                )
+                print(generated)
                 print(
                     "111",
-                    self.tokenizer.decode(
-                        input_ids=self.model.generate(
-                            input_ids=input_ids[0][attention_mask[0] == 1].unsqueeze(0),
-                        )
-                    ),
+                    self.tokenizer.decode(generated[0]),
                 )
                 exit()
 
