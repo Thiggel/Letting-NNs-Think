@@ -197,7 +197,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         return args
 
     def _save_checkpoint(self, checkpoint_path: str, seed):
-        if self.training_args.use_deepspeed:
+        if self.training_config.use_deepspeed:
             output_path = os.path.join(
                 os.environ["BASE_CACHE_DIR"],
                 f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
