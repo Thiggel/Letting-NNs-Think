@@ -117,7 +117,7 @@ class ModelAdapter(
         model = self._remove_layers(model)
         model = self._adjust_embedding_size(model)
 
-        if self.config.untie_embedding_and_softmax:
+        if self.config.untie_embedding_and_softmax or self.config.enable_normalization:
             self._untie_embedding_and_softmax(model)
 
         if self.config.use_gating:
