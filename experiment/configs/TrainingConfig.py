@@ -11,6 +11,9 @@ class TrainingProcedureType(str, Enum):
 class TrainingConfig(BaseModel):
     """Configuration for training parameters"""
 
+    use_deepspeed: bool = Field(
+        False, description="Whether to use DeepSpeed for training"
+    )
     max_epochs: int = Field(None, description="The maximum number of epochs")
     max_training_steps: int = Field(None, description="The maximum number of epochs")
     max_hours: int = Field(4, description="The maximum number of hours to train")

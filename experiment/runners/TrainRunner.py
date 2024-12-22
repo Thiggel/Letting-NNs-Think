@@ -184,12 +184,17 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                 },
             }
         )
-        return {
-            "strategy": strategy,
+        args = {
             "precision": "bf16",
             "accelerator": "gpu",
-            "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
+            "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"] + "/../",
         }
+
+        if self.training_config.use_deepspeed:
+            args["strategy"] = strategy
+            args["default_root_dir"] = os.environ["PYTORCH_LIGHTNING_HOME"]
+
+        return args
 
     def _save_checkpoint(self, checkpoint_path: str, seed):
         output_path = os.path.join(
