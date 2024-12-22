@@ -44,7 +44,6 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             max_new_tokens=100,
             eos_token_id=self.tokenizer.eos_token_id,
         )
-
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
         exit()
 
