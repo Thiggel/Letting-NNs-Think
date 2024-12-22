@@ -45,7 +45,6 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             eos_token_id=self.tokenizer.eos_token_id,
         )
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
-        exit()
 
         # Determine if we're evaluating on synthetic datasets
         synthetic_tasks = [
