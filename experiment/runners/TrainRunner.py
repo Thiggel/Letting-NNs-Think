@@ -175,7 +175,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                 * self.data_config.grad_acc_steps
                 * torch.cuda.device_count(),
                 "zero_optimization": {
-                    "stage": 1,
+                    "stage": 2,
                     "offload_optimizer": {"device": "cpu"},
                     "reduce_bucket_size": 1e7,
                 },
