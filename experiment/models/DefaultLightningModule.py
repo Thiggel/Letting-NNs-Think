@@ -144,12 +144,11 @@ class DefaultLightningModule(
             p for p in self.model.get_input_embeddings().parameters() if p.requires_grad
         ]
 
-        if self.config.untie_embedding_and_softmax:
-            embedding_params += [
-                p
-                for p in self.model.get_output_embeddings().parameters()
-                if p.requires_grad
-            ]
+        embedding_params += [
+            p
+            for p in self.model.get_output_embeddings().parameters()
+            if p.requires_grad
+        ]
 
         parameters = [
             {
