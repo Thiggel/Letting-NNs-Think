@@ -27,6 +27,8 @@ class HasModel:
         )
         model.setup(mode)
 
+        state_dict = model.state_dict()
+
         print(model)
 
         if self.evaluation_config.load_from_checkpoint:
@@ -46,6 +48,13 @@ class HasModel:
             )
             print("Missing keys:", missing_keys)
             print("Unexpected keys:", unexpected_keys)
+
+            new_state_dict = model.state_dict()
+
+            for key in state_dict:
+                if key in new_state_dict:
+                    if torch.allclose(state_dict[key], new_state_dict[key]):
+                        print(key, "is the same")
 
             return model
 
