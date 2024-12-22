@@ -165,7 +165,7 @@ class DefaultLightningModule(
         # Only create parameter groups if they have parameters
         parameters = [group for group in parameters if len(group["params"]) > 0]
 
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and self.training_config.use_deepspeed:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
 
             optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
