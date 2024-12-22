@@ -197,10 +197,11 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         return args
 
     def _save_checkpoint(self, checkpoint_path: str, seed):
-        output_path = os.path.join(
-            os.environ["BASE_CACHE_DIR"],
-            f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
-        )
-        convert_zero_checkpoint_to_fp32_state_dict(checkpoint_path, output_path)
-        saved_dict = torch.load(output_path)["state_dict"]
-        print("Saved state dict keys:", saved_dict.keys())
+        if self.training_args.use_deepspeed:
+            output_path = os.path.join(
+                os.environ["BASE_CACHE_DIR"],
+                f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
+            )
+            convert_zero_checkpoint_to_fp32_state_dict(checkpoint_path, output_path)
+            saved_dict = torch.load(output_path)["state_dict"]
+            print("Saved state dict keys:", saved_dict.keys())
