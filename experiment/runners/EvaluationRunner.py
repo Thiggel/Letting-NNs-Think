@@ -35,6 +35,19 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         model = self._load_model(seed, mode="test")
         model.to(self.device)
 
+        string = self.tokenizer.encode("1 + 0 + 1 =", return_tensors="pt").to(
+            self.device
+        )
+        generated = model.generate(
+            input_ids=string,
+            max_length=100,
+            max_new_tokens=100,
+            eos_token_id=self.tokenizer.eos_token_id,
+        )
+
+        print("Sample generation: ", self.tokenizer.decode(generated[0]))
+        exit()
+
         # Determine if we're evaluating on synthetic datasets
         synthetic_tasks = [
             "copy_task",
