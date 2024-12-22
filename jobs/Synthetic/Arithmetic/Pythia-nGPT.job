@@ -15,11 +15,12 @@ srun python -m experiment \
     --dataset synthetic_arithmetic_task \
     --finetune-mode full \
     --enable-normalization \
-    --batch-size 512 \
+    --batch-size 8192 \
     --grad-acc-steps 1 \
     --learning-rate 3e-5 \
     --max-hours 4 \
-    --max-epochs 10 \
+    --max-epochs 50 \
+    --use-early-stopping \
     --max-training-steps 1000000 \
     --experiment-name Pythia_Arithmetic_nGPT \
     --save-to-checkpoint Pythia_Arithmetic_nGPT \
@@ -37,6 +38,6 @@ srun python -m experiment \
     --evaluation-metrics arithmetic_task \
     --mode evaluate \
     --max-epochs 1 \
-    --max-training-steps 1000000 \
-    --eval-batch-size 1024 \
+    --max-training-steps 1 \
+    --eval-batch-size 8192 \
     --enable-logging
