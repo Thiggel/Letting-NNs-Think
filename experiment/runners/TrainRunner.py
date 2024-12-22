@@ -175,7 +175,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                 * self.data_config.grad_acc_steps
                 * torch.cuda.device_count(),
                 "zero_optimization": {
-                    "stage": 2,
+                    "stage": 1,
                     "offload_optimizer": {"device": "cpu"},
                     "reduce_bucket_size": 1e7,
                 },
@@ -196,22 +196,4 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             os.environ["BASE_CACHE_DIR"],
             f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
         )
-
-        # Load all files from DeepSpeed checkpoint directory
-        checkpoint_files = {}
-        for filename in os.listdir(checkpoint_path):
-            if filename.endswith(".pt"):
-                file_path = os.path.join(checkpoint_path, filename)
-                checkpoint_files[filename] = torch.load(file_path)
-
-        # Combine the state dicts
-        combined_state_dict = {}
-        for checkpoint in checkpoint_files.values():
-            if isinstance(checkpoint, dict) and "module" in checkpoint:
-                state_dict = checkpoint["module"]
-                combined_state_dict.update(state_dict)
-
-        print("Combined state dict keys:", combined_state_dict.keys())
-
-        # Save the combined state dict
-        torch.save(combined_state_dict, output_path)
+        convert_zero_checkpoint_to_fp32_state_dict(checkpoint_path, output_path)
