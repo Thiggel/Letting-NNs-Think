@@ -197,3 +197,5 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
         )
         convert_zero_checkpoint_to_fp32_state_dict(checkpoint_path, output_path)
+        saved_dict = torch.load(output_path)
+        print("Saved state dict keys:", saved_dict.keys())
