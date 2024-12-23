@@ -186,28 +186,9 @@ class SyntheticDatasetEvaluator:
                     batch["attention_mask"].to(self.device),
                 )
 
-                print(
-                    "wdhwhdu",
-                    self.tokenizer.decode(input_ids[0][attention_mask[0] == 1]),
-                )
-                generated = self.model.generate(
-                    input_ids=input_ids[0].unsqueeze(0),
-                    # attention_mask=attention_mask[0].unsqueeze(0),
-                    max_length=200,
-                )
-                print(generated)
-                print(
-                    "111",
-                    self.tokenizer.decode(generated[0]),
-                )
-                print(attention_mask[0])
-                print(batch["attention_mask"][0])
-                exit()
-
                 outputs = self.model.generate(
                     input_ids=input_ids,
                     max_new_tokens=20,
-                    attention_mask=attention_mask,
                     pad_token_id=self.tokenizer.pad_token_id,
                 )
 
@@ -216,7 +197,6 @@ class SyntheticDatasetEvaluator:
                     labels = batch["labels"][i]
                     labels = labels[labels != -100]
                     true_text = self.tokenizer.decode(labels, skip_special_tokens=True)
-
                     print("PRED", pred_text)
                     print("TARGET", true_text)
                     print("-" * 50)
