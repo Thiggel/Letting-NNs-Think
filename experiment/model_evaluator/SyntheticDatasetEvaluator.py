@@ -198,6 +198,7 @@ class SyntheticDatasetEvaluator:
                     "111",
                     self.tokenizer.decode(generated[0]),
                 )
+                print(attention_mask[0])
                 exit()
 
                 outputs = self.model.generate(
