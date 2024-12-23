@@ -204,8 +204,10 @@ class SyntheticDatasetEvaluator:
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
                         pred = float(
-                            pred_text.split("=")[-1].replace(" ", ""),
-                            replace("[EOS]", "").replace("[PAD]", ""),
+                            pred_text.split("=")[-1]
+                            .replace(" ", "")
+                            .replace("[EOS]", "")
+                            .replace("[PAD]", ""),
                         )
                         print(pred, target)
                         print()
