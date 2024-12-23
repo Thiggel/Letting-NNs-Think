@@ -193,6 +193,7 @@ class SyntheticDatasetEvaluator:
                 generated = self.model.generate(
                     input_ids=input_ids[0].unsqueeze(0),
                     attention_mask=attention_mask[0].unsqueeze(0),
+                    max_length=200,
                 )
                 print(generated)
                 print(
