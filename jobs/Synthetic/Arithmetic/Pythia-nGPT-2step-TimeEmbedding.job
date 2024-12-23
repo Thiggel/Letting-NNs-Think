@@ -18,9 +18,9 @@ srun python -m experiment \
     --make-layers-recurrent 2:4 \
     --num-steps 2 \
     --use-time-embedding \
-    --batch-size 512 \
+    --batch-size 8192 \
     --grad-acc-steps 1 \
-    --learning-rate 3e-5 \
+    --learning-rate 1e-5 \
     --max-hours 4 \
     --max-epochs 20 \
     --max-training-steps 1000000 \
@@ -44,5 +44,5 @@ srun python -m experiment \
     --mode evaluate \
     --max-epochs 1 \
     --max-training-steps 1000000 \
-    --eval-batch-size 1024 \
+    --eval-batch-size 8192 \
     --enable-logging
