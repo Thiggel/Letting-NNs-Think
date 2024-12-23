@@ -190,10 +190,6 @@ class SyntheticDatasetEvaluator:
                     input_ids=input_ids,
                     max_new_tokens=20,
                     pad_token_id=self.tokenizer.pad_token_id,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                    do_sample=False,
-                    num_beams=1,
-                    early_stopping=True,
                 )
 
                 for i, output in tqdm(enumerate(outputs)):
@@ -204,14 +200,16 @@ class SyntheticDatasetEvaluator:
                     print("PRED", pred_text)
                     print("TARGET", true_text)
                     print("-" * 50)
-                    exit()
 
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
-                        pred = float(pred_text.split("=")[-1].replace(" ", ""))
-                        if i % 1000 == 0:
-                            print(pred, target)
-                            print()
+                        pred = float(
+                            pred_text.split("=")[-1].replace(" ", ""),
+                            replace("[EOS]", "").replace("[PAD]", ""),
+                        )
+                        print(pred, target)
+                        print()
+                        exit()
 
                         # Calculate relative error
                         rel_error = abs(pred - target) / (abs(target) + 1e-8)
