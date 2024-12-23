@@ -197,9 +197,6 @@ class SyntheticDatasetEvaluator:
                     labels = batch["labels"][i]
                     labels = labels[labels != -100]
                     true_text = self.tokenizer.decode(labels, skip_special_tokens=True)
-                    print("PRED", pred_text)
-                    print("TARGET", true_text)
-                    print("-" * 50)
 
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
@@ -209,9 +206,9 @@ class SyntheticDatasetEvaluator:
                             .replace("[EOS]", "")
                             .replace("[PAD]", ""),
                         )
-                        print(pred, target)
-                        print()
-                        exit()
+                        if i % 1000 == 0:
+                            print(pred, target)
+                            print()
 
                         # Calculate relative error
                         rel_error = abs(pred - target) / (abs(target) + 1e-8)
