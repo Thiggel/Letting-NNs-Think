@@ -142,7 +142,6 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                 name=f"{self.experiment_config.experiment_name}_{seed}",
                 group=self.experiment_config.experiment_name,
                 save_dir=os.environ["WANDB_DIR"],
-                log_model="all",
             )
 
         trainer_args = {
