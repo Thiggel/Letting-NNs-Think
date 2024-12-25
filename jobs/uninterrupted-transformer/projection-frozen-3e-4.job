@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=4:00:00
+#SBATCH --job-name=Projection-Frozen-3e-4
+#SBATCH --output=job_logs/projection-frozen-3e-4-%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset fineweb \
+  --pretrained \
+  --batch-size 8 \
+  --learning-rate 3e-4 \
+  --warmup-steps 5000 \
+  --max-epochs 10 \
+  --max-training-steps 50000 \
+  --uninterrupted-mode projection \
+  --uninterrupted-recurrence-depth 2 \
+  --finetune-mode frozen \
+  --experiment-name ProjectionFrozenFineweb3e4 \
+  --save-to-checkpoint ProjectionFrozenFineweb3e4 \
+  --enable-logging

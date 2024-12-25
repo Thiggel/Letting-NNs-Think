@@ -54,6 +54,7 @@ class ModelAdapter(
             self.normalize_weights()
 
     def _adjust_embedding_size(self, model: PreTrainedModel) -> PreTrainedModel:
+        # Has caused cuda device-side error in the past
         if self.tokenizer.vocab_size != model.config.vocab_size:
             model.resize_token_embeddings(self.tokenizer.vocab_size)
 
@@ -115,7 +116,7 @@ class ModelAdapter(
         model.train()
 
         model = self._remove_layers(model)
-        model = self._adjust_embedding_size(model)
+        #model = self._adjust_embedding_size(model)
 
         if self.config.untie_embedding_and_softmax or self.config.enable_normalization:
             self._untie_embedding_and_softmax(model)
