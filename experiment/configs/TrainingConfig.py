@@ -11,11 +11,17 @@ class TrainingProcedureType(str, Enum):
 class TrainingConfig(BaseModel):
     """Configuration for training parameters"""
 
+    use_deepspeed: bool = Field(
+        False, description="Whether to use DeepSpeed for training"
+    )
     max_epochs: int = Field(None, description="The maximum number of epochs")
     max_training_steps: int = Field(None, description="The maximum number of epochs")
     max_hours: int = Field(4, description="The maximum number of hours to train")
     use_early_stopping: bool = Field(
         False, description="Whether to use early stopping during training"
+    )
+    early_stopping_patience: int = Field(
+        1, description="The number of epochs to wait before stopping"
     )
     learning_rate: float = Field(1e-3, description="The learning rate for the model")
     initial_lr: float = Field(0, description="The initial learning rate for the model")

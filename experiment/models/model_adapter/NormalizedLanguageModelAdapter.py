@@ -50,6 +50,9 @@ class NormalizedLanguageModelAdapter(CanNormalize):
 
         layers = self.get_decoder_layers(model)
 
+        if hasattr(model, "gpt_neox"):
+            model.gpt_neox.final_layer_norm = nn.Identity()
+
         for idx in range(len(layers)):
             layer = layers[idx]
             layer_is_recurrent = any(

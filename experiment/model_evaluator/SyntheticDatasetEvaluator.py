@@ -3,6 +3,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 from typing import Dict, Any
 import numpy as np
+from tqdm import tqdm
 
 from experiment.configs import DataConfig, ModelConfig, TrainingConfig
 from experiment.models import DefaultLightningModule
@@ -16,7 +17,7 @@ class SyntheticDatasetEvaluator:
         self,
         model: DefaultLightningModule,
         tokenizer: PreTrainedTokenizer,
-        batch_size: int = 32,
+        eval_batch_size: int = 32,
         data_config: DataConfig = None,
         model_config: ModelConfig = None,
         training_config: TrainingConfig = None,
@@ -24,13 +25,14 @@ class SyntheticDatasetEvaluator:
     ):
         self.model = model
         self.tokenizer = tokenizer
-        self.batch_size = batch_size
+        self.eval_batch_size = eval_batch_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.datamodule = LanguageDataModule(
             tokenizer=tokenizer,
             data_config=data_config,
             model_config=model_config,
             training_config=training_config,
+            eval_batch_size=eval_batch_size,
             seed=seed,
         )
 
@@ -134,13 +136,52 @@ class SyntheticDatasetEvaluator:
 
         return torch.stack(shifted_inputs), torch.stack(shifted_masks)
 
+    def _get_arithmetic_input(
+        self, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ):
+        # Get the token index for the = symbol
+        # Cut off the tokens after each = symbol in the batch (leave the = symbol)
+        # Pad the sequence at the left side so that all = symbols are at the end and all sequences have the same length
+
+        batch_size = input_ids.size(0)
+        shifted_inputs = []
+        shifted_masks = []
+
+        equals_symbol = self.tokenizer.convert_tokens_to_ids("=")
+
+        for i in range(batch_size):
+            seq_len = attention_mask[i].sum().item()
+            valid_tokens = input_ids[i, :seq_len]
+
+            # Find the index of the = symbol
+            equals_idx = (valid_tokens == equals_symbol).nonzero()
+
+            if equals_idx.size(0) == 0:
+                continue
+
+            equals_idx = equals_idx[-1].item()
+            valid_tokens = valid_tokens[: equals_idx + 1]
+
+            # Create new tensor with left padding
+            padded = torch.full_like(input_ids[i], self.tokenizer.pad_token_id)
+            padded[-len(valid_tokens) :] = valid_tokens
+
+            # Create corresponding attention mask
+            new_mask = torch.zeros_like(attention_mask[i])
+            new_mask[-len(valid_tokens) :] = 1
+
+            shifted_inputs.append(padded)
+            shifted_masks.append(new_mask)
+
+        return torch.stack(shifted_inputs), torch.stack(shifted_masks)
+
     def _evaluate_arithmetic_task(self, dataloader: DataLoader) -> Dict[str, float]:
         correct = total = 0
         relative_errors = []
 
         with torch.no_grad():
-            for batch in dataloader:
-                input_ids, attention_mask = self._shift_padding_left(
+            for batch in tqdm(dataloader):
+                input_ids, attention_mask = self._get_arithmetic_input(
                     batch["input_ids"].to(self.device),
                     batch["attention_mask"].to(self.device),
                 )
@@ -148,24 +189,26 @@ class SyntheticDatasetEvaluator:
                 outputs = self.model.generate(
                     input_ids=input_ids,
                     max_new_tokens=20,
-                    attention_mask=attention_mask,
                     pad_token_id=self.tokenizer.pad_token_id,
                 )
 
-                for i, output in enumerate(outputs):
-                    pred_text = self.tokenizer.decode(output, skip_special_tokens=True)
+                for i, output in tqdm(enumerate(outputs)):
+                    pred_text = self.tokenizer.decode(output)
                     labels = batch["labels"][i]
                     labels = labels[labels != -100]
                     true_text = self.tokenizer.decode(labels, skip_special_tokens=True)
 
-                    print(pred_text)
-                    print(true_text)
-
                     try:
                         target = float(true_text.split("=")[-1].replace(" ", ""))
-                        pred = float(pred_text.split("=")[-1].replace(" ", ""))
-                        print(pred, target)
-                        print()
+                        pred = float(
+                            pred_text.split("=")[-1]
+                            .replace(" ", "")
+                            .replace("[EOS]", "")
+                            .replace("[PAD]", ""),
+                        )
+                        if i % 1000 == 0:
+                            print(pred, target)
+                            print()
 
                         # Calculate relative error
                         rel_error = abs(pred - target) / (abs(target) + 1e-8)
@@ -205,6 +248,7 @@ class SyntheticDatasetEvaluator:
                     max_new_tokens=20,
                     attention_mask=attention_mask,
                     pad_token_id=self.tokenizer.pad_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id,
                 )
 
                 for i, output in enumerate(outputs):

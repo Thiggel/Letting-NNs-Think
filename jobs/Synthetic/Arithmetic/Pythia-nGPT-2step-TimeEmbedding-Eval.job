@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_2Step_TimeEmbedding
+#SBATCH --time=04:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_2Step_TimeEmbedding_%A.out
+
+cd $HOME/Letting-NNs-Think
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-14m" \
+    --dataset synthetic_arithmetic_task \
+    --pretrained \
+    --finetune-mode full \
+    --enable-normalization \
+    --make-layers-recurrent 2:4 \
+    --num-steps 2 \
+    --use-time-embedding \
+    --experiment-name Pythia_Arithmetic_nGPT_2Step_TimeEmbedding_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_2Step_TimeEmbedding \
+    --evaluation-metrics arithmetic_task \
+    --mode evaluate \
+    --max-epochs 1 \
+    --max-training-steps 1000000 \
+    --eval-batch-size 8192 \
+    --enable-logging

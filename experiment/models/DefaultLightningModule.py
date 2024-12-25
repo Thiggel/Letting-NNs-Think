@@ -6,7 +6,12 @@ import torch
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
-from experiment.configs import ModelConfig, TrainingConfig, DataConfig, UninterruptedMode
+from experiment.configs import (
+    ModelConfig,
+    TrainingConfig,
+    DataConfig,
+    UninterruptedMode,
+)
 from experiment.models.GatedLM import GatedLM
 
 from .model_adapter import ModelAdapter
@@ -40,8 +45,7 @@ class DefaultLightningModule(
         self.data_config = data_config
         self.tokenizer = tokenizer
 
-    def setup(self, stage):
-        self.model_adapter = ModelAdapter(self.config, self.device)
+        self.model_adapter = ModelAdapter(self.config, self.tokenizer, self.device)
         self.model = self.model_adapter.model
 
         print(self.model)
@@ -65,9 +69,14 @@ class DefaultLightningModule(
         return self.model.generate(*args, **kwargs)
 
     def on_validation_start(self):
-        string = self.tokenizer.encode("My dog is", return_tensors="pt").to(self.device)
+        string = self.tokenizer.encode("1 + 0 + 1 =", return_tensors="pt").to(
+            self.device
+        )
         generated = self.model.generate(
-            input_ids=string, max_length=100, max_new_tokens=100
+            input_ids=string,
+            max_length=100,
+            max_new_tokens=100,
+            eos_token_id=self.tokenizer.eos_token_id,
         )
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
@@ -118,21 +127,28 @@ class DefaultLightningModule(
         }
 
         # Filter trainable parameters for each group
-        main_params = [p for p in self.get_decoder_layers(self.model).parameters() 
-                      if p.requires_grad]
-        
+        main_params = [
+            p
+            for p in self.get_decoder_layers(self.model).parameters()
+            if p.requires_grad
+        ]
+
         if self.config.uninterrupted_mode == UninterruptedMode.PROJECTION:
             print("Uninterrupted Projection finetuning")
-            main_params += [p for p in self.uninterrupted_adapter.parameters() 
-                           if p.requires_grad]
-        
-        embedding_params = [p for p in self.model.get_input_embeddings().parameters() 
-                           if p.requires_grad]
-        
-        if self.config.untie_embedding_and_softmax:
-            embedding_params += [p for p in self.model.get_output_embeddings().parameters() 
-                               if p.requires_grad]
-        
+            main_params += [
+                p for p in self.uninterrupted_adapter.parameters() if p.requires_grad
+            ]
+
+        embedding_params = [
+            p for p in self.model.get_input_embeddings().parameters() if p.requires_grad
+        ]
+
+        embedding_params += [
+            p
+            for p in self.model.get_output_embeddings().parameters()
+            if p.requires_grad
+        ]
+
         parameters = [
             {
                 "params": main_params,
@@ -140,15 +156,18 @@ class DefaultLightningModule(
             },
             {
                 "params": embedding_params,
-                "lr": base_lr / 10,
-            }
+                "lr": (
+                    base_lr / 10 if self.config.untie_embedding_and_softmax else base_lr
+                ),
+            },
         ]
 
         # Only create parameter groups if they have parameters
         parameters = [group for group in parameters if len(group["params"]) > 0]
 
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and self.training_config.use_deepspeed:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
+
             optimizer = DeepSpeedCPUAdam(parameters, **adam_params, adamw_mode=True)
         else:
             optimizer = AdamW(parameters, **adam_params)
@@ -161,7 +180,7 @@ class DefaultLightningModule(
                 else self.lr_lambda_decay
             ),
         )
-        
+
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
