@@ -19,7 +19,7 @@ srun python -m experiment \
     --grad-acc-steps 1 \
     --learning-rate 1e-5 \
     --max-hours 4 \
-    --max-epochs 100 \
+    --max-epochs 400 \
     --use-early-stopping \
     --max-training-steps 1000000 \
     --experiment-name Pythia_Arithmetic_nGPT \
