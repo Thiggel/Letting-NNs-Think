@@ -18,7 +18,6 @@ from pydantic import BaseModel
 
 from experiment.experiment import Runner
 from experiment.datasets import LanguageDataModule
-from experiment.models import DefaultLightningModule
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
 
@@ -49,6 +48,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             self.data_config,
             self.model_config,
             self.training_config,
+            self.evaluation_config.eval_batch_size,
             self.tokenizer,
             seed,
         )
@@ -98,9 +98,9 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         )
 
         self.epoch_checkpoint = ModelCheckpoint(
-            monitor="val_prediction_loss_step_0",
+            monitor="val_loss",
             save_top_k=1,
-            mode="min",
+            mode="max",
             save_on_train_epoch_end=True,
             dirpath=checkpoint_dir,
             filename=self.experiment_config.experiment_name
@@ -120,7 +120,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             callbacks.append(
                 EarlyStopping(
                     monitor="val_loss",
-                    patience=1,
+                    patience=self.training_config.early_stopping_patience,
                     mode="min",
                     min_delta=0.00,
                     verbose=True,
@@ -142,7 +142,6 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                 name=f"{self.experiment_config.experiment_name}_{seed}",
                 group=self.experiment_config.experiment_name,
                 save_dir=os.environ["WANDB_DIR"],
-                log_model="all",
             )
 
         trainer_args = {
@@ -184,16 +183,31 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                 },
             }
         )
-        return {
-            "strategy": strategy,
+        args = {
             "precision": "bf16",
             "accelerator": "gpu",
-            "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"],
+            "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"] + "/../",
         }
+
+        if self.training_config.use_deepspeed:
+            args["strategy"] = strategy
+            args["default_root_dir"] = os.environ["PYTORCH_LIGHTNING_HOME"]
+
+        return args
 
     def _save_checkpoint(self, checkpoint_path: str, seed):
         output_path = os.path.join(
             os.environ["BASE_CACHE_DIR"],
             f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
         )
-        convert_zero_checkpoint_to_fp32_state_dict(checkpoint_path, output_path)
+
+        if self.training_config.use_deepspeed:
+            convert_zero_checkpoint_to_fp32_state_dict(checkpoint_path, output_path)
+
+        else:
+            saved_dict = torch.load(checkpoint_path)["state_dict"]
+
+            torch.save(
+                saved_dict,
+                output_path,
+            )

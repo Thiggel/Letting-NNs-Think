@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional, Annotated
 from pydantic import BaseModel, Field
 
 from .RecursiveTransformerConfig import RecursiveTransformerConfig
@@ -7,6 +8,7 @@ from .LoraConfig import LoraConfig
 from .DynamicVeraConfig import DynamicVeraConfig
 from .MixtureOfDepthsConfig import MixtureOfDepthsConfig
 from .NormalizedLanguageModelConfig import NormalizedLanguageModelConfig
+from .LayerRange import LayerRange
 
 
 class FinetuneMode(str, Enum):
@@ -34,4 +36,7 @@ class ModelConfig(
     )
     finetune_mode: FinetuneMode = Field(
         "lora", description="The finetuning mode to use"
+    )
+    remove_layers: Optional[Annotated[str, LayerRange]] = Field(
+        None, description="The layers to remove from the model"
     )

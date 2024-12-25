@@ -52,11 +52,10 @@ class DatasetConfigurator:
                 "ans_func": lambda x: " = " + x["text"].split(" = ")[1],
                 "use_loss_mask": True,
                 "streaming": False,
-                "test_subset": 1000,
+                "test_subset": 100000,
                 # Pass through the loss mask from the dataset
                 "process_func": lambda x: {
                     "text": x["text"],
-                    "loss_mask": x["loss_mask"],
                     "input_len": x["input_len"],
                 },
             },

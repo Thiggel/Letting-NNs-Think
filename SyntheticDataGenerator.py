@@ -143,17 +143,19 @@ class SyntheticDataGenerator:
 
     def _generate_arithmetic_expression(self, num_steps: int) -> Tuple[str, float]:
         """Generate a complex arithmetic expression with given number of operations."""
-        operators = ["+", "-", "*"]
+        operators = [
+            "+",
+        ]
         numbers = []
         ops = []
 
         # Generate first number
-        numbers.append(random.randint(1, 10))
+        numbers.append(random.randint(0, 1))
 
         # Generate operations and numbers
         for _ in range(num_steps):
             op = random.choice(operators)
-            num = random.randint(1, 20)
+            num = random.randint(0, 1)
 
             numbers.append(num)
             ops.append(op)
@@ -175,7 +177,7 @@ class SyntheticDataGenerator:
         return expression, result
 
     def generate_arithmetic_task(
-        self, num_samples: int, min_steps: int = 5, max_steps: int = 20
+        self, num_samples: int, min_steps: int = 5, max_steps: int = 9
     ) -> Dataset:
         """Generate complex arithmetic problems with multiple operations."""
         data = []
@@ -184,14 +186,10 @@ class SyntheticDataGenerator:
             expression, result = self._generate_arithmetic_expression(num_steps)
 
             full_sequence = f"{expression} = {result}"
-            loss_mask = [0] * (len(expression) + 3) + [1] * len(
-                str(result)
-            )  # +3 for " = "
 
             data.append(
                 {
                     "text": full_sequence,
-                    "loss_mask": loss_mask,
                     "input_len": len(expression) + 3,
                 }
             )
@@ -342,7 +340,7 @@ if __name__ == "__main__":
     login(token=hf_token)
 
     # Generate datasets with train/test splits
-    datasets = generate_all_datasets(5000000)
+    datasets = generate_all_datasets(1_000_000)
 
     # Push to Hub with overwrite=True to replace existing datasets
     for name, dataset in datasets:

@@ -33,6 +33,8 @@ class HasTokenizer:
 
         if (tokenizer_path / "tokenizer.json").exists():
             print(f"Loading custom tokenizer from {tokenizer_path}")
+            base_tokenizer = Tokenizer.from_file(str(tokenizer_path / "tokenizer.json"))
+            actual_vocab_size = len(base_tokenizer.get_vocab())
 
             fast_tokenizer = PreTrainedTokenizerFast(
                 tokenizer_file=str(tokenizer_path / "tokenizer.json"),
@@ -41,6 +43,7 @@ class HasTokenizer:
                 unk_token="[UNK]",
                 sep_token="[SEP]",
                 pad_token="[PAD]",
+                vocab_size=actual_vocab_size,
             )
 
             print("\nExample tokenizations:")
@@ -158,6 +161,7 @@ class HasTokenizer:
             unk_token="[UNK]",
             sep_token="[SEP]",
             pad_token="[PAD]",
+            vocab_size=len(tokenizer.get_vocab()),
         )
 
         print("\nExample tokenizations:")

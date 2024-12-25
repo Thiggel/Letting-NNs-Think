@@ -7,7 +7,7 @@ from lightning import LightningDataModule
 from datasets import Dataset, IterableDataset, load_dataset, disable_caching, config
 from functools import partial
 
-from experiment.configs import DataConfig, ModelConfig, TrainingConfig
+from experiment.configs import DataConfig, EvaluationConfig, ModelConfig, TrainingConfig
 
 from .DatasetSplit import DatasetSplit
 from .TokenizationProcessor import TokenizationProcessor
@@ -24,6 +24,7 @@ class LanguageDataModule(LightningDataModule):
         data_config: DataConfig,
         model_config: ModelConfig,
         training_config: TrainingConfig,
+        eval_batch_size: int,
         tokenizer: PreTrainedTokenizer,
         seed: int,
         cache_dir: Optional[str] = None,
@@ -33,6 +34,7 @@ class LanguageDataModule(LightningDataModule):
         self.data_config = data_config
         self.model_config = model_config
         self.training_config = training_config
+        self.eval_batch_size = eval_batch_size
         self.tokenizer = tokenizer
         self.seed = seed
         self.dataset_manager = DatasetManager(
@@ -282,7 +284,7 @@ class LanguageDataModule(LightningDataModule):
 
         return DataLoader(
             self.datasets.validation,
-            batch_size=self.data_config.batch_size,
+            batch_size=self.eval_batch_size,
             collate_fn=self.batch_collator,
             num_workers=self._get_num_workers(),
             drop_last=not isinstance(self.datasets.validation, IterableDataset),
@@ -290,11 +292,12 @@ class LanguageDataModule(LightningDataModule):
 
     def test_dataloader(self) -> Optional[DataLoader]:
         if not self.datasets or not self.datasets.test:
+            print(self.datasets, self.datasets.test)
             return None
 
         return DataLoader(
             self.datasets.test,
-            batch_size=self.data_config.batch_size,
+            batch_size=self.eval_batch_size,
             collate_fn=self.batch_collator,
             num_workers=self._get_num_workers(),
             drop_last=not isinstance(self.datasets.test, IterableDataset),

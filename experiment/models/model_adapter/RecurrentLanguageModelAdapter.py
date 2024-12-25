@@ -1,14 +1,13 @@
-from typing import Protocol
+from typing import Protocol, Optional, Annotated
 import torch
 from torch import nn
 
 from experiment.layers import (
     DynamicVeraLayer,
-    MambaTransformerLayer,
     SequentialTransformerLayer,
 )
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
-from experiment.configs import ModelConfig
+from experiment.configs import ModelConfig, LayerRange
 
 
 class RecurrentLanguageModelAdapterProtocol(Protocol):
@@ -30,6 +29,10 @@ class RecurrentLanguageModelAdapterProtocol(Protocol):
     ) -> nn.Module: ...
 
     def _create_mamba_layer(self, num_layers: int) -> SequentialTransformerLayer: ...
+
+    def _get_layer_range(
+        self, model: nn.Module, layer_range: Optional[Annotated[str, LayerRange]]
+    ) -> list[tuple[int, int]]: ...
 
 
 class RecurrentLanguageModelAdapter:
@@ -85,38 +88,4 @@ class RecurrentLanguageModelAdapter:
     def _get_recurrent_layer_range(
         self: RecurrentLanguageModelAdapterProtocol, model: nn.Module
     ) -> list[tuple[int, int]]:
-        if self.config.make_layers_recurrent == "all":
-            return [
-                (idx, idx + 1) for idx in range(len(self.get_decoder_layers(model)))
-            ]
-
-        if self.config.make_layers_recurrent is None:
-            return []
-
-        if ":" in self.config.make_layers_recurrent:
-            start, end = map(int, self.config.make_layers_recurrent.split(":"))
-        else:
-            start = int(self.config.make_layers_recurrent)
-            end = start + 1
-
-        layers = self.get_decoder_layers(model)
-
-        if start < 0:
-            start = len(layers) + start
-        if end <= 0:
-            end = len(layers) + end
-
-        return [(start, end)]
-
-    def _create_mamba_layer(
-        self: RecurrentLanguageModelAdapterProtocol, num_layers: int
-    ) -> SequentialTransformerLayer:
-        return SequentialTransformerLayer(
-            *[
-                MambaTransformerLayer(
-                    self.model.config.hidden_size,
-                    self.model.config.num_attention_heads,
-                )
-                for _ in range(num_layers)
-            ]
-        )
+        return self._get_layer_range(model, self.config.make_layers_recurrent)
