@@ -18,7 +18,7 @@ srun python -m experiment \
   --pretrained \
   --batch-size 8 \
   --grad-acc-steps 8 \
-  --learning-rate 1e-4 \
+  --learning-rate 3e-6 \
   --warmup-steps 500 \
   --max-epochs 20 \
   --max-training-steps 20000 \

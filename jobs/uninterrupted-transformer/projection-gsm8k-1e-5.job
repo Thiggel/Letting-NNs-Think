@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=8:00:00
-#SBATCH --job-name=LlamaGSM8KBaseline 
-#SBATCH --output=job_logs/LlamaGSM8KBaseline-%A.out
+#SBATCH --job-name=UninteruptedTransformer-DirectGSM8k-Projection1e5
+#SBATCH --output=job_logs/Uninterrupted-Transformer-DirectGSM8k-Projection1e-5-%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -18,14 +18,15 @@ srun python -m experiment \
   --pretrained \
   --batch-size 8 \
   --grad-acc-steps 8 \
-  --learning-rate 3e-6 \
-  --use-early-stopping \
+  --learning-rate 1e-5 \
   --warmup-steps 500 \
   --max-epochs 20 \
   --max-training-steps 20000 \
+  --uninterrupted-mode projection \
+  --uninterrupted-recurrence-depth 5 \
   --finetune-mode full \
-  --experiment-name LlamaGSM8KBaseline \
-  --save-to-checkpoint LlamaGSM8KBaseline \
+  --experiment-name UninterruptedTransformerProjectionDirectGSM8k1e5 \
+  --save-to-checkpoint UninterruptedTransformerProjectionDirectGSM8K1e5 \
   --enable-logging
 
 srun python -m experiment \
@@ -33,9 +34,10 @@ srun python -m experiment \
   --mode evaluate \
   --pretrained \
   --finetune-mode frozen \
+  --uninterrupted-mode projection \
   --evaluation-metrics gsm8k \
-  --load-from-checkpoint LlamaGSM8KBaseline \
-  --experiment-name LlamaGSM8KBaselineEval \
+  --load-from-checkpoint UninterruptedTransformerProjectionDirectGSM8K1e5 \
+  --experiment-name UninterruptedTransformerProjectionDirectGSM8KEval1e5 \
   --max-epochs 1 \
   --max-training-steps 1 \
   --enable-logging
