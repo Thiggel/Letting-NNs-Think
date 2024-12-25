@@ -109,7 +109,11 @@ class MetricsLogger:
         total_norm = 0
         for name, param in self.module.named_parameters():
             if param.requires_grad:
-                param_norm = safe_get_full_grad(param).norm(2)
+                grad = safe_get_full_grad(param)
+                if grad is None:
+                    continue
+
+                param_norm = grad.norm(2)
                 total_norm += param_norm.item() ** 2
                 self.module.log(
                     f"gradient_norm/{name}",
