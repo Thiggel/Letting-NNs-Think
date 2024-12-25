@@ -1,0 +1,46 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_3Step
+#SBATCH --time=04:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_3Step_%A.out
+
+cd $HOME/Letting-NNs-Think
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-14m" \
+    --dataset synthetic_arithmetic_task \
+    --finetune-mode full \
+    --enable-normalization \
+    --make-layers-recurrent 2:4 \
+    --num-steps 3 \
+    --batch-size 8192 \
+    --grad-acc-steps 1 \
+    --learning-rate 1e-5 \
+    --max-hours 4 \
+    --max-epochs 100 \
+    --max-training-steps 1000000 \
+    --experiment-name Pythia_Arithmetic_nGPT_3Step \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_3Step \
+    --enable-logging \
+    --mode train
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-14m" \
+    --dataset synthetic_arithmetic_task \
+    --pretrained \
+    --finetune-mode full \
+    --enable-normalization \
+    --make-layers-recurrent 2:4 \
+    --num-steps 3 \
+    --experiment-name Pythia_Arithmetic_nGPT_3Step_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_3Step \
+    --evaluation-metrics arithmetic_task \
+    --mode evaluate \
+    --max-epochs 1 \
+    --max-training-steps 1000000 \
+    --eval-batch-size 8192 \
+    --enable-logging
