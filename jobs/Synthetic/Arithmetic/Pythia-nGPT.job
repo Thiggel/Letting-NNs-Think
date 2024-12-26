@@ -18,7 +18,7 @@ srun python -m experiment \
     --batch-size 8192 \
     --grad-acc-steps 1 \
     --learning-rate 1e-5 \
-    --max-hours 4 \
+    --max-hours 10 \
     --max-epochs 400 \
     --use-early-stopping \
     --max-training-steps 1000000 \
