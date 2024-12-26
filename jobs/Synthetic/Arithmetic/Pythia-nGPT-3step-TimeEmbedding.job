@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=Pythia_Arithmetic_nGPT_3Step_TimeEmbedding
-#SBATCH --time=04:30:00
+#SBATCH --time=10:30:00
 #SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_3Step_TimeEmbedding_%A.out
 
 cd $HOME/Letting-NNs-Think
