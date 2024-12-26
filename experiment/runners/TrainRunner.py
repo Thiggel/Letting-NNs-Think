@@ -98,7 +98,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         )
 
         self.epoch_checkpoint = ModelCheckpoint(
-            monitor="val_top5_accuracy",
+            monitor="val_loss",
             save_top_k=1,
             mode="max",
             save_on_train_epoch_end=True,
