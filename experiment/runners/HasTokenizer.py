@@ -12,7 +12,7 @@ from pathlib import Path
 import os
 from datasets import load_dataset
 
-from experiment.datasets import DatasetConfigurator
+from experiment.synthetic_datasets import DatasetConfigurator
 from experiment.configs import ModelConfig, DataConfig
 
 
