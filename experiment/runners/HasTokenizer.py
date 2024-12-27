@@ -12,7 +12,7 @@ from pathlib import Path
 import os
 from datasets import load_dataset
 
-from experiment.synthetic_datasets import DatasetConfigurator
+from experiment.datasets import DatasetConfigurator
 from experiment.configs import ModelConfig, DataConfig
 
 
@@ -95,7 +95,10 @@ class HasTokenizer:
 
         if "dataset_class" in dataset_config:
             # Sample from streaming dataset
-            from experiment.datasets import ArithmeticDataset, PatternDataset
+            from experiment.datasets.synthetic_datasets import (
+                ArithmeticDataset,
+                PatternDataset,
+            )
 
             dataset_class = globals()[dataset_config["dataset_class"]]
             dataset = dataset_class(**dataset_config.get("dataset_params", {}))
