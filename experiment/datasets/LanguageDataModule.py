@@ -109,43 +109,46 @@ class LanguageDataModule(LightningDataModule):
 
     def _prepare_streaming_datasets(self) -> DatasetSplit:
         if "dataset_class" in self.dataset_config:
-            dataset_classes = {
+            # Import dataset classes
+            from experiment.datasets import ArithmeticDataset, PatternDataset
+
+            dataset_class = {
                 "ArithmeticDataset": ArithmeticDataset,
                 "PatternDataset": PatternDataset,
-            }
-            dataset_class = dataset_classes[self.dataset_config["dataset_class"]]
+            }[self.dataset_config["dataset_class"]]
 
-            # Create dataset instance with params
+            # Create dataset
             train_dataset = dataset_class(
                 **self.dataset_config.get("dataset_params", {})
             )
 
-            # Process samples
-            train_dataset = train_dataset.map(
-                lambda sample: self._process_streaming_sample(
+            # Create validation set
+            validation_samples = []
+            val_iterator = iter(
+                dataset_class(**self.dataset_config.get("dataset_params", {}))
+            )
+            for _ in range(self.dataset_config["val_subset"]):
+                sample = next(val_iterator)
+                processed = self._process_streaming_sample(
                     sample,
                     self.dataset_config["q_func"],
                     self.dataset_config["ans_func"],
                 )
+                if processed:
+                    validation_samples.append(processed)
+
+            from datasets import Dataset
+
+            validation_dataset = Dataset.from_dict(
+                {
+                    k: [d[k] for d in validation_samples]
+                    for k in validation_samples[0].keys()
+                }
             )
 
-            # Create validation set
-            val_dataset = iter(train_dataset)
-            validation_samples = []
-            for _ in range(self.dataset_config["val_subset"]):
-                validation_samples.append(next(val_dataset))
+            return DatasetSplit(train_dataset, validation_dataset, None)
 
-            return DatasetSplit(
-                train=train_dataset,
-                validation=Dataset.from_dict(
-                    {
-                        k: [d[k] for d in validation_samples]
-                        for k in validation_samples[0].keys()
-                    }
-                ),
-                test=None,
-            )
-
+        # Original HuggingFace dataset logic
         ds = load_dataset(
             self.dataset_config["name"],
             self.dataset_config.get("subset"),
@@ -172,9 +175,7 @@ class LanguageDataModule(LightningDataModule):
             )
         )
 
-        # Create validation set from first N examples
         val_dataset = train_dataset.take(self.dataset_config["val_subset"])
-
         return DatasetSplit(train_dataset, val_dataset, None)
 
     def _process_streaming_sample(
