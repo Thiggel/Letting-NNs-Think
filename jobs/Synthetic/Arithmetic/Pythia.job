@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Pythia_Arithmetic
+#SBATCH --time=10:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_%A.out
+
+cd $HOME/Letting-NNs-Think
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset synthetic_arithmetic_task \
+    --finetune-mode full \
+    --batch-size 8192 \
+    --grad-acc-steps 1 \
+    --learning-rate 1e-5 \
+    --max-hours 10 \
+    --max-epochs 400 \
+    --use-early-stopping \
+    --max-training-steps 1000000 \
+    --experiment-name Pythia_Arithmetic \
+    --save-to-checkpoint Pythia_Arithmetic \
+    --enable-logging \
+    --mode train
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset synthetic_arithmetic_task \
+    --pretrained \
+    --finetune-mode full \
+    --experiment-name Pythia_Arithmetic_Eval \
+    --load-from-checkpoint Pythia_Arithmetic \
+    --evaluation-metrics arithmetic_task \
+    --mode evaluate \
+    --max-epochs 1 \
+    --max-training-steps 1 \
+    --eval-batch-size 8192 \
+    --enable-logging
