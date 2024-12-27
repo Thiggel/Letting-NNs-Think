@@ -13,6 +13,10 @@ import os
 from datasets import load_dataset
 
 from experiment.datasets import DatasetConfigurator
+from experiment.datasets.synthetic_datasets import (
+    ArithmeticDataset,
+    PatternDataset,
+)
 from experiment.configs import ModelConfig, DataConfig
 
 
@@ -95,12 +99,12 @@ class HasTokenizer:
 
         if "dataset_class" in dataset_config:
             # Sample from streaming dataset
-            from experiment.datasets.synthetic_datasets import (
-                ArithmeticDataset,
-                PatternDataset,
-            )
+            if "dataset_class" in dataset_config:
+                dataset_class = {
+                    "ArithmeticDataset": ArithmeticDataset,
+                    "PatternDataset": PatternDataset,
+                }[dataset_config["dataset_class"]]
 
-            dataset_class = globals()[dataset_config["dataset_class"]]
             dataset = dataset_class(**dataset_config.get("dataset_params", {}))
 
             # Sample 100k examples for tokenizer training
