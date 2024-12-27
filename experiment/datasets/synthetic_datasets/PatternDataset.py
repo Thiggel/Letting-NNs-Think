@@ -2,7 +2,7 @@ from torch.utils.data import IterableDataset
 import numpy as np
 
 
-class InfinitePatternDataset(IterableDataset):
+class PatternDataset(IterableDataset):
     def __init__(self, seq_length: int = 5):
         self.seq_length = seq_length
 
