@@ -14,6 +14,7 @@ from .TokenizationProcessor import TokenizationProcessor
 from .DatasetManager import DatasetManager
 from .BatchCollator import BatchCollator
 from .DatasetConfigurator import DatasetConfigurator
+from .synthetic_datasets import ArithmeticDataset, PatternDataset
 
 
 class LanguageDataModule(LightningDataModule):
@@ -108,10 +109,11 @@ class LanguageDataModule(LightningDataModule):
 
     def _prepare_streaming_datasets(self) -> DatasetSplit:
         if "dataset_class" in self.dataset_config:
-            # Import the dataset class dynamically
-            from .synthetic_datasets import ArithmeticDataset, PatternDataset
-
-            dataset_class = globals()[self.dataset_config["dataset_class"]]
+            dataset_classes = {
+                "ArithmeticDataset": ArithmeticDataset,
+                "PatternDataset": PatternDataset,
+            }
+            dataset_class = dataset_classes[self.dataset_config["dataset_class"]]
 
             # Create dataset instance with params
             train_dataset = dataset_class(
