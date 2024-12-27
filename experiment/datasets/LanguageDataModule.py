@@ -109,9 +109,6 @@ class LanguageDataModule(LightningDataModule):
 
     def _prepare_streaming_datasets(self) -> DatasetSplit:
         if "dataset_class" in self.dataset_config:
-            # Import dataset classes
-            from experiment.datasets import ArithmeticDataset, PatternDataset
-
             dataset_class = {
                 "ArithmeticDataset": ArithmeticDataset,
                 "PatternDataset": PatternDataset,
