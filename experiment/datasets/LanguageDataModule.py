@@ -107,6 +107,43 @@ class LanguageDataModule(LightningDataModule):
         return DatasetSplit(train_dataset, val_dataset, test_dataset)
 
     def _prepare_streaming_datasets(self) -> DatasetSplit:
+        if "dataset_class" in self.dataset_config:
+            # Import the dataset class dynamically
+            from .synthetic_datasets import ArithmeticDataset, PatternDataset
+
+            dataset_class = globals()[self.dataset_config["dataset_class"]]
+
+            # Create dataset instance with params
+            train_dataset = dataset_class(
+                **self.dataset_config.get("dataset_params", {})
+            )
+
+            # Process samples
+            train_dataset = train_dataset.map(
+                lambda sample: self._process_streaming_sample(
+                    sample,
+                    self.dataset_config["q_func"],
+                    self.dataset_config["ans_func"],
+                )
+            )
+
+            # Create validation set
+            val_dataset = iter(train_dataset)
+            validation_samples = []
+            for _ in range(self.dataset_config["val_subset"]):
+                validation_samples.append(next(val_dataset))
+
+            return DatasetSplit(
+                train=train_dataset,
+                validation=Dataset.from_dict(
+                    {
+                        k: [d[k] for d in validation_samples]
+                        for k in validation_samples[0].keys()
+                    }
+                ),
+                test=None,
+            )
+
         ds = load_dataset(
             self.dataset_config["name"],
             self.dataset_config.get("subset"),

@@ -71,13 +71,8 @@ class HasTokenizer:
         return tokenizer
 
     def _train_tokenizer(self, dataset_name: str) -> PreTrainedTokenizer:
-        """Train a simple tokenizer on any text dataset."""
-        print(f"Training new tokenizer for dataset: {dataset_name}")
-
-        # Initialize with BPE model
         tokenizer = Tokenizer(models.BPE())
 
-        # Basic normalizer
         tokenizer.normalizer = normalizers.Sequence(
             [
                 normalizers.Strip(),
@@ -87,7 +82,6 @@ class HasTokenizer:
             ]
         )
 
-        # Enhanced pre-tokenizer
         tokenizer.pre_tokenizer = pre_tokenizers.Sequence(
             [
                 pre_tokenizers.Digits(individual_digits=True),
@@ -96,18 +90,33 @@ class HasTokenizer:
             ]
         )
 
-        # Get dataset config and prepare training data
         dataset_config = DatasetConfigurator.get_dataset_config(dataset_name)
-        print("Loading dataset for tokenizer training...")
-        ds = load_dataset(dataset_config["name"], dataset_config.get("subset"))
-        train_data = ds[dataset_config["train_field"]]
+        training_samples = []
+
+        if "dataset_class" in dataset_config:
+            # Sample from streaming dataset
+            from experiment.datasets import ArithmeticDataset, PatternDataset
+
+            dataset_class = globals()[dataset_config["dataset_class"]]
+            dataset = dataset_class(**dataset_config.get("dataset_params", {}))
+
+            # Sample 100k examples for tokenizer training
+            for i, sample in enumerate(dataset):
+                if i >= 100000:
+                    break
+                training_samples.append(str(sample["text"]))
+        else:
+            # Load from HuggingFace dataset
+            ds = load_dataset(dataset_config["name"], dataset_config.get("subset"))
+            train_data = ds[dataset_config["train_field"]]
+            training_samples = [
+                str(text) for text in train_data["text"][:100000] if text is not None
+            ]
 
         def get_training_corpus():
-            for i in range(0, len(train_data), 1000):
-                batch = train_data[i : i + 1000]
-                yield [str(text) for text in batch["text"] if text is not None]
+            for i in range(0, len(training_samples), 1000):
+                yield training_samples[i : i + 1000]
 
-        # Define special tokens with unique IDs
         special_tokens = {
             "[PAD]": 0,
             "[UNK]": 1,
@@ -116,18 +125,14 @@ class HasTokenizer:
             "[SEP]": 4,
         }
 
-        # Train with more robust parameters and explicit special token IDs
         trainer = trainers.BpeTrainer(
             vocab_size=8000,
             special_tokens=list(special_tokens.keys()),
-            initial_alphabet=[
-                str(i) for i in range(10)
-            ],  # Add digits to initial alphabet
+            initial_alphabet=[str(i) for i in range(10)],
             min_frequency=2,
             show_progress=True,
         )
 
-        print("Training tokenizer...")
         tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
 
         # Explicitly set token IDs for special tokens

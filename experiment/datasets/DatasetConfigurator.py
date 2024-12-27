@@ -45,46 +45,25 @@ class DatasetConfigurator:
                 "train_field": "train",
                 "test_field": "test",
             },
-            "synthetic_arithmetic_task": {
-                "name": "flaitenberger/synthetic_arithmetic_task",
-                "train_field": "train",
+            "arithmetic": {
+                "dataset_class": "ArithmeticDataset",
                 "q_func": lambda x: x["text"].split(" = ")[0],
                 "ans_func": lambda x: " = " + x["text"].split(" = ")[1],
-                "use_loss_mask": True,
-                "streaming": False,
-                "test_subset": 100000,
-                # Pass through the loss mask from the dataset
-                "process_func": lambda x: {
-                    "text": x["text"],
-                    "input_len": x["input_len"],
-                },
-            },
-        }
-
-        # Add synthetic dataset configurations
-        synthetic_tasks = [
-            "copy_task",
-            "reverse_task",
-            "sort_task",
-            "pattern_completion_task",
-            "bracket_matching_task",
-        ]
-
-        for task in synthetic_tasks:
-            base_configs[f"synthetic_{task}"] = {
-                "name": f"flaitenberger/synthetic_{task}",
                 "train_field": "train",
+                "process_on_the_fly": True,
+                "val_subset": 1000,
+                "dataset_params": {"max_len": 50, "min_len": 3},
+            },
+            "pattern": {
+                "dataset_class": "PatternDataset",
                 "q_func": lambda x: x["text"].split(" -> ")[0],
                 "ans_func": lambda x: " -> " + x["text"].split(" -> ")[1],
+                "train_field": "train",
+                "process_on_the_fly": True,
+                "val_subset": 1000,
                 "use_loss_mask": True,
-                "streaming": False,
-                "test_subset": 1000,
-                # Pass through the loss mask from the dataset
-                "process_func": lambda x: {
-                    "text": x["text"],
-                    "loss_mask": x["loss_mask"],
-                    "input_len": x["input_len"],
-                },
-            }
+                "dataset_params": {"seq_length": 5},
+            },
+        }
 
         return base_configs
