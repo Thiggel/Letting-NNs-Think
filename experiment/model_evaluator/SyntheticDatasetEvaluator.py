@@ -88,16 +88,84 @@ class SyntheticDatasetEvaluator:
             "labels": labels,
         }
 
+    def _shift_padding_left(self, input_ids, attention_mask):
+        """Shifts padding tokens from right to left side"""
+        batch_size = input_ids.size(0)
+        shifted_inputs = []
+        shifted_masks = []
+
+        for i in range(batch_size):
+            # Get non-padded tokens
+            seq_len = attention_mask[i].sum().item()
+            valid_tokens = input_ids[i, :seq_len]
+
+            # Create new tensor with left padding
+            padded = torch.full_like(input_ids[i], self.tokenizer.pad_token_id)
+            padded[-seq_len:] = valid_tokens
+
+            # Create corresponding attention mask
+            new_mask = torch.zeros_like(attention_mask[i])
+            new_mask[-seq_len:] = 1
+
+            shifted_inputs.append(padded)
+            shifted_masks.append(new_mask)
+
+        return torch.stack(shifted_inputs), torch.stack(shifted_masks)
+
+    def _get_arithmetic_input(
+        self, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ):
+        # Get the token index for the = symbol
+        # Cut off the tokens after each = symbol in the batch (leave the = symbol)
+        # Pad the sequence at the left side so that all = symbols are at the end and all sequences have the same length
+
+        batch_size = input_ids.size(0)
+        shifted_inputs = []
+        shifted_masks = []
+
+        equals_symbol = self.tokenizer.convert_tokens_to_ids("=")
+
+        for i in range(batch_size):
+            seq_len = attention_mask[i].sum().item()
+            valid_tokens = input_ids[i, :seq_len]
+
+            # Find the index of the = symbol
+            equals_idx = (valid_tokens == equals_symbol).nonzero()
+
+            if equals_idx.size(0) == 0:
+                continue
+
+            equals_idx = equals_idx[-1].item()
+            valid_tokens = valid_tokens[: equals_idx + 1]
+
+            # Create new tensor with left padding
+            padded = torch.full_like(input_ids[i], self.tokenizer.pad_token_id)
+            padded[-len(valid_tokens) :] = valid_tokens
+
+            # Create corresponding attention mask
+            new_mask = torch.zeros_like(attention_mask[i])
+            new_mask[-len(valid_tokens) :] = 1
+
+            shifted_inputs.append(padded)
+            shifted_masks.append(new_mask)
+
+        return torch.stack(shifted_inputs), torch.stack(shifted_masks)
+
     def _evaluate_arithmetic_task(self, dataloader: DataLoader) -> Dict[str, float]:
         correct = total = 0
         relative_errors = []
 
         with torch.no_grad():
             for batch in tqdm(dataloader):
+
+                input_ids, attention_mask = self._get_arithmetic_input(
+                    batch["input_ids"].to(self.device),
+                    batch["attention_mask"].to(self.device),
+                )
+
                 outputs = self.model.generate(
-                    input_ids=batch["input_ids"].to(self.device),
+                    input_ids=input_ids,
                     max_new_tokens=20,
-                    attention_mask=batch["attention_mask"].to(self.device),
                     pad_token_id=self.tokenizer.pad_token_id,
                 )
 

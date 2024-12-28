@@ -14,7 +14,7 @@ class ArithmeticDataset(IterableDataset):
     def __iter__(self):
         while True:
             length = np.random.randint(self.min_len, self.max_len)
-            sequence = np.random.randint(0, 10, size=length)
+            sequence = np.random.randint(0, 100, size=length)
 
             expression = " + ".join(map(str, sequence))
             result = sum(sequence)
