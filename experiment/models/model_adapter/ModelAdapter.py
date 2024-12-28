@@ -7,7 +7,7 @@ from transformers import (
 )
 import math
 import torch
-from torch import nn
+from torch import nn, prod
 from peft import get_peft_model, LoraConfig, TaskType
 from experiment.configs import ModelConfig, FinetuneMode
 

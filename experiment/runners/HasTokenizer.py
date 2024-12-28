@@ -51,7 +51,7 @@ class HasTokenizer:
             )
 
             print("\nExample tokenizations:")
-            test_strings = ["1 * 9 + 8 + 4 * 18 + 19 - 2 + 3 + 8 = 117"]
+            test_strings = ["1 + 99 + 32 = 132"]
             for test in test_strings:
                 ids = fast_tokenizer.encode(str(test))
                 decoded = fast_tokenizer.decode(ids)
@@ -76,8 +76,6 @@ class HasTokenizer:
 
     def _train_tokenizer(self, dataset_name: str) -> PreTrainedTokenizer:
         """Train a simple tokenizer on any text dataset."""
-        from experiment.datasets import ArithmeticDataset, PatternDataset
-
         print(f"Training new tokenizer for dataset: {dataset_name}")
         tokenizer = Tokenizer(models.BPE())
 

@@ -3,8 +3,10 @@ import numpy as np
 
 
 class PatternDataset(IterableDataset):
-    def __init__(self, seq_length: int = 5):
+    def __init__(self, seq_length: int = 5, tokenizer=None, process_fn=None):
         self.seq_length = seq_length
+        self.tokenizer = tokenizer
+        self.process_fn = process_fn
 
     def __iter__(self):
         while True:
@@ -18,8 +20,16 @@ class PatternDataset(IterableDataset):
             target = str(sequence[-1])
 
             text = f"{input_seq} -> {target}"
-            yield {
-                "text": text,
-                "loss_mask": [0] * (len(input_seq) + 4) + [1] * len(target),
-                "input_len": len(input_seq) + 4,  # +4 for " -> "
-            }
+
+            if self.process_fn is not None:
+                yield self.process_fn(
+                    {
+                        "text": text,
+                        "loss_mask": [0] * (len(input_seq) + 4) + [1] * len(target),
+                    }
+                )
+            else:
+                yield {
+                    "text": text,
+                    "loss_mask": [0] * (len(input_seq) + 4) + [1] * len(target),
+                }

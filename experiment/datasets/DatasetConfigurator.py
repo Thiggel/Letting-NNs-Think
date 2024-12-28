@@ -53,6 +53,7 @@ class DatasetConfigurator:
                 "process_on_the_fly": True,
                 "val_subset": 1000,
                 "dataset_params": {"max_len": 50, "min_len": 3},
+                "synthetic": True,
             },
             "pattern": {
                 "dataset_class": "PatternDataset",
@@ -63,6 +64,7 @@ class DatasetConfigurator:
                 "val_subset": 1000,
                 "use_loss_mask": True,
                 "dataset_params": {"seq_length": 5},
+                "synthetic": True,
             },
         }
 

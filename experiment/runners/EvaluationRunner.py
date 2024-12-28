@@ -48,12 +48,8 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
         # Determine if we're evaluating on synthetic datasets
         synthetic_tasks = [
-            "copy_task",
-            "reverse_task",
-            "sort_task",
-            "arithmetic_task",
-            "pattern_completion_task",
-            "bracket_matching_task",
+            "arithmetic",
+            "pattern",
         ]
         metrics = self.evaluation_config.evaluation_metrics or ["gsm8k"]
 
@@ -99,7 +95,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
     def _log_results(self, results: Dict[str, Any], seed: int):
         wandb.init(
-            project="variable-depth-lms3",
+            project=self.experiment_config.project_name,
             name=f"{self.experiment_config.experiment_name}_{seed}",
             group=self.experiment_config.experiment_name,
         )

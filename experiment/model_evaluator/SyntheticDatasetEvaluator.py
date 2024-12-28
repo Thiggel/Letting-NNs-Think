@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from experiment.configs import DataConfig, ModelConfig, TrainingConfig
 from experiment.models import DefaultLightningModule
-from experiment.datasets import LanguageDataModule
+from experiment.datasets.synthetic_datasets import ArithmeticDataset, PatternDataset
 
 
 class SyntheticDatasetEvaluator:
@@ -22,16 +22,13 @@ class SyntheticDatasetEvaluator:
         model_config: ModelConfig = None,
         training_config: TrainingConfig = None,
         seed: int = 42,
-        num_eval_samples: int = 1000,  # New parameter for evaluation size
+        num_eval_samples: int = 10000,  # New parameter for evaluation size
     ):
         self.model = model
         self.tokenizer = tokenizer
         self.eval_batch_size = eval_batch_size
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.num_eval_samples = num_eval_samples
-
-        # Create datasets directly instead of using DataModule
-        from experiment.datasets import ArithmeticDataset, PatternDataset
 
         self.datasets = {
             "arithmetic": lambda: ArithmeticDataset(max_len=50, min_len=3),
@@ -105,21 +102,24 @@ class SyntheticDatasetEvaluator:
                 )
 
                 for i, output in enumerate(outputs):
-                    pred_text = self.tokenizer.decode(output, skip_special_tokens=True)
+                    pred_text = self.tokenizer.decode(output).split("[EOS]")[0]
                     true_text = self.tokenizer.decode(
                         batch["labels"][i], skip_special_tokens=True
                     )
 
                     try:
-                        pred = float(pred_text.split("=")[-1].strip())
-                        target = float(true_text.split("=")[-1].strip())
+                        pred = float(pred_text.split("=")[-1].strip().replace(" ", ""))
+                        target = float(
+                            true_text.split("=")[-1].strip().replace(" ", "")
+                        )
 
                         rel_error = abs(pred - target) / (abs(target) + 1e-8)
                         relative_errors.append(rel_error)
 
                         if rel_error < 0.01:
                             correct += 1
-                    except:
+                    except Exception as e:
+                        print(e)
                         pass
                     total += 1
 
