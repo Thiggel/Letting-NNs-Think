@@ -34,6 +34,10 @@ class RecurrentLanguageModelAdapterProtocol(Protocol):
         self, model: nn.Module, layer_range: Optional[Annotated[str, LayerRange]]
     ) -> list[tuple[int, int]]: ...
 
+    def _get_all_layers(
+        self, model: nn.Module, layer_range: Optional[Annotated[str, LayerRange]]
+    ) -> list[int]: ...
+
 
 class RecurrentLanguageModelAdapter:
     def _add_recurrence(self: RecurrentLanguageModelAdapterProtocol, model: nn.Module):
@@ -89,3 +93,8 @@ class RecurrentLanguageModelAdapter:
         self: RecurrentLanguageModelAdapterProtocol, model: nn.Module
     ) -> list[tuple[int, int]]:
         return self._get_layer_range(model, self.config.make_layers_recurrent)
+
+    def _get_all_recurrent_layers(
+        self: RecurrentLanguageModelAdapterProtocol, model: nn.Module
+    ) -> list[int]:
+        return self._get_all_layers(model, self.config.make_layers_recurrent)
