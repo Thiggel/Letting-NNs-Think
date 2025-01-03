@@ -52,6 +52,7 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         hidden_states: Optional[torch.FloatTensor],
         attention_mask: Optional[torch.FloatTensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
+        timestep: Optional[int] = 0,
         head_mask: Optional[torch.FloatTensor] = None,
         use_cache: Optional[bool] = False,
         layer_past: Optional[Cache] = None,
@@ -62,9 +63,6 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         ] = None,  # will become mandatory in v4.46
         **kwargs,
     ):
-        # Get eigen learning rates (either static or dynamic)
-        attn_rates, mlp_rates = self.get_eigen_rates(hidden_states)
-
         attention_layer_outputs = self.attention(
             hidden_states,
             attention_mask=attention_mask,
@@ -82,11 +80,15 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
 
         attn_output = self.normalize(attn_output)
 
+        attn_rates = self.get_attn_eigen_rate(hidden_states, attn_output, timestep)
+
         hidden_states = self.normalize(hidden_states + attn_rates * attn_output)
 
         mlp_output = self.mlp(hidden_states)
         mlp_output = self.post_mlp_dropout(mlp_output)
         mlp_output = self.normalize(mlp_output)
+
+        mlp_rates = self.get_mlp_eigen_rate(hidden_states, mlp_output, timestep)
 
         hidden_states = self.normalize(hidden_states + mlp_rates * mlp_output)
 

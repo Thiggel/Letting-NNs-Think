@@ -4,33 +4,34 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --job-name=Pythia_Arithmetic_nGPT_4Step
-#SBATCH --time=10:30:00
+#SBATCH --time=6:30:00
 #SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_4Step_%A.out
 
-cd $HOME/Letting-NNs-Think
+cd $HOME/Letting-NNs-Think-Synthetic
 . jobs/environment.sh
 
 srun python -m experiment \
     --model-name "EleutherAI/pythia-14m" \
-    --dataset synthetic_arithmetic_task \
+    --dataset arithmetic \
     --finetune-mode full \
     --enable-normalization \
     --make-layers-recurrent 2:4 \
-    --num-steps 4 \
-    --batch-size 8192 \
+    --num-steps 6 \
+    --batch-size 2048 \
     --grad-acc-steps 1 \
-    --learning-rate 1e-5 \
-    --max-hours 10 \
-    --max-epochs 400 \
+    --learning-rate 1e-3 \
+    --max-hours 6 \
+    --max-epochs 1 \
     --max-training-steps 1000000 \
+    --validate-every-n-steps 1000 \
     --experiment-name Pythia_Arithmetic_nGPT_4Step \
     --save-to-checkpoint Pythia_Arithmetic_nGPT_4Step \
     --enable-logging \
-    --mode train
+    --project-name letting-nns-think-synthetic
 
 srun python -m experiment \
     --model-name "EleutherAI/pythia-14m" \
-    --dataset synthetic_arithmetic_task \
+    --dataset arithmetic \
     --pretrained \
     --finetune-mode full \
     --enable-normalization \
@@ -38,9 +39,10 @@ srun python -m experiment \
     --num-steps 4 \
     --experiment-name Pythia_Arithmetic_nGPT_4Step_Eval \
     --load-from-checkpoint Pythia_Arithmetic_nGPT_4Step \
-    --evaluation-metrics arithmetic_task \
+    --evaluation-metrics arithmetic \
     --mode evaluate \
     --max-epochs 1 \
     --max-training-steps 1000000 \
-    --eval-batch-size 8192 \
-    --enable-logging
+    --eval-batch-size 4096 \
+    --enable-logging \
+    --project-name letting-nns-think-synthetic

@@ -39,6 +39,7 @@ class FixedStepsStrategy(RecurrenceStrategy):
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
+                timestep=step,
                 **kwargs,
             )
 

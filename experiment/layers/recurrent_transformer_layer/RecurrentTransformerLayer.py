@@ -77,11 +77,12 @@ class RecurrentTransformerLayer(nn.Module):
         Optional[torch.Tensor],
         Optional[torch.Tensor],
     ]:
-        # Handle special layer requirements
-        if hasattr(self.layer, "squeeze_seq_len"):
-            hidden_states = self.layer.squeeze_seq_len(hidden_states)
-        if hasattr(self.layer, "reset_state"):
-            self.layer.reset_state(hidden_states)
+
+        layer = self.layer.layers[0]
+        if hasattr(layer, "squeeze_seq_len"):
+            hidden_states = layer.squeeze_seq_len(hidden_states)
+        if hasattr(layer, "reset_state"):
+            layer.reset_state(hidden_states)
 
         # Clear caching arguments
         # kwargs["past_key_value"] = None
@@ -100,9 +101,9 @@ class RecurrentTransformerLayer(nn.Module):
         if self.config.add_residual_connection:
             output.hidden_states += hidden_states
 
-        # Handle special layer requirements
-        if hasattr(self.layer, "unsqueeze_seq_len"):
-            output.hidden_states = self.layer.unsqueeze_seq_len(output.hidden_states)
+        layer = self.layer.layers[0]
+        if hasattr(layer, "unsqueeze_seq_len"):
+            output.hidden_states = layer.unsqueeze_seq_len(output.hidden_states)
 
         if self.config.add_residual_connection and self.config.enable_normalization:
             hidden_states = hidden_states + self.alpha * (

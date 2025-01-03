@@ -27,6 +27,7 @@ class MambaTransformerLayer(nn.Module):
         return next(self.parameters()).device
 
     def squeeze_seq_len(self, x: torch.Tensor) -> torch.Tensor:
+        print(x.shape)
         self.batch_size, self.seq_len, self.d_model = x.shape
 
         return x.reshape(-1, self.d_model)
@@ -57,6 +58,8 @@ class MambaTransformerLayer(nn.Module):
 
         attention_output = self.squeeze_seq_len(attention_output)
         x = self.squeeze_seq_len(x)
+
+        print(x.shape, attention_output.shape)
 
         self.state, output = self.s6(self.state, self.norm2(attention_output))
 

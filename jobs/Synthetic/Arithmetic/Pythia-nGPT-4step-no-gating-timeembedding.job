@@ -3,47 +3,50 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=Pythia_Arithmetic_nGPT_3Step
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_NoGating_TimeEmbedding_4Step
 #SBATCH --time=6:30:00
-#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_3Step_%A.out
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_NoGating_TimeEmbedding_4Step_%A.out
 
 cd $HOME/Letting-NNs-Think-Synthetic
 . jobs/environment.sh
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-70m" \
+    --model-name "EleutherAI/pythia-14m" \
     --dataset arithmetic \
     --finetune-mode full \
     --enable-normalization \
+    --use-time-embedding \
+    --no-use-dynamic-eigen-lrs \
     --make-layers-recurrent 2:4 \
-    --num-steps 3 \
+    --num-steps 6 \
     --batch-size 2048 \
     --grad-acc-steps 1 \
-    --learning-rate 1e-3 \
+    --learning-rate 3e-4 \
     --max-hours 6 \
     --max-epochs 1 \
-    --use-early-stopping \
-    --max-training-steps 2000000 \
+    --max-training-steps 1000000 \
     --validate-every-n-steps 1000 \
-    --experiment-name Pythia_Arithmetic_nGPT_3Step \
-    --save-to-checkpoint Pythia_Arithmetic_nGPT_3Step \
+    --experiment-name Pythia_Arithmetic_nGPT_NoGating_TimeEmbedding_4Step \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_NoGating_TimeEmbedding_4Step \
     --enable-logging \
     --project-name letting-nns-think-synthetic
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-70m" \
+    --model-name "EleutherAI/pythia-14m" \
     --dataset arithmetic \
     --pretrained \
     --finetune-mode full \
     --enable-normalization \
+    --use-time-embedding \
+    --no-use-dynamic-eigen-lrs \
     --make-layers-recurrent 2:4 \
-    --num-steps 3 \
-    --experiment-name Pythia_Arithmetic_nGPT_3Step_Eval \
-    --load-from-checkpoint Pythia_Arithmetic_nGPT_3Step \
+    --num-steps 4 \
+    --experiment-name Pythia_Arithmetic_nGPT_NoGating_TimeEmbedding_4Step_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_NoGating_TimeEmbedding_4Step \
     --evaluation-metrics arithmetic \
     --mode evaluate \
     --max-epochs 1 \
-    --max-training-steps 1 \
+    --max-training-steps 1000000 \
     --eval-batch-size 4096 \
     --enable-logging \
     --project-name letting-nns-think-synthetic

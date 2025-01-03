@@ -5,6 +5,7 @@ from torch import nn
 from experiment.layers import (
     DynamicVeraLayer,
     SequentialTransformerLayer,
+    MambaTransformerLayer,
 )
 from experiment.layers.recurrent_transformer_layer import RecurrentTransformerLayer
 from experiment.configs import ModelConfig, LayerRange
@@ -60,7 +61,9 @@ class RecurrentLanguageModelAdapter:
         recurrent_layers = layers[start:end]
 
         if self.config.recurrent_mode == "mamba":
-            recurrent_layer: nn.Module = self._create_mamba_layer(len(recurrent_layers))
+            recurrent_layer: nn.Module = self._create_mamba_layer(
+                model, len(recurrent_layers)
+            )
         else:
             recurrent_layer = SequentialTransformerLayer(*recurrent_layers)
 
@@ -98,3 +101,16 @@ class RecurrentLanguageModelAdapter:
         self: RecurrentLanguageModelAdapterProtocol, model: nn.Module
     ) -> list[int]:
         return self._get_all_layers(model, self.config.make_layers_recurrent)
+
+    def _create_mamba_layer(
+        self: RecurrentLanguageModelAdapterProtocol, model: nn.Module, num_layers: int
+    ) -> SequentialTransformerLayer:
+        return SequentialTransformerLayer(
+            *[
+                MambaTransformerLayer(
+                    model.config.hidden_size,
+                    model.config.num_attention_heads,
+                )
+                for _ in range(num_layers)
+            ]
+        )

@@ -17,11 +17,11 @@ srun python -m experiment \
     --enable-normalization \
     --batch-size 2048 \
     --grad-acc-steps 1 \
-    --learning-rate 1e-3 \
+    --learning-rate 3e-3 \
     --max-hours 4 \
     --max-epochs 1 \
     --use-early-stopping \
-    --max-training-steps 20000 \
+    --max-training-steps 2000000 \
     --validate-every-n-steps 1000 \
     --experiment-name Pythia_Arithmetic_nGPT \
     --save-to-checkpoint Pythia_Arithmetic_nGPT \

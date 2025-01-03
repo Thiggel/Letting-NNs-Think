@@ -22,7 +22,7 @@ srun python -m experiment \
     --max-hours 4 \
     --max-epochs 1 \
     --use-early-stopping \
-    --max-training-steps 20000 \
+    --max-training-steps 2000000 \
     --validate-every-n-steps 1000 \
     --experiment-name Pythia_Arithmetic_3Step \
     --save-to-checkpoint Pythia_Arithmetic_3Step \

@@ -7,14 +7,14 @@ class SequentialTransformerLayer(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList(layers)
 
-    def forward(self, x, *args, **kwargs):
+    def forward(self, x, *args, timestep: int = 0, **kwargs):
         sig = inspect.signature(self.layers[0].forward)
         supported_kwargs = {
             key: value for key, value in kwargs.items() if key in sig.parameters
         }
 
         for layer in self.layers:
-            outputs = layer(x, *args, **supported_kwargs)
+            outputs = layer(x, *args, timestep=timestep, **supported_kwargs)
             if type(x) == tuple:
                 x = outputs[0]
 
