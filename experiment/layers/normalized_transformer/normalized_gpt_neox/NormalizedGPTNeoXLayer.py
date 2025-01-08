@@ -19,6 +19,7 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         layer_idx,
         use_dynamic_rates: bool = False,
         use_momentum: bool = False,
+        num_steps: int = 0,
     ):
         super().__init__()
         self.use_dynamic_rates = use_dynamic_rates
@@ -45,7 +46,7 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
             * torch.ones(config.hidden_size, dtype=torch.float32)
         )
 
-        self.setup(config)
+        self.setup(config, num_steps)
 
     def forward(
         self,

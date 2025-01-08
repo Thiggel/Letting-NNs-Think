@@ -7,31 +7,31 @@
 #SBATCH --time=10:30:00
 #SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_4Step_TimeEmbedding_%A.out
 
-cd $HOME/Letting-NNs-Think
+cd $HOME/Letting-NNs-Think-Synthetic
 . jobs/environment.sh
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-14m" \
-    --dataset synthetic_arithmetic_task \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset arithmetic \
     --finetune-mode full \
     --enable-normalization \
     --make-layers-recurrent 2:4 \
     --use-time-embedding \
     --num-steps 4 \
-    --batch-size 8192 \
+    --batch-size 2048 \
     --grad-acc-steps 1 \
-    --learning-rate 1e-5 \
+    --learning-rate 1e-3 \
     --max-hours 10 \
     --max-epochs 400 \
     --max-training-steps 1000000 \
     --experiment-name Pythia_Arithmetic_nGPT_4Step_TimeEmbedding \
     --save-to-checkpoint Pythia_Arithmetic_nGPT_4Step_TimeEmbedding \
     --enable-logging \
-    --mode train
+    --project-name letting-nns-think-synthetic
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-14m" \
-    --dataset synthetic_arithmetic_task \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset arithmetic \
     --pretrained \
     --finetune-mode full \
     --enable-normalization \
@@ -40,9 +40,10 @@ srun python -m experiment \
     --use-time-embedding \
     --experiment-name Pythia_Arithmetic_nGPT_4Step_TimeEmbedding_Eval \
     --load-from-checkpoint Pythia_Arithmetic_nGPT_4Step_TimeEmbedding \
-    --evaluation-metrics arithmetic_task \
+    --evaluation-metrics arithmetic \
     --mode evaluate \
     --max-epochs 1 \
     --max-training-steps 1000000 \
-    --eval-batch-size 8192 \
-    --enable-logging
+    --eval-batch-size 4096 \
+    --enable-logging \
+    --project-name letting-nns-think-synthetic

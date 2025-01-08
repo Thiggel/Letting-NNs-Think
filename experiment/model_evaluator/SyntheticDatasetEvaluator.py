@@ -22,7 +22,7 @@ class SyntheticDatasetEvaluator:
         model_config: ModelConfig = None,
         training_config: TrainingConfig = None,
         seed: int = 42,
-        num_eval_samples: int = 10000,  # New parameter for evaluation size
+        num_eval_samples: int = 100000,  # New parameter for evaluation size
     ):
         self.model = model
         self.tokenizer = tokenizer

@@ -14,7 +14,7 @@ class SequentialTransformerLayer(nn.Module):
         }
 
         for layer in self.layers:
-            outputs = layer(x, *args, timestep=timestep, **supported_kwargs)
+            outputs = layer(x, *args, **supported_kwargs)
             if type(x) == tuple:
                 x = outputs[0]
 
