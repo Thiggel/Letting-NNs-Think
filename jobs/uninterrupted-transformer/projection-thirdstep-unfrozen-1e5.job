@@ -1,0 +1,38 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=4-00:00:00
+#SBATCH --job-name=Projection-ThirdStep-Unfrozen-1e5
+#SBATCH --output=job_logs/projection-thirdstep-unfrozen-1e5-%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset fineweb \
+  --pretrained \
+  --batch-size 1 \
+  --grad-acc-steps 64 \
+  --seq-length 400 \
+  --learning-rate 1e-5 \
+  --initial-lr 7e-7 \
+  --warmup-steps 5000 \
+  --max-epochs 10000000 \
+  --max-training-steps 50000 \
+  --max-hours 95 \
+  --validate-every-n-steps 1000 \
+  --eval-batch-size 16 \
+  --uninterrupted-mode projection \
+  --uninterrupted-recurrence-depth 5 \
+  --loss-discount-factor 0.1 \
+  --finetune-mode full \
+  --untie-embedding-and-softmax \
+  --load-from-checkpoint ProjectionSecondStepUnfrozen1e5 \
+  --experiment-name ProjectionThirdStepUnfrozen1e5 \
+  --save-to-checkpoint ProjectionThirdStepUnfrozen1e5 \
+  --enable-logging

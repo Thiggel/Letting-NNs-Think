@@ -35,7 +35,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         model = self._load_model(seed, mode="test")
         model.to(self.device)
 
-        string = self.tokenizer.encode("1 + 0 + 1 =", return_tensors="pt").to(
+        string = self.tokenizer.encode("my dog is ", return_tensors="pt").to(
             self.device
         )
         generated = model.generate(
@@ -84,6 +84,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
                 self.evaluation_config.evaluate_as_uninterrupted,
                 self.evaluation_config.eval_batch_size,
                 self.evaluation_config.num_fewshot,
+                self.evaluation_config.uninterrupted_alpha,
             )
             standard_results = evaluator.evaluate(
                 standard_metrics,
@@ -107,11 +108,15 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         wandb.finish()
 
     def _format_standard_results(self, results: Dict[str, Any]) -> Dict[str, float]:
-        return {
-            f"{key}_accuracy": (
-                value["acc,none"]
-                if "acc,none" in value
-                else value["exact_match,flexible-extract"]
-            )
-            for key, value in results.items()
-        }
+        print()
+        print("Results: ", results)
+        print()
+
+        res = {}
+
+        for key, value in results.items():
+            for result_key, result_value in value.items():
+                if isinstance(result_value, (int, float)):
+                    res[f"{key}_{result_key}"] = result_value
+
+        return res

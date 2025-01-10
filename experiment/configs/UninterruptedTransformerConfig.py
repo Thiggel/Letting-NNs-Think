@@ -5,6 +5,7 @@ from enum import Enum
 class UninterruptedMode(Enum):
     FIRST_LAST_STATE_MSE = "first_last_state_mse"
     PROJECTION = "projection"
+    GMM = "gmm"
     INTERRUPTED = "interrupted"
 
 
@@ -28,4 +29,7 @@ class UninterruptedTransformerConfig:
     untie_embedding_and_softmax: bool = Field(
         False,
         description="Whether to untie the embedding and softmax weights",
+    )
+    loss_discount_factor: float = Field(
+        1.0, description="The discount factor for the loss"
     )

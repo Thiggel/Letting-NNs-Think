@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=4:00:00
-#SBATCH --job-name=Projection-Frozen-3e-4
-#SBATCH --output=job_logs/projection-frozen-3e-4-%A.out
+#SBATCH --job-name=Projection-Frozen-1e-3
+#SBATCH --output=job_logs/projection-frozen-1e-3-%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -18,13 +18,13 @@ srun python -m experiment \
   --pretrained \
   --batch-size 1 \
   --seq-length 450 \
-  --learning-rate 3e-4 \
+  --learning-rate 1e-3 \
   --warmup-steps 5000 \
   --max-epochs 10 \
   --max-training-steps 50000 \
   --uninterrupted-mode projection \
   --uninterrupted-recurrence-depth 5 \
   --finetune-mode frozen \
-  --experiment-name ProjectionFrozenFineweb3e4 \
-  --save-to-checkpoint ProjectionFrozenFineweb3e4 \
+  --experiment-name ProjectionFrozenFineweb1e3 \
+  --save-to-checkpoint ProjectionFrozenFineweb1e3 \
   --enable-logging

@@ -7,7 +7,7 @@ import torch
 from transformers import PreTrainedTokenizer
 import os
 
-from .CustomInference import CustomInference
+from .CustomInference import UninterruptedTransformer
 
 
 class ModelEvaluator:
@@ -20,12 +20,14 @@ class ModelEvaluator:
         is_uninterrupted: bool = False,
         eval_batch_size: int = 128,
         num_fewshot: int = 0,
+        uninterrupted_alpha: float = 0.0,
     ):
         self.eval_batch_size = eval_batch_size
         self.num_fewshot = num_fewshot
 
         if is_uninterrupted:
-            self.model = CustomInference(model, tokenizer)
+            self.model = UninterruptedTransformer(model, tokenizer, uninterrupted_alpha)
+            self.model.setup()
         else:
             self.model = model
 

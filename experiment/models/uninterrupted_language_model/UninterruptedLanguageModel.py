@@ -1,12 +1,13 @@
-from typing import Protocol
-from transformers import PreTrainedModel
-from torch.utils.checkpoint import checkpoint
+from typing import Protocol, Optional
+from transformers import PreTrainedModel, PreTrainedTokenizer
 import torch
-from torch import nn
-import torch.nn.functional as F
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from experiment.configs import ModelConfig, DataConfig, UninterruptedMode, FinetuneMode
+
+from experiment.model_evaluator.CustomInference import UninterruptedTransformer
+
+from .GMMHead import GMMHead
 
 
 class UninterruptedLanguageModelProtocol(Protocol):
@@ -14,6 +15,9 @@ class UninterruptedLanguageModelProtocol(Protocol):
     data_config: DataConfig
     model: PreTrainedModel
     device: torch.device
+    uninterrupted_adapter: GMMHead
+    tokenizer: PreTrainedTokenizer
+    generator: Optional[UninterruptedTransformer]
 
     def log(
         self,
@@ -31,13 +35,6 @@ class UninterruptedLanguageModelProtocol(Protocol):
         labels: torch.Tensor,
     ) -> CausalLMOutputWithPast: ...
 
-    def _get_similarity_loss(
-        self,
-        last_hidden_states: torch.Tensor,
-        next_token_embeddings: torch.Tensor,
-        mask: torch.Tensor,
-    ) -> torch.Tensor: ...
-
     def get_recurrent_prediction_loss(
         self,
         outputs: CausalLMOutputWithPast,
@@ -45,58 +42,12 @@ class UninterruptedLanguageModelProtocol(Protocol):
         mode: str = "train",
     ) -> torch.Tensor: ...
 
-    def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor: ...
-
-    def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor: ...
-
-    def checkpointed_forward(
-        self, module: nn.Module, sequence: torch.Tensor, labels: torch.Tensor
-    ) -> torch.Tensor: ...
-
 
 class UninterruptedLanguageModel:
     def _uninterruted_setup(self: UninterruptedLanguageModelProtocol) -> None:
-        self.uninterrupted_adapter = (
-            nn.Sequential(
-                nn.Linear(
-                    self.model.config.hidden_size, self.model.config.hidden_size * 4
-                ),
-                nn.ReLU(),
-                nn.Linear(
-                    self.model.config.hidden_size * 4, self.model.config.hidden_size
-                ),
-            )
-            if self.config.uninterrupted_mode == UninterruptedMode.PROJECTION
-            else nn.Identity()
-        )
-
-    def _get_similarity_loss(
-        self: UninterruptedLanguageModelProtocol,
-        last_hidden_states: torch.Tensor,
-        next_token_embeddings: torch.Tensor,
-        mask: torch.Tensor,
-    ) -> torch.Tensor:
-        similarity_loss = (
-            F.mse_loss(last_hidden_states, next_token_embeddings, reduction="none")
-            * mask.unsqueeze(-1)
-        ).sum() / mask.unsqueeze(-1).repeat(1, 1, last_hidden_states.shape[-1]).sum()
-
-        return self.config.uninterrupted_loss_weight * similarity_loss
-
-    def _shift_left(self, tensor: torch.Tensor) -> torch.Tensor:
-        return tensor[:, 1:]
-
-    def _shift_right(self, tensor: torch.Tensor) -> torch.Tensor:
-        return tensor[:, :-1]
-
-    def checkpointed_forward(
-        self: UninterruptedLanguageModelProtocol,
-        model: PreTrainedModel,
-        sequence: torch.Tensor,
-        labels: torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> CausalLMOutputWithPast:
-        return self._forward(model, sequence, attention_mask, labels)
+        if self.config.uninterrupted_mode == UninterruptedMode.GMM:
+            self.uninterrupted_adapter = GMMHead(self.model.config.hidden_size)
+            self.generator = UninterruptedTransformer(self, self.tokenizer, alpha=1.0)
 
     def _forward(
         self: UninterruptedLanguageModelProtocol,
@@ -137,9 +88,9 @@ class UninterruptedLanguageModel:
             outputs = self._forward(self.model, sequence, attention_mask, labels)
 
             last_hidden_states = outputs.hidden_states[-1]
-            projected_states = self.uninterrupted_adapter(last_hidden_states)
+            # projected_states = self.uninterrupted_adapter(last_hidden_states)
 
-            prediction_loss = outputs.loss
+            prediction_loss = outputs.loss * self.config.loss_discount_factor**i
 
             self.log(
                 f"{mode}_prediction_loss_step_{i}",
@@ -148,38 +99,47 @@ class UninterruptedLanguageModel:
                 batch_size=self.data_config.batch_size,
             )
 
-
-            if self.config.uninterrupted_mode == UninterruptedMode.FIRST_LAST_STATE_MSE:
-                similarity_loss = self._get_similarity_loss(
-                    last_hidden_states, input_embeddings, attention_mask
+            if self.config.uninterrupted_mode == UninterruptedMode.GMM:
+                gmm_loss = (
+                    self.uninterrupted_adapter.loss(
+                        last_hidden_states[:, :-1],
+                        input_embeddings[:, 1:],
+                    )
+                    * self.config.loss_discount_factor**i
                 )
 
                 self.log(
-                    f"{mode}_similarity_loss_step_{i}",
-                    similarity_loss,
+                    f"{mode}_gmm_loss_step_{i}",
+                    gmm_loss,
                     sync_dist=True,
                     batch_size=self.data_config.batch_size,
                 )
 
-                all_hidden_state_losses.append(similarity_loss)
+                all_hidden_state_losses.append(gmm_loss)
 
-            sequence = torch.cat(
-                [
-                    input_embeddings[:, :1],
-                    projected_states[:, :-1],
-                ],
-                dim=1,
-            )
+            # sequence = torch.cat(
+            #    [
+            #        input_embeddings[:, :1],
+            #        projected_states[:, :-1],
+            #    ],
+            #    dim=1,
+            # )
 
             if not (self.config.finetune_mode == FinetuneMode.FROZEN and i == 0):
                 all_prediction_losses.append(prediction_loss)
 
-        avg_prediction_loss = torch.stack(all_prediction_losses).mean()
-        loss = avg_prediction_loss
+        avg_prediction_loss = 0
+        if len(all_prediction_losses) != 0:
+            avg_prediction_loss = torch.stack(all_prediction_losses).mean()
+            self.log(
+                f"{mode}_recurrent_prediction_loss",
+                avg_prediction_loss,
+                sync_dist=True,
+                batch_size=self.data_config.batch_size,
+            )
 
         avg_hidden_loss = 0
-
-        if self.config.uninterrupted_mode == "first_last_state_mse":
+        if self.config.uninterrupted_mode == UninterruptedMode.GMM:
             avg_hidden_loss = torch.stack(all_hidden_state_losses).mean()
 
             self.log(
@@ -192,13 +152,6 @@ class UninterruptedLanguageModel:
         total_loss = (
             self.config.recurrent_prediction_weight * avg_prediction_loss
             + self.config.recurrent_hidden_state_weight * avg_hidden_loss
-        )
-
-        self.log(
-            f"{mode}_recurrent_prediction_loss",
-            avg_prediction_loss,
-            sync_dist=True,
-            batch_size=self.data_config.batch_size,
         )
 
         return total_loss

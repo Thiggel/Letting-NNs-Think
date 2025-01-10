@@ -14,9 +14,9 @@ from experiment.configs import (
 )
 from experiment.models.GatedLM import GatedLM
 
+from .uninterrupted_language_model import UninterruptedLanguageModel
 from .model_adapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
-from .UninterruptedLanguageModel import UninterruptedLanguageModel
 from .RecurrentLanguageModel import RecurrentLanguageModel
 from .MoDModel import MoDModel
 from .HasLayers import HasLayers
@@ -69,15 +69,25 @@ class DefaultLightningModule(
         return self.model.generate(*args, **kwargs)
 
     def on_validation_start(self):
-        string = self.tokenizer.encode("1 + 0 + 1 =", return_tensors="pt").to(
+        string = self.tokenizer.encode("my dog is ", return_tensors="pt").to(
             self.device
         )
-        generated = self.model.generate(
-            input_ids=string,
-            max_length=100,
-            max_new_tokens=100,
-            eos_token_id=self.tokenizer.eos_token_id,
-        )
+        if hasattr(self, "generator"):
+            self.generator.setup()
+            generated = self.generator.generate(
+                input_ids=string,
+                max_length=100,
+                max_new_tokens=100,
+                eos_token_id=self.tokenizer.eos_token_id,
+            )
+            self.generator.reset()
+        else:
+            generated = self.model.generate(
+                input_ids=string,
+                max_length=100,
+                max_new_tokens=100,
+                eos_token_id=self.tokenizer.eos_token_id,
+            )
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
     def lr_lambda_warmup_decay(self, current_step: int) -> float:
@@ -133,8 +143,8 @@ class DefaultLightningModule(
             if p.requires_grad
         ]
 
-        if self.config.uninterrupted_mode == UninterruptedMode.PROJECTION:
-            print("Uninterrupted Projection finetuning")
+        if self.config.uninterrupted_mode == UninterruptedMode.GMM:
+            print("Uninterrupted GMM finetuning")
             main_params += [
                 p for p in self.uninterrupted_adapter.parameters() if p.requires_grad
             ]
