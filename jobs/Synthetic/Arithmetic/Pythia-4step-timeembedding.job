@@ -14,8 +14,8 @@ srun python -m experiment \
     --model-name "EleutherAI/pythia-70m" \
     --dataset arithmetic \
     --make-layers-recurrent 2:4 \
-    --num-runs 3 \
-    --seeds 42 43 44 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
     --num-steps 4 \
     --use-time-embedding \
     --finetune-mode full \
@@ -30,15 +30,15 @@ srun python -m experiment \
     --experiment-name Pythia_Arithmetic_4Step_TimeEmbedding \
     --save-to-checkpoint Pythia_Arithmetic_4Step_TimeEmbedding \
     --enable-logging \
-    --project-name letting-nns-think-synthetic-2
+    --project-name letting-nns-think-synthetic-3
 
 srun python -m experiment \
     --model-name "EleutherAI/pythia-70m" \
     --dataset arithmetic \
     --make-layers-recurrent 2:4 \
     --num-steps 4 \
-    --num-runs 3 \
-    --seeds 42 43 44 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
     --use-time-embedding \
     --pretrained \
     --finetune-mode full \
@@ -50,4 +50,4 @@ srun python -m experiment \
     --max-training-steps 1 \
     --eval-batch-size 4096 \
     --enable-logging \
-    --project-name letting-nns-think-synthetic-2
+    --project-name letting-nns-think-synthetic-3

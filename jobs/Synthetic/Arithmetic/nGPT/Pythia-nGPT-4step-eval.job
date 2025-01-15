@@ -11,31 +11,15 @@ cd $HOME/Letting-NNs-Think-Synthetic
 . jobs/environment.sh
 
 srun python -m experiment \
-    --model-name "EleutherAI/pythia-14m" \
-    --dataset arithmetic \
-    --finetune-mode full \
-    --enable-normalization \
-    --make-layers-recurrent 2:4 \
-    --num-steps 4 \
-    --batch-size 2048 \
-    --grad-acc-steps 1 \
-    --learning-rate 1e-3 \
-    --max-hours 6 \
-    --max-epochs 1 \
-    --max-training-steps 1000000 \
-    --validate-every-n-steps 1000 \
-    --experiment-name Pythia_Arithmetic_nGPT_4Step \
-    --save-to-checkpoint Pythia_Arithmetic_nGPT_4Step \
-    --enable-logging \
-    --project-name letting-nns-think-synthetic
-
-srun python -m experiment \
-    --model-name "EleutherAI/pythia-14m" \
+    --model-name "EleutherAI/pythia-70m" \
     --dataset arithmetic \
     --pretrained \
     --finetune-mode full \
     --enable-normalization \
     --make-layers-recurrent 2:4 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
+    --batch-size 2048 \
     --num-steps 4 \
     --experiment-name Pythia_Arithmetic_nGPT_4Step_Eval \
     --load-from-checkpoint Pythia_Arithmetic_nGPT_4Step \
@@ -45,4 +29,4 @@ srun python -m experiment \
     --max-training-steps 1000000 \
     --eval-batch-size 4096 \
     --enable-logging \
-    --project-name letting-nns-think-synthetic
+    --project-name letting-nns-think-synthetic-4

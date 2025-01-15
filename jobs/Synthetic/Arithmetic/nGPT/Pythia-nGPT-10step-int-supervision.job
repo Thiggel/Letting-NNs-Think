@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_10Step_IntSupervision
+#SBATCH --time=6:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_10Step_IntSupervision_%A.out
+
+cd $HOME/Letting-NNs-Think-Synthetic
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset arithmetic \
+    --finetune-mode full \
+    --enable-normalization \
+    --use-discounted-intermediate-supervision \
+    --intermediate-supervision-loss-weight 0.1 \
+    --make-layers-recurrent 2:4 \
+    --num-steps 10 \
+    --num-runs 3 \
+    --seeds 42 43 44 \
+    --batch-size 1024 \
+    --grad-acc-steps 1 \
+    --learning-rate 1e-3 \
+    --max-hours 1 \
+    --max-epochs 1 \
+    --use-early-stopping \
+    --max-training-steps 2000000 \
+    --warmup-steps 1 \
+    --validate-every-n-steps 1000 \
+    --experiment-name Pythia_Arithmetic_nGPT_10Step_IntSupervision \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_10Step_IntSupervision \
+    --enable-logging \
+    --project-name letting-nns-think-synthetic-4
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset arithmetic \
+    --pretrained \
+    --finetune-mode full \
+    --use-discounted-intermediate-supervision \
+    --num-runs 3 \
+    --seeds 42 43 44 \
+    --enable-normalization \
+    --make-layers-recurrent 2:4 \
+    --num-steps 10 \
+    --experiment-name Pythia_Arithmetic_nGPT_10Step_IntSupervision_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_10Step_IntSupervision \
+    --evaluation-metrics arithmetic \
+    --mode evaluate \
+    --max-epochs 1 \
+    --max-training-steps 1 \
+    --eval-batch-size 2048 \
+    --enable-logging \
+    --project-name letting-nns-think-synthetic-4

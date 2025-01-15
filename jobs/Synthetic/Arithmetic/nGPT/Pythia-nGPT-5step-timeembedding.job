@@ -3,9 +3,9 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=Pythia_Arithmetic_nGPT_NoGating_3Step
-#SBATCH --time=6:30:00
-#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_NoGating_3Step_%A.out
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_5Step_TimeEmbedding
+#SBATCH --time=10:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_5Step_TimeEmbedding_%A.out
 
 cd $HOME/Letting-NNs-Think-Synthetic
 . jobs/environment.sh
@@ -15,21 +15,23 @@ srun python -m experiment \
     --dataset arithmetic \
     --finetune-mode full \
     --enable-normalization \
-    --no-use-dynamic-eigen-lrs \
     --make-layers-recurrent 2:4 \
-    --num-steps 3 \
+    --use-time-embedding \
+    --num-steps 5 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
     --batch-size 2048 \
     --grad-acc-steps 1 \
     --learning-rate 1e-3 \
-    --max-hours 6 \
+    --max-hours 1 \
     --max-epochs 1 \
-    --use-early-stopping \
-    --max-training-steps 2000000 \
+    --warmup-steps 1 \
+    --max-training-steps 1000000 \
     --validate-every-n-steps 1000 \
-    --experiment-name Pythia_Arithmetic_nGPT_NoGating_3Step \
-    --save-to-checkpoint Pythia_Arithmetic_nGPT_NoGating_3Step \
+    --experiment-name Pythia_Arithmetic_nGPT_5Step_TimeEmbedding \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_5Step_TimeEmbedding \
     --enable-logging \
-    --project-name letting-nns-think-synthetic
+    --project-name letting-nns-think-synthetic-4
 
 srun python -m experiment \
     --model-name "EleutherAI/pythia-70m" \
@@ -37,15 +39,17 @@ srun python -m experiment \
     --pretrained \
     --finetune-mode full \
     --enable-normalization \
-    --no-use-dynamic-eigen-lrs \
     --make-layers-recurrent 2:4 \
-    --num-steps 3 \
-    --experiment-name Pythia_Arithmetic_nGPT_NoGating_3Step_Eval \
-    --load-from-checkpoint Pythia_Arithmetic_nGPT_NoGating_3Step \
+    --num-steps 5 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
+    --use-time-embedding \
+    --experiment-name Pythia_Arithmetic_nGPT_5Step_TimeEmbedding_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_5Step_TimeEmbedding \
     --evaluation-metrics arithmetic \
     --mode evaluate \
     --max-epochs 1 \
-    --max-training-steps 1 \
+    --max-training-steps 1000000 \
     --eval-batch-size 4096 \
     --enable-logging \
-    --project-name letting-nns-think-synthetic
+    --project-name letting-nns-think-synthetic-4

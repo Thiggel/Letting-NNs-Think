@@ -3,9 +3,9 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=Pythia_Arithmetic_nGPT_10Step_TimeEmbedding
-#SBATCH --time=10:30:00
-#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_10Step_TimeEmbedding_%A.out
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_NoGating_10Step
+#SBATCH --time=6:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_NoGating_10Step_%A.out
 
 cd $HOME/Letting-NNs-Think-Synthetic
 . jobs/environment.sh
@@ -15,19 +15,22 @@ srun python -m experiment \
     --dataset arithmetic \
     --finetune-mode full \
     --enable-normalization \
+    --no-use-dynamic-eigen-lrs \
     --make-layers-recurrent 2:4 \
-    --use-time-embedding \
     --num-steps 10 \
     --batch-size 1024 \
     --grad-acc-steps 1 \
-    --learning-rate 1e-3 \
-    --max-hours 10 \
-    --max-epochs 400 \
+    --learning-rate 3e-4 \
+    --max-hours 1 \
+    --max-epochs 1 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
     --max-training-steps 1000000 \
-    --experiment-name Pythia_Arithmetic_nGPT_10Step_TimeEmbedding \
-    --save-to-checkpoint Pythia_Arithmetic_nGPT_10Step_TimeEmbedding \
+    --validate-every-n-steps 1000 \
+    --experiment-name Pythia_Arithmetic_nGPT_NoGating_10Step \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_NoGating_10Step \
     --enable-logging \
-    --project-name letting-nns-think-synthetic
+    --project-name letting-nns-think-synthetic-4
 
 srun python -m experiment \
     --model-name "EleutherAI/pythia-70m" \
@@ -35,15 +38,17 @@ srun python -m experiment \
     --pretrained \
     --finetune-mode full \
     --enable-normalization \
+    --no-use-dynamic-eigen-lrs \
     --make-layers-recurrent 2:4 \
     --num-steps 10 \
-    --use-time-embedding \
-    --experiment-name Pythia_Arithmetic_nGPT_10Step_TimeEmbedding_Eval \
-    --load-from-checkpoint Pythia_Arithmetic_nGPT_10Step_TimeEmbedding \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
+    --experiment-name Pythia_Arithmetic_nGPT_NoGating_10Step_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_NoGating_10Step \
     --evaluation-metrics arithmetic \
     --mode evaluate \
     --max-epochs 1 \
     --max-training-steps 1000000 \
-    --eval-batch-size 2048 \
+    --eval-batch-size 2048\
     --enable-logging \
-    --project-name letting-nns-think-synthetic
+    --project-name letting-nns-think-synthetic-4

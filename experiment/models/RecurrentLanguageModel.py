@@ -14,6 +14,7 @@ class RecurrentLanguageModelProtocol(Protocol):
     model: nn.Module
     config: ModelConfig
     training_config: TrainingConfig
+    intermediate_outputs: torch.Tensor
 
     def get_recurrent_layer(self) -> Optional[RecurrentTransformerLayer]: ...
 
@@ -26,8 +27,10 @@ class RecurrentLanguageModelProtocol(Protocol):
     ) -> None: ...
 
 
-class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
-    def get_recurrent_layer(self) -> Optional[RecurrentTransformerLayer]:
+class RecurrentLanguageModel:
+    def get_recurrent_layer(
+        self: RecurrentLanguageModelProtocol,
+    ) -> Optional[RecurrentTransformerLayer]:
         """Get the recurrent layer if it exists"""
         if not hasattr(self.model_adapter, "recurrent_layer_idx"):
             return None
@@ -43,19 +46,10 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
                 torch.ones(self.model.config.hidden_size)
             )
 
-    def get_loss_for_intermediate_supervision(self) -> torch.Tensor:
-        layer = self.get_recurrent_layer()
-
-        if (
-            not self.training_config.use_random_intermediate_supervision
-            or layer is None
-            or not hasattr(layer, "intermediate_outputs")
-            or layer.intermediate_outputs is None
-            or len(layer.intermediate_outputs) == 0
-        ):
-            return torch.tensor(0)
-
-        intermediate_outputs = torch.stack(layer.intermediate_outputs)
+    def get_loss_for_random_intermediate_supervision(
+        self: RecurrentLanguageModelProtocol, layer: RecurrentTransformerLayer
+    ) -> torch.Tensor:
+        intermediate_outputs = torch.stack(layer.intermediate_outputs[:-1])
         batch_size, num_steps, seq_len, hidden_size = intermediate_outputs.shape
 
         # Create random noise
@@ -93,3 +87,65 @@ class RecurrentLanguageModel(RecurrentLanguageModelProtocol):
         )
 
         return loss + reg_loss
+
+    def get_loss_for_discounted_intermediate_supervision(
+        self: RecurrentLanguageModelProtocol, layer: RecurrentTransformerLayer
+    ) -> torch.Tensor:
+        """
+        Get loss for intermediate supervision using KL divergence between consecutive states
+        and an optional entropy term to prevent collapse
+        """
+        intermediate_states = torch.stack(
+            layer.intermediate_outputs[:-1]
+        )  # [steps, batch, seq, hidden]
+        next_states = torch.stack(
+            layer.intermediate_outputs[1:]
+        )  # [steps, batch, seq, hidden]
+
+        # Calculate KL divergence between consecutive states
+        # Since states are normalized (on hypersphere), we can use cosine similarity
+        # to approximate the probability distribution
+        cosine_sim = F.cosine_similarity(
+            intermediate_states, next_states, dim=-1
+        )  # [steps, batch, seq]
+        # Scale to [0,1] range for probability interpretation
+
+        # KL term: We want consecutive states to be similar but not identical
+        # Using negative cosine similarity as a proxy for KL
+        int_state_sim_loss = -cosine_sim.mean()
+
+        # Log metrics if logging is available
+        if hasattr(self, "log"):
+            batch_size = intermediate_states.shape[1]
+            self.log(
+                "intermediate_state_similarity_loss",
+                int_state_sim_loss,
+                sync_dist=True,
+                batch_size=batch_size,
+            )
+
+        return (
+            self.training_config.intermediate_supervision_loss_weight
+            * int_state_sim_loss
+        )
+
+    def get_loss_for_intermediate_supervision(
+        self: RecurrentLanguageModelProtocol,
+    ) -> torch.Tensor:
+        layer = self.get_recurrent_layer()
+
+        if (
+            layer is None
+            or not hasattr(layer, "intermediate_outputs")
+            or layer.intermediate_outputs is None
+            or len(layer.intermediate_outputs) == 0
+        ):
+            return torch.tensor(0)
+
+        if self.training_config.use_discounted_intermediate_supervision:
+            return self.get_loss_for_discounted_intermediate_supervision(layer)
+
+        if self.training_config.use_random_intermediate_supervision:
+            return self.get_loss_for_random_intermediate_supervision(layer)
+
+        return torch.tensor(0)

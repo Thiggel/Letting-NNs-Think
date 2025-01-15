@@ -38,6 +38,12 @@ class TrainingConfig(BaseModel):
     use_random_intermediate_supervision: bool = Field(
         False, description="Whether to use random intermediate supervision"
     )
+    use_discounted_intermediate_supervision: bool = Field(
+        False, description="Whether to use discounted intermediate supervision"
+    )
+    intermediate_supervision_loss_weight: float = Field(
+        1.0, description="The weight for intermediate supervision loss"
+    )
     validate_every_n_steps: Optional[int] = Field(
         None, description="The number of steps between validation runs"
     )

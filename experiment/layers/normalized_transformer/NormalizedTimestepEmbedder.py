@@ -5,46 +5,53 @@ import torch.nn.functional as F
 
 
 class NormalizedTimestepEmbedder(nn.Module):
-    def __init__(
-        self, hidden_dim: int, freq_embed_dim: int = 256, max_period: int = 10000
-    ):
+    def __init__(self, hidden_dim: int, max_steps: int = 32):
         super().__init__()
-
-        # Create frequency buffer
-        freqs = torch.exp(
-            -math.log(max_period)
-            * torch.arange(start=0, end=freq_embed_dim // 2)
-            / (freq_embed_dim // 2)
-        )
-        self.register_buffer("freqs", freqs)
-
-        # MLP to process embeddings
-        self.mlp = nn.Sequential(
-            nn.Linear(freq_embed_dim, hidden_dim * 4),
-            nn.SiLU(),
-            nn.Linear(hidden_dim * 4, hidden_dim),
-        )
-
-        # Learnable scaling factor for the update
-        self.alpha = nn.Parameter(
-            torch.ones(hidden_dim) * 0.1
-        )  # Initialize conservatively
-
-    def get_freq_embedding(self, timestep: int) -> torch.Tensor:
-        args = timestep * self.freqs
-        embedding = torch.cat([torch.cos(args), torch.sin(args)])
-        return embedding
+        # Create a set of learnable basis vectors on the hypersphere
+        num_basis = min(hidden_dim // 2, 32)
+        self.basis = nn.Parameter(torch.randn(num_basis, hidden_dim))
+        self.alpha = nn.Parameter(torch.ones(hidden_dim) * 0.05)
+        self.max_steps = max_steps
+        self.hidden_dim = hidden_dim
 
     def forward(self, hidden_states: torch.Tensor, timestep: int) -> torch.Tensor:
-        # Get time embedding direction
-        t_freq = self.get_freq_embedding(timestep)
-        t_emb = self.mlp(t_freq)
+        # Normalize basis vectors
+        basis = F.normalize(self.basis, dim=-1)  # [num_basis, hidden_dim]
 
-        # Normalize the embedding direction
-        t_emb = F.normalize(t_emb, dim=-1)
+        # Create step-specific angles for all basis vectors at once
+        # timestep shape: [batch_size]
+        batch_size, seq_len = hidden_states.shape[0:2]
+        step_fractions = (
+            torch.tensor(
+                [timestep / self.max_steps],
+                dtype=hidden_states.dtype,
+                device=hidden_states.device,
+            )
+            .unsqueeze(-1)
+            .repeat(batch_size, seq_len)
+        )  # [batch_size, seq_len]
 
-        # Update hidden state with learnable rate
-        updated = hidden_states + self.alpha * (t_emb - hidden_states)
+        # Create frequency matrix for all basis vectors
+        freqs = 2.0 ** -torch.arange(self.basis.shape[0], device=hidden_states.device)
+        # [num_basis]
 
-        # Project back to unit sphere
+        # Compute all angles at once
+        # [batch_size, seq_len, num_basis]
+        angles = step_fractions.unsqueeze(-1) * freqs.unsqueeze(0) * math.pi
+
+        # Get coefficients for all bases at once
+        # [batch_size, seq_len, num_basis]
+        coeffs = torch.sin(angles)
+
+        # Combine basis vectors according to coefficients
+        # [batch_size, num_basis, 1] * [1, num_basis, hidden_dim]
+        # -> [batch_size, seq_len, hidden_dim]
+        direction = torch.sum(coeffs.unsqueeze(-1) * basis.unsqueeze(0), dim=2)
+
+        # Normalize the direction vectors
+        direction = F.normalize(direction, dim=-1)
+
+        # Update hidden states using nGPT update equation
+        # h ← Norm(h + α(hA − h))
+        updated = hidden_states + self.alpha * (direction - hidden_states)
         return F.normalize(updated, dim=-1)

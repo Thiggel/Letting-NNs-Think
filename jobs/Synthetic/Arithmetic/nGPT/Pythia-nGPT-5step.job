@@ -3,9 +3,9 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --job-name=Pythia_Arithmetic_nGPT_3Step
-#SBATCH --time=6:30:00
-#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_3Step_%A.out
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_5Step
+#SBATCH --time=10:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_5Step_%A.out
 
 cd $HOME/Letting-NNs-Think-Synthetic
 . jobs/environment.sh
@@ -16,19 +16,19 @@ srun python -m experiment \
     --finetune-mode full \
     --enable-normalization \
     --make-layers-recurrent 2:4 \
-    --num-steps 3 \
+    --num-steps 5 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
     --batch-size 2048 \
     --grad-acc-steps 1 \
-    --learning-rate 3e-3 \
-    --max-hours 6 \
-    --max-epochs 1 \
-    --use-early-stopping \
-    --max-training-steps 2000000 \
-    --validate-every-n-steps 1000 \
-    --experiment-name Pythia_Arithmetic_nGPT_3Step \
-    --save-to-checkpoint Pythia_Arithmetic_nGPT_3Step \
+    --learning-rate 1e-3 \
+    --max-hours 1 \
+    --max-epochs 400 \
+    --max-training-steps 1000000 \
+    --experiment-name Pythia_Arithmetic_nGPT_5Step \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_5Step \
     --enable-logging \
-    --project-name letting-nns-think-synthetic
+    --project-name letting-nns-think-synthetic-4
 
 srun python -m experiment \
     --model-name "EleutherAI/pythia-70m" \
@@ -37,13 +37,15 @@ srun python -m experiment \
     --finetune-mode full \
     --enable-normalization \
     --make-layers-recurrent 2:4 \
-    --num-steps 3 \
-    --experiment-name Pythia_Arithmetic_nGPT_3Step_Eval \
-    --load-from-checkpoint Pythia_Arithmetic_nGPT_3Step \
+    --num-steps 5 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
+    --experiment-name Pythia_Arithmetic_nGPT_5Step_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_5Step \
     --evaluation-metrics arithmetic \
     --mode evaluate \
     --max-epochs 1 \
-    --max-training-steps 1 \
+    --max-training-steps 1000000 \
     --eval-batch-size 4096 \
     --enable-logging \
-    --project-name letting-nns-think-synthetic
+    --project-name letting-nns-think-synthetic-4

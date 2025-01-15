@@ -1,0 +1,53 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_10Step_TimeEmbedding
+#SBATCH --time=10:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_10Step_TimeEmbedding_%A.out
+
+cd $HOME/Letting-NNs-Think-Synthetic
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset arithmetic \
+    --finetune-mode full \
+    --enable-normalization \
+    --make-layers-recurrent 2:4 \
+    --use-time-embedding \
+    --num-steps 10 \
+    --batch-size 1024 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
+    --grad-acc-steps 1 \
+    --learning-rate 1e-3 \
+    --max-hours 1 \
+    --max-epochs 400 \
+    --max-training-steps 1000000 \
+    --experiment-name Pythia_Arithmetic_nGPT_10Step_TimeEmbedding \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_10Step_TimeEmbedding \
+    --enable-logging \
+    --project-name letting-nns-think-synthetic-4
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset arithmetic \
+    --pretrained \
+    --finetune-mode full \
+    --enable-normalization \
+    --make-layers-recurrent 2:4 \
+    --num-steps 10 \
+    --num-runs 5 \
+    --seeds 42 43 44 45 46 \
+    --use-time-embedding \
+    --experiment-name Pythia_Arithmetic_nGPT_10Step_TimeEmbedding_Eval \
+    --load-from-checkpoint Pythia_Arithmetic_nGPT_10Step_TimeEmbedding \
+    --evaluation-metrics arithmetic \
+    --mode evaluate \
+    --max-epochs 1 \
+    --max-training-steps 1000000 \
+    --eval-batch-size 2048 \
+    --enable-logging \
+    --project-name letting-nns-think-synthetic-4
