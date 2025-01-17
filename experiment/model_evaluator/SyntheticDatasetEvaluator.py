@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
-from typing import Dict, Any
+from typing import Dict
 import numpy as np
 from tqdm import tqdm
 
@@ -22,7 +22,7 @@ class SyntheticDatasetEvaluator:
         model_config: ModelConfig = None,
         training_config: TrainingConfig = None,
         seed: int = 42,
-        num_eval_samples: int = 1000000,  # New parameter for evaluation size
+        num_eval_samples: int = 10000,  # New parameter for evaluation size
     ):
         self.model = model
         self.tokenizer = tokenizer
@@ -187,7 +187,6 @@ class SyntheticDatasetEvaluator:
                         if rel_error < 0.01:
                             correct += 1
                     except Exception as e:
-                        print(e)
                         pass
                     total += 1
 

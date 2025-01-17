@@ -20,6 +20,7 @@ from experiment.experiment import Runner
 from experiment.datasets import LanguageDataModule
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
+from experiment.callbacks.RecursiveCurriculumCallback import RecursiveCurriculumCallback
 
 from .HasTokenizer import HasTokenizer
 from .HasModel import HasModel
@@ -124,6 +125,18 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                     mode="min",
                     min_delta=0.00,
                     verbose=True,
+                )
+            )
+
+        if self.model_config.use_curriculum:
+            callbacks.append(
+                RecursiveCurriculumCallback(
+                    max_steps=self.model_config.max_steps,
+                    configs=self.configs,
+                    seed=seed,
+                    convergence_window=2,
+                    min_delta=0.1,
+                    patience=2,
                 )
             )
 

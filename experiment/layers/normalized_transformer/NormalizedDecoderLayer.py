@@ -28,57 +28,32 @@ class NormalizedDecoderLayer:
         config: GemmaConfig,
         num_steps: int,
     ):
+        self.gemma_config = config
         if self.use_dynamic_rates:
-            self.mlp_eigen_rates = nn.ModuleList(
-                [
-                    nn.ParameterDict(
-                        {"rate": nn.Parameter(self.mlp_alpha.clone().detach())}
-                    )
-                    for _ in range(num_steps)
-                ]
-            )
+            if self.use_lr_projection:
+                self.init_gating()
+            else:
+                self.mlp_eigen_rates = nn.ModuleList(
+                    [
+                        nn.ParameterDict(
+                            {
+                                "rate": nn.Parameter(
+                                    torch.randn(config.hidden_size) * 0.02
+                                )
+                            }
+                        )
+                        for _ in range(num_steps)
+                    ]
+                )
 
-            self.attn_eigen_rates = nn.ModuleList(
-                [
-                    nn.ParameterDict(
-                        {"rate": nn.Parameter(self.mlp_alpha.clone().detach())}
-                    )
-                    for _ in range(num_steps)
-                ]
-            )
-
-            # Initialize close to static rates
-            with torch.no_grad():
-                try:
-                    nn.init.normal_(self.attn_rate_predictor.weight, mean=0.0, std=0.02)
-                    self.attn_rate_predictor.bias.fill_(self.attn_alpha_init_value)
-                    nn.init.normal_(self.mlp_rate_predictor.weight, mean=0.0, std=0.02)
-                    self.mlp_rate_predictor.bias.fill_(self.mlp_alpha_init_value)
-                except Exception:
-                    try:
-                        nn.init.normal_(
-                            self.attn_rate_predictor[0].weight, mean=0.0, std=0.02
+                self.attn_eigen_rates = nn.ModuleList(
+                    [
+                        nn.ParameterDict(
+                            {"rate": torch.randn(config.hidden_size) * 0.02}
                         )
-                        self.attn_rate_predictor[0].bias.fill_(0.01)
-                        nn.init.normal_(
-                            self.attn_rate_predictor[-1].weight, mean=0.0, std=0.02
-                        )
-                        self.attn_rate_predictor[-1].bias.fill_(
-                            self.attn_alpha_init_value
-                        )
-
-                        nn.init.normal_(
-                            self.mlp_rate_predictor[0].weight, mean=0.0, std=0.02
-                        )
-                        self.mlp_rate_predictor[0].bias.fill_(0.01)
-                        nn.init.normal_(
-                            self.mlp_rate_predictor[-1].weight, mean=0.0, std=0.02
-                        )
-                        self.mlp_rate_predictor[-1].bias.fill_(
-                            self.mlp_alpha_init_value
-                        )
-                    except Exception:
-                        pass
+                        for _ in range(num_steps)
+                    ]
+                )
 
         if self.use_momentum:
             # Momentum parameters
@@ -86,6 +61,67 @@ class NormalizedDecoderLayer:
             self.register_buffer("attn_momentum", torch.zeros(config.hidden_size))
             self.register_buffer("mlp_momentum", torch.zeros(config.hidden_size))
             self.momentum_decay = 0.9  # Hyperparameter for momentum decay
+
+    def init_gating(self):
+        self.attn_rate_predictor = nn.Linear(
+            self.gemma_config.hidden_size, self.gemma_config.hidden_size
+        )
+        self.mlp_rate_predictor = nn.Linear(
+            self.gemma_config.hidden_size, self.gemma_config.hidden_size
+        )
+
+        # Initialize close to static rates
+        with torch.no_grad():
+            try:
+                nn.init.normal_(self.attn_rate_predictor.weight, mean=0.0, std=0.02)
+                self.attn_rate_predictor.bias.fill_(self.attn_alpha_init_value)
+                nn.init.normal_(self.mlp_rate_predictor.weight, mean=0.0, std=0.02)
+                self.mlp_rate_predictor.bias.fill_(self.mlp_alpha_init_value)
+            except Exception:
+                try:
+                    nn.init.normal_(
+                        self.attn_rate_predictor[0].weight, mean=0.0, std=0.02
+                    )
+                    self.attn_rate_predictor[0].bias.fill_(0.01)
+                    nn.init.normal_(
+                        self.attn_rate_predictor[-1].weight, mean=0.0, std=0.02
+                    )
+                    self.attn_rate_predictor[-1].bias.fill_(self.attn_alpha_init_value)
+
+                    nn.init.normal_(
+                        self.mlp_rate_predictor[0].weight, mean=0.0, std=0.02
+                    )
+                    self.mlp_rate_predictor[0].bias.fill_(0.01)
+                    nn.init.normal_(
+                        self.mlp_rate_predictor[-1].weight, mean=0.0, std=0.02
+                    )
+                    self.mlp_rate_predictor[-1].bias.fill_(self.mlp_alpha_init_value)
+                except Exception:
+                    pass
+
+    def get_device(self):
+        return next(self.parameters()).device
+
+    def increment_timestep(self):
+        new_mlp_rate = nn.ParameterDict(
+            {
+                "rate": nn.Parameter(
+                    torch.randn(self.gemma_config.hidden_size, device=self.get_device())
+                    * 0.02
+                )
+            }
+        )
+        self.mlp_eigen_rates.append(new_mlp_rate)
+
+        new_attn_rate = nn.ParameterDict(
+            {
+                "rate": nn.Parameter(
+                    torch.randn(self.gemma_config.hidden_size, device=self.get_device())
+                    * 0.02
+                )
+            }
+        )
+        self.attn_eigen_rates.append(new_attn_rate)
 
     def get_mlp_eigen_rate(
         self: NormalizedDecoderLayerProtocol,
@@ -95,6 +131,14 @@ class NormalizedDecoderLayer:
     ) -> torch.Tensor:
         if not self.use_dynamic_rates:
             return self.mlp_alpha
+
+        if self.use_lr_projection:
+            mlp_rates = self.mlp_rate_predictor(mlp_output)
+
+            return mlp_rates
+
+        if timestep >= len(self.mlp_eigen_rates):
+            self.increment_timestep()
 
         mlp_rates = self.mlp_eigen_rates[timestep]["rate"]
 
@@ -108,6 +152,14 @@ class NormalizedDecoderLayer:
     ) -> torch.Tensor:
         if not self.use_dynamic_rates:
             return self.attn_alpha
+
+        if self.use_lr_projection:
+            attn_rates = self.attn_rate_predictor(attention_output)
+
+            return attn_rates
+
+        if timestep >= len(self.attn_eigen_rates):
+            self.increment_timestep()
 
         attn_rates = self.attn_eigen_rates[timestep]["rate"]
 

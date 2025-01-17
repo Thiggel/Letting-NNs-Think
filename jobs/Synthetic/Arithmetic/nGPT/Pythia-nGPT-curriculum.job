@@ -1,0 +1,36 @@
+#!/bin/bash
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --job-name=Pythia_Arithmetic_nGPT_Curriculum
+#SBATCH --time=21:30:00
+#SBATCH --output=job_logs/Pythia_Arithmetic_nGPT_Curriculum_%A.out
+
+cd $HOME/Letting-NNs-Think-Synthetic
+. jobs/environment.sh
+
+srun python -m experiment \
+    --model-name "EleutherAI/pythia-70m" \
+    --dataset arithmetic \
+    --evaluation-metrics arithmetic \
+    --finetune-mode full \
+    --enable-normalization \
+    --use-curriculum \
+    --make-layers-recurrent 2:4 \
+    --num-steps 1 \
+    --max-steps 20 \
+    --num-runs 3 \
+    --seeds 42 43 44 \
+    --batch-size 512 \
+    --grad-acc-steps 1 \
+    --learning-rate 1e-3 \
+    --max-hours 7 \
+    --max-epochs 1 \
+    --max-training-steps 2000000 \
+    --warmup-steps 1 \
+    --validate-every-n-steps 1000 \
+    --experiment-name Pythia_Arithmetic_nGPT_Curriculum \
+    --save-to-checkpoint Pythia_Arithmetic_nGPT_Curriculum \
+    --enable-logging \
+    --project-name letting-nns-think-synthetic-4

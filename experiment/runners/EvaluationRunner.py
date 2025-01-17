@@ -31,9 +31,15 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         ]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def run(self, seed: int) -> Dict[str, float]:
+    def run(self, seed: int, state_dict: torch.Tensor = None) -> Dict[str, float]:
         model = self._load_model(seed, mode="test")
         model.to(self.device)
+
+        if state_dict is not None:
+            print("Loading state dict for evaluation")
+            missing, unexpected = model.load_state_dict(state_dict)
+            print(f"Missing keys: {missing}")
+            print(f"Unexpected keys: {unexpected}")
 
         string = self.tokenizer.encode("1 + 0 + 1 =", return_tensors="pt").to(
             self.device

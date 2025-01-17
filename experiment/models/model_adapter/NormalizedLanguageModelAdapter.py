@@ -88,6 +88,7 @@ class NormalizedLanguageModelAdapter(CanNormalize):
                     use_dynamic_rates=layer_is_recurrent
                     and self.config.use_dynamic_eigen_lrs,
                     use_momentum=layer_is_recurrent and self.config.use_momentum,
+                    use_lr_projection=self.config.use_lr_projection,
                     num_steps=self.config.num_steps,
                 )
             elif isinstance(layer, Qwen2DecoderLayer):

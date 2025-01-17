@@ -18,12 +18,14 @@ class NormalizedGPTNeoXLayer(nn.Module, CanNormalize, NormalizedDecoderLayer):
         config,
         layer_idx,
         use_dynamic_rates: bool = False,
+        use_lr_projection: bool = False,
         use_momentum: bool = False,
         num_steps: int = 0,
     ):
         super().__init__()
         self.use_dynamic_rates = use_dynamic_rates
         self.use_momentum = use_momentum
+        self.use_lr_projection = use_lr_projection
 
         self.post_attention_dropout = nn.Dropout(config.hidden_dropout)
         self.post_mlp_dropout = nn.Dropout(config.hidden_dropout)

@@ -40,3 +40,6 @@ class RecursiveTransformerConfig:
         False,
         description="Whether to add residual connections in the model around the recurrent layer",
     )
+    use_curriculum: bool = Field(
+        False, description="Whether to use a curriculum learning strategy"
+    )

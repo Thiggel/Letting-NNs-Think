@@ -8,6 +8,8 @@ class SequentialTransformerLayer(nn.Module):
         self.layers = nn.ModuleList(layers)
 
     def forward(self, x, *args, timestep: int = 0, **kwargs):
+
+        kwargs["timestep"] = timestep
         sig = inspect.signature(self.layers[0].forward)
         supported_kwargs = {
             key: value for key, value in kwargs.items() if key in sig.parameters
