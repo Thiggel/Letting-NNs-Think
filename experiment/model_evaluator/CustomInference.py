@@ -5,11 +5,21 @@ import types
 
 
 class UninterruptedTransformer(nn.Module):
-    def __init__(self, model, tokenizer, alpha):
+    def __init__(self, model, tokenizer, alpha, use_adapter=True):
         super().__init__()
         self.model = model.model
 
-        self.uninterrupted_adapter = model.uninterrupted_adapter
+        # state_dict = torch.load(
+        #    "/projects/prjs1017/LettingLMsThink/LlamaGSM8KBaseline_1.pt"
+        # )["state_dict"]
+        # miss, unexp = self.model.load_state_dict(state_dict, strict=False)
+        # print(f"Unexpected keys: {unexp}")
+        # print(f"Missing keys: {miss}")
+
+        if use_adapter:
+            self.uninterrupted_adapter = model.uninterrupted_adapter
+
+        self.use_adapter = use_adapter
 
         self.tokenizer = tokenizer
         self.alpha = alpha
@@ -76,9 +86,12 @@ class UninterruptedTransformer(nn.Module):
         # Get the last hidden state
         last_hidden_state = output.hidden_states[-1][:, -1:, :]
 
-        predicted_next_embedding = self.uninterrupted_adapter.sample(
-            last_hidden_state, temperature=0.1
-        )
+        if self.use_adapter:
+            predicted_next_embedding = self.uninterrupted_adapter.sample(
+                last_hidden_state, temperature=0.1
+            )
+        else:
+            predicted_next_embedding = last_hidden_state
 
         # Get next token
         # _, top_indices = self.get_top_probs(last_hidden_state)
@@ -97,14 +110,17 @@ class UninterruptedTransformer(nn.Module):
         #    device=last_hidden_state.device,
         # )
         # last_hidden_state = last_hidden_state / normalizer
-        # last_hidden_state = self.normalize_hidden_state(last_hidden_state)
+        predicted_next_embedding = self.normalize_hidden_state(predicted_next_embedding)
 
         # Mix with embeddings
         predicted_next_embedding = self.mix_with_embeddings(
             predicted_next_embedding, next_token_id, alpha=self.alpha
         )
 
-        self.inputs_embeds = predicted_next_embedding.unsqueeze(1)
+        if predicted_next_embedding.dim() == 2:
+            predicted_next_embedding = predicted_next_embedding.unsqueeze(1)
+
+        self.inputs_embeds = predicted_next_embedding
 
         return output
 
@@ -153,7 +169,7 @@ class UninterruptedTransformer(nn.Module):
             **kwargs,
         )
 
-        print("Generated: ", self.tokenizer.decode(output[0]))
+        print("Generated: ", self.tokenizer.decode(output[0], skip_special_tokens=True))
 
         self.reset_inputs_embeds()
 

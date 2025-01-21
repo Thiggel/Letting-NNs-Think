@@ -3,8 +3,7 @@ from enum import Enum
 
 
 class UninterruptedMode(Enum):
-    FIRST_LAST_STATE_MSE = "first_last_state_mse"
-    PROJECTION = "projection"
+    DIRECT = "direct"
     GMM = "gmm"
     INTERRUPTED = "interrupted"
 

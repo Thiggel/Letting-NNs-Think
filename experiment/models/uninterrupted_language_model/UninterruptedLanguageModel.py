@@ -1,6 +1,7 @@
 from typing import Protocol, Optional
 from transformers import PreTrainedModel, PreTrainedTokenizer
 import torch
+from torch import nn
 from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from experiment.configs import ModelConfig, DataConfig, UninterruptedMode, FinetuneMode
@@ -8,6 +9,7 @@ from experiment.configs import ModelConfig, DataConfig, UninterruptedMode, Finet
 from experiment.model_evaluator.CustomInference import UninterruptedTransformer
 
 from .GMMHead import GMMHead
+from .CheckpointedGMMHead import CheckpointedGMMHead
 
 
 class UninterruptedLanguageModelProtocol(Protocol):
@@ -42,12 +44,23 @@ class UninterruptedLanguageModelProtocol(Protocol):
         mode: str = "train",
     ) -> torch.Tensor: ...
 
+    def normalize_hidden_state(
+        self,
+        hidden_state: torch.Tensor,
+        embedding_norm: Optional[float] = None,
+    ) -> torch.Tensor: ...
+
 
 class UninterruptedLanguageModel:
     def _uninterruted_setup(self: UninterruptedLanguageModelProtocol) -> None:
         if self.config.uninterrupted_mode == UninterruptedMode.GMM:
             self.uninterrupted_adapter = GMMHead(self.model.config.hidden_size)
             self.generator = UninterruptedTransformer(self, self.tokenizer, alpha=1.0)
+        elif self.config.uninterrupted_mode == UninterruptedMode.DIRECT:
+            self.uninterrupted_adapter = nn.Identity()
+            self.generator = UninterruptedTransformer(
+                self, self.tokenizer, alpha=1.0, use_adapter=False
+            )
 
     def _forward(
         self: UninterruptedLanguageModelProtocol,
@@ -66,6 +79,17 @@ class UninterruptedLanguageModel:
         )
 
         return outputs
+
+    def normalize_hidden_state(
+        self: UninterruptedLanguageModelProtocol, hidden_state, embedding_norm=None
+    ):
+        """Project hidden state closer to embedding manifold"""
+        if embedding_norm is None:
+            embedding_norm = (
+                self.model.get_input_embeddings().weight.norm(dim=-1).mean()
+            )
+        current_norm = hidden_state.norm(dim=-1, keepdim=True)
+        return hidden_state * (embedding_norm / current_norm)
 
     def get_recurrent_prediction_loss(
         self: UninterruptedLanguageModelProtocol,
@@ -88,16 +112,25 @@ class UninterruptedLanguageModel:
             outputs = self._forward(self.model, sequence, attention_mask, labels)
 
             last_hidden_states = outputs.hidden_states[-1]
-            # projected_states = self.uninterrupted_adapter(last_hidden_states)
 
-            prediction_loss = outputs.loss * self.config.loss_discount_factor**i
+            if self.config.uninterrupted_mode == UninterruptedMode.GMM:
+                next_states = self.uninterrupted_adapter.reparameterized_sample(
+                    last_hidden_states
+                )
+            else:
+                next_states = self.normalize_hidden_state(last_hidden_states)
 
-            self.log(
-                f"{mode}_prediction_loss_step_{i}",
-                prediction_loss,
-                sync_dist=True,
-                batch_size=self.data_config.batch_size,
-            )
+            if self.config.finetune_mode != FinetuneMode.FROZEN:
+                prediction_loss = outputs.loss * self.config.loss_discount_factor**i
+
+                self.log(
+                    f"{mode}_prediction_loss_step_{i}",
+                    prediction_loss,
+                    sync_dist=True,
+                    batch_size=self.data_config.batch_size,
+                )
+
+                all_prediction_losses.append(prediction_loss)
 
             if self.config.uninterrupted_mode == UninterruptedMode.GMM:
                 gmm_loss = (
@@ -117,16 +150,14 @@ class UninterruptedLanguageModel:
 
                 all_hidden_state_losses.append(gmm_loss)
 
-            # sequence = torch.cat(
-            #    [
-            #        input_embeddings[:, :1],
-            #        projected_states[:, :-1],
-            #    ],
-            #    dim=1,
-            # )
-
-            if not (self.config.finetune_mode == FinetuneMode.FROZEN and i == 0):
-                all_prediction_losses.append(prediction_loss)
+            if i < num_steps - 1:
+                sequence = torch.cat(
+                    [
+                        input_embeddings[:, :1],
+                        next_states[:, :-1],
+                    ],
+                    dim=1,
+                )
 
         avg_prediction_loss = 0
         if len(all_prediction_losses) != 0:

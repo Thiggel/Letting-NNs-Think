@@ -59,14 +59,18 @@ class GMMHead(nn.Module):
         mixture_weights, means, covs = self.get_gmm_params(hidden_states)
         return mixture_weights, means, covs
 
-    def get_gmm_params(self, hidden_states):
+    def get_gmm_params(self, hidden_states, without_mixture=False):
         """Convert network outputs to GMM parameters"""
         batch_size, seq_len = hidden_states.shape[0:2]
 
         features = self.mlp(hidden_states)
 
         # Mixture weights (softmaxed)
-        mixture_weights = F.softmax(self.mixture_weights_head(features), dim=-1)
+        mixture_weights = (
+            F.softmax(self.mixture_weights_head(features), dim=-1)
+            if not without_mixture
+            else None
+        )
 
         # Means
         means = self.means_head(features)
@@ -162,3 +166,28 @@ class GMMHead(nn.Module):
             # Sample from the distribution
             samples = gmm.sample()  # [B*L x H]
             return samples
+
+    def reparameterized_sample(self, hidden_states, temperature=1.0):
+        """Sample from the GMM using the reparameterization trick"""
+        _, means, scales = self.get_gmm_params(hidden_states, without_mixture=True)
+        batch_size, seq_len = hidden_states.shape[:2]
+        device = hidden_states.device
+
+        # Sample component indicators using Gumbel-Softmax
+        logits = self.mixture_weights_head(self.mlp(hidden_states))
+        component_samples = F.gumbel_softmax(logits, tau=temperature, hard=False)
+
+        # Generate random noise for reparameterization
+        epsilon = torch.randn(
+            batch_size, seq_len, self.n_components, self.hidden_size, device=device
+        )
+
+        # Apply reparameterization trick: z = mu + sigma * epsilon
+        scaled_noise = torch.sqrt(scales) * epsilon * temperature
+        samples = means + scaled_noise
+
+        # Weight samples by component probabilities
+        component_samples = component_samples.unsqueeze(-1)
+        weighted_samples = (samples * component_samples).sum(dim=2)
+
+        return weighted_samples

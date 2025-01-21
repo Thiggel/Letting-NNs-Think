@@ -153,11 +153,12 @@ class DefaultLightningModule(
             p for p in self.model.get_input_embeddings().parameters() if p.requires_grad
         ]
 
-        embedding_params += [
-            p
-            for p in self.model.get_output_embeddings().parameters()
-            if p.requires_grad
-        ]
+        if self.config.untie_embedding_and_softmax:
+            embedding_params += [
+                p
+                for p in self.model.get_output_embeddings().parameters()
+                if p.requires_grad
+            ]
 
         parameters = [
             {
@@ -217,9 +218,9 @@ class DefaultLightningModule(
             self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
         self.metrics_logger.log_loss(loss, mode)
-        loss += self.get_mod_loss()
+        # loss += self.get_mod_loss()
         loss += self.get_loss_for_intermediate_supervision()
-        loss += self.get_gate_loss()
+        # loss += self.get_gate_loss()
 
         return loss
 
