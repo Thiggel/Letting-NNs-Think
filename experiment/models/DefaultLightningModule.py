@@ -149,6 +149,10 @@ class DefaultLightningModule(
                 p for p in self.uninterrupted_adapter.parameters() if p.requires_grad
             ]
 
+        if self.config.different_lm_head_per_step:
+            print("Using different LM head per step")
+            main_params += [p for p in self.lm_heads.parameters()]
+
         embedding_params = [
             p for p in self.model.get_input_embeddings().parameters() if p.requires_grad
         ]

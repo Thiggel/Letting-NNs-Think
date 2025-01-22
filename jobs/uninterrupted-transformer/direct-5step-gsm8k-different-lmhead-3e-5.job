@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=8:30:00
-#SBATCH --job-name=DirectNormalizedGSM8k-5Step-3e-5
-#SBATCH --output=job_logs/direct-normalized-gsm8k-5step-3e-5-%A.out
+#SBATCH --job-name=DirectNormalizedGSM8k_DifferentLMHeads-5Step-3e-5
+#SBATCH --output=job_logs/direct-normalized-gsm8k-diff-lm-head-s5step-3e-5-%A.out
 
 cd $HOME/Letting-NNs-Think
 
@@ -27,10 +27,11 @@ srun python -m experiment \
   --max-training-steps 50000 \
   --uninterrupted-mode direct \
   --uninterrupted-recurrence-depth 5 \
+  --different-lm-head-per-step \
   --finetune-mode full \
   --use-deepspeed \
-  --experiment-name DirectNormalizedGSM8K5Step3e5 \
-  --save-to-checkpoint DirectNormalizedGSM8K5Step3e5 \
+  --experiment-name DirectNormalizedGSM8K_DiffLMHeads_5Step3e5 \
+  --save-to-checkpoint DirectNormalizedGSM8K_DiffLMHeads_5Step3e5 \
   --load-from-checkpoint DirectNormalizedFineweb5Step3e5 \
   --enable-logging
 
@@ -42,8 +43,9 @@ srun python -m experiment \
   --uninterrupted-mode direct \
   --evaluation-metrics gsm8k \
   --untie-embedding-and-softmax \
-  --load-from-checkpoint DirectNormalizedGSM8K5Step3e5 \
-  --experiment-name DirectNormalizedGSM8K5Step3e5_NormalEval \
+  --different-lm-head-per-step \
+  --load-from-checkpoint DirectNormalizedGSM8K_DiffLMHeads_5Step3e5 \
+  --experiment-name DirectNormalizedGSM8K_DiffLMHeads_5Step3e5_NormalEval \
   --max-epochs 1 \
   --max-training-steps 1 \
   --enable-logging

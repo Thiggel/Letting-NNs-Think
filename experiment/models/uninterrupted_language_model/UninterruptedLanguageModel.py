@@ -9,7 +9,6 @@ from experiment.configs import ModelConfig, DataConfig, UninterruptedMode, Finet
 from experiment.model_evaluator.CustomInference import UninterruptedTransformer
 
 from .GMMHead import GMMHead
-from .CheckpointedGMMHead import CheckpointedGMMHead
 
 
 class UninterruptedLanguageModelProtocol(Protocol):
@@ -20,6 +19,7 @@ class UninterruptedLanguageModelProtocol(Protocol):
     uninterrupted_adapter: GMMHead
     tokenizer: PreTrainedTokenizer
     generator: Optional[UninterruptedTransformer]
+    lm_heads: Optional[nn.ModuleList]
 
     def log(
         self,
@@ -50,6 +50,13 @@ class UninterruptedLanguageModelProtocol(Protocol):
         embedding_norm: Optional[float] = None,
     ) -> torch.Tensor: ...
 
+    def loss(
+        self,
+        last_hidden_state: torch.Tensor,
+        labels: torch.Tensor,
+        step_idx: int,
+    ) -> torch.Tensor: ...
+
 
 class UninterruptedLanguageModel:
     def _uninterruted_setup(self: UninterruptedLanguageModelProtocol) -> None:
@@ -61,6 +68,18 @@ class UninterruptedLanguageModel:
             self.generator = UninterruptedTransformer(
                 self, self.tokenizer, alpha=1.0, use_adapter=False
             )
+
+        if self.config.different_lm_head_per_step:
+
+            self.lm_heads = nn.ModuleList()
+
+            for _ in range(self.config.uninterrupted_recurrence_depth - 1):
+                lm_head_params = self.model.get_output_embeddings().weight.data
+                lm_head = nn.Linear(
+                    self.model.config.hidden_size, self.model.config.vocab_size
+                )
+                lm_head.weight.data.copy_(lm_head_params)
+                self.lm_heads.append(lm_head)
 
     def _forward(
         self: UninterruptedLanguageModelProtocol,
@@ -90,6 +109,29 @@ class UninterruptedLanguageModel:
             )
         current_norm = hidden_state.norm(dim=-1, keepdim=True)
         return hidden_state * (embedding_norm / current_norm)
+
+    def loss(
+        self: UninterruptedLanguageModelProtocol,
+        last_hidden_state: torch.Tensor,
+        labels: torch.Tensor,
+        step_idx: int,
+    ) -> torch.Tensor:
+        # get cross entropy loss
+        if self.config.different_lm_head_per_step and step_idx > 0:
+            assert self.lm_heads is not None
+            lm_head = self.lm_heads[step_idx - 1]
+            print(f"Using LM head {step_idx}")
+        else:
+            lm_head = self.model.get_output_embeddings()
+
+        logits = lm_head(last_hidden_state)
+        logits = logits[:, :-1].contiguous()
+        labels = labels[:, 1:].contiguous()
+        loss = nn.functional.cross_entropy(
+            logits.view(-1, logits.size(-1)), labels.view(-1), ignore_index=-100
+        )
+
+        return loss
 
     def get_recurrent_prediction_loss(
         self: UninterruptedLanguageModelProtocol,
@@ -121,7 +163,9 @@ class UninterruptedLanguageModel:
                 next_states = self.normalize_hidden_state(last_hidden_states)
 
             if self.config.finetune_mode != FinetuneMode.FROZEN:
-                prediction_loss = outputs.loss * self.config.loss_discount_factor**i
+                loss = self.loss(last_hidden_states, labels, i)
+                prediction_loss = loss * self.config.loss_discount_factor**i
+                print(f"Prediction loss: {prediction_loss} at step {i}")
 
                 self.log(
                     f"{mode}_prediction_loss_step_{i}",

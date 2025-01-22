@@ -5,16 +5,17 @@ import types
 
 
 class UninterruptedTransformer(nn.Module):
-    def __init__(self, model, tokenizer, alpha, use_adapter=True):
+    def __init__(self, model, tokenizer, alpha, use_adapter=False):
         super().__init__()
         self.model = model.model
 
-        # state_dict = torch.load(
-        #    "/projects/prjs1017/LettingLMsThink/LlamaGSM8KBaseline_1.pt"
-        # )["state_dict"]
-        # miss, unexp = self.model.load_state_dict(state_dict, strict=False)
-        # print(f"Unexpected keys: {unexp}")
-        # print(f"Missing keys: {miss}")
+        self.uninterrupted_recurrence_depth = (
+            model.config.uninterrupted_recurrence_depth
+        )
+
+        self.lm_heads = None
+        if hasattr(model, "lm_heads"):
+            self.lm_heads = model.lm_heads
 
         if use_adapter:
             self.uninterrupted_adapter = model.uninterrupted_adapter
@@ -25,6 +26,7 @@ class UninterruptedTransformer(nn.Module):
         self.alpha = alpha
 
         self.inputs_embeds = None
+        self.step_idx = 0
 
     def setup(self):
         self.old_forward = self.model.forward
@@ -35,6 +37,7 @@ class UninterruptedTransformer(nn.Module):
 
     def reset_inputs_embeds(self):
         self.inputs_embeds = None
+        self.step_idx = 0
 
     @property
     def device(self):
@@ -49,27 +52,6 @@ class UninterruptedTransformer(nn.Module):
 
     def embed_input_ids(self, input_ids):
         self.inputs_embeds = self.model.get_input_embeddings()(input_ids)
-
-    def interpolate_embeddings(self, hidden_state, top_embeddings, interpolate_top_k):
-        # Create exponentially decaying weights that sum to 1
-        # Start with highest weight for most likely token
-        weights = torch.tensor(
-            [self.alpha**i for i in range(interpolate_top_k)],
-            device=top_embeddings.device,
-        )
-        # Normalize weights to sum to 1
-        weights = weights / weights.sum()
-
-        # Reshape weights for broadcasting: [batch_size, top_k, 1]
-        weights = weights.view(1, -1, 1)
-
-        # Select the top k embeddings: [batch_size, top_k, hidden_dim]
-        selected_embeddings = top_embeddings[:, :interpolate_top_k, :]
-
-        # Weighted sum of embeddings
-        interpolated = (selected_embeddings * weights).sum(dim=1, keepdim=True)
-
-        return interpolated
 
     def forward(self, *args, **kwargs):
         kwargs["return_dict"] = True
@@ -86,6 +68,10 @@ class UninterruptedTransformer(nn.Module):
         # Get the last hidden state
         last_hidden_state = output.hidden_states[-1][:, -1:, :]
 
+        if self.lm_heads is not None and self.step_idx > 0:
+            logits = self.lm_heads[self.step_idx - 1](last_hidden_state)
+            output["logits"] = logits
+
         if self.use_adapter:
             predicted_next_embedding = self.uninterrupted_adapter.sample(
                 last_hidden_state, temperature=0.1
@@ -93,34 +79,25 @@ class UninterruptedTransformer(nn.Module):
         else:
             predicted_next_embedding = last_hidden_state
 
-        # Get next token
-        # _, top_indices = self.get_top_probs(last_hidden_state)
-        # top_embeddings = self.model.get_input_embeddings()(top_indices)
-        # interpolate_top_k = 3
-        # interpolated = self.interpolate_embeddings(
-        #    last_hidden_state, top_embeddings, interpolate_top_k
-        # )
-        # last_hidden_state = interpolated
-        next_token_id = self.get_next_token_id(last_hidden_state)
+        if not self.use_adapter:
+            predicted_next_embedding = self.normalize_hidden_state(
+                predicted_next_embedding
+            )
 
-        # Process the last token as before
-        # normalizer = torch.tensor(
-        #    last_hidden_state.size(-1) ** 0.5,
-        #    dtype=last_hidden_state.dtype,
-        #    device=last_hidden_state.device,
-        # )
-        # last_hidden_state = last_hidden_state / normalizer
-        predicted_next_embedding = self.normalize_hidden_state(predicted_next_embedding)
+        if (
+            self.uninterrupted_recurrence_depth is not None
+            and self.step_idx >= self.uninterrupted_recurrence_depth - 1
+        ):
+            self.reset_inputs_embeds()
+            next_token_id = self.get_next_token_id(output.logits)
+            token_embedding = self.model.get_input_embeddings()(
+                next_token_id
+            ).unsqueeze(1)
+            self.inputs_embeds = token_embedding
 
-        # Mix with embeddings
-        predicted_next_embedding = self.mix_with_embeddings(
-            predicted_next_embedding, next_token_id, alpha=self.alpha
-        )
-
-        if predicted_next_embedding.dim() == 2:
-            predicted_next_embedding = predicted_next_embedding.unsqueeze(1)
-
-        self.inputs_embeds = predicted_next_embedding
+        else:
+            self.inputs_embeds = predicted_next_embedding
+            self.step_idx += 1
 
         return output
 
@@ -137,9 +114,7 @@ class UninterruptedTransformer(nn.Module):
         current_norm = hidden_state.norm(dim=-1, keepdim=True)
         return hidden_state * (embedding_norm / current_norm)
 
-    def get_probs(self, hidden_states):
-        lm_head = self.model.get_output_embeddings()
-        logits = lm_head(hidden_states)
+    def get_probs(self, logits):
         if hasattr(self.model.config, "final_logit_softcapping"):
             softcap = self.model.config.final_logit_softcapping
             if softcap is not None:
@@ -153,9 +128,8 @@ class UninterruptedTransformer(nn.Module):
 
         return top_probs, top_indices
 
-    def get_next_token_id(self, hidden_states):
-        probs = self.get_probs(hidden_states)
-        next_token_ids = torch.argmax(probs, dim=-1)
+    def get_next_token_id(self, logits):
+        next_token_ids = torch.argmax(logits, dim=-1)
         return next_token_ids.squeeze()
 
     def mix_with_embeddings(self, hidden_state, token_id, alpha=0.8):
@@ -170,7 +144,6 @@ class UninterruptedTransformer(nn.Module):
         )
 
         print("Generated: ", self.tokenizer.decode(output[0], skip_special_tokens=True))
-
         self.reset_inputs_embeds()
 
         return output

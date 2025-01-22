@@ -32,3 +32,6 @@ class UninterruptedTransformerConfig:
     loss_discount_factor: float = Field(
         1.0, description="The discount factor for the loss"
     )
+    different_lm_head_per_step: bool = Field(
+        False, description="Whether to use a different LM head per step"
+    )
