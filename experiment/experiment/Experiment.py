@@ -164,6 +164,9 @@ class Experiment:
 
     def _run_single_experiment(self, run_idx: int, seed: int) -> ExperimentResult:
         """Run a single experiment with given seed"""
+        if wandb.run is not None:
+            wandb.finish()
+
         start_time = time.time()
         runner = self.runner_class(self.configs)
         metrics = runner.run(seed=seed)

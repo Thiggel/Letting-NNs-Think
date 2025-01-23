@@ -57,12 +57,12 @@ class CLIManager:
         # Handle bool type
         if field_type is bool:
             if field.default is True:
-                kwargs["action"] = "store_false"  # Flag to set False if present
+                # Return None to skip adding the positive flag (since it's default True)
+                return None, None
             else:
-                kwargs["action"] = "store_true"  # Flag to set True if present
-            return (None, kwargs)
+                kwargs["action"] = "store_true"
+                return (None, kwargs)  # Handle Annotated types
 
-        # Handle Annotated types
         if origin is Annotated:
             base_type, *custom_metadata = args
             for metadata in custom_metadata:
@@ -148,25 +148,46 @@ class CLIManager:
 
         return (field_type, kwargs)
 
+    def _add_bool_argument(self, parser, name: str, field: Any):
+        """Add a boolean argument with appropriate --flag/--no-flag options"""
+        cli_name = f"--{name.replace('_', '-')}"
+        dest = name.replace("-", "_")
+
+        if field.default is True:
+            # For default=True, only add the --no- variant
+            parser.add_argument(
+                f"--no-{name.replace('_', '-')}",
+                dest=dest,
+                action="store_false",
+                help=f"{field.description or ''} (default: True)",
+            )
+        else:
+            # For default=False, add the regular flag
+            parser.add_argument(
+                cli_name,
+                dest=dest,
+                action="store_true",
+                help=field.description,
+                default=False,
+            )
+
     def parse_args(self):
         """Parse command-line arguments and populate configuration models."""
         parser = argparse.ArgumentParser(description="Configuration CLI")
 
         for config_class in self.config_classes:
             for name, field in config_class.model_fields.items():
-                field_type = field.annotation
-                cli_name = f"--{name.replace('_', '-')}"
-
-                type_parser, kwargs = self._get_type_parser(field_type, field)
-
-                if field.default is not None:
-                    kwargs["default"] = field.default
-
-                if type_parser is not None:
-                    kwargs["type"] = type_parser
-
-                parser.add_argument(cli_name, **kwargs)
-
+                if field.annotation is bool:
+                    self._add_bool_argument(parser, name, field)
+                else:
+                    cli_name = f"--{name.replace('_', '-')}"
+                    type_parser, kwargs = self._get_type_parser(field.annotation, field)
+                    if type_parser is not None and kwargs is not None:
+                        if field.default is not None:
+                            kwargs["default"] = field.default
+                        if type_parser is not None:
+                            kwargs["type"] = type_parser
+                        parser.add_argument(cli_name, **kwargs)
         args = parser.parse_args()
 
         # Populate configs with parsed arguments

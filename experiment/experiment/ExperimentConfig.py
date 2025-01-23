@@ -15,3 +15,4 @@ class ExperimentConfig(BaseModel):
     continue_on_error: bool = Field(False, description="Continue if a run fails")
     save_results: bool = Field(True, description="Save results to disk")
     mode: ExperimentMode = Field("train", description="Experiment mode")
+    project_name: str = Field("letting-nns-think", description="Wandb project name")

@@ -139,7 +139,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         wandb_logger = None
         if self.experiment_config.enable_logging:
             wandb_logger = WandbLogger(
-                project="variable-depth-lms3",
+                project=self.experiment_config.project_name,
                 name=f"{self.experiment_config.experiment_name}_{seed}",
                 group=self.experiment_config.experiment_name,
                 save_dir=os.environ["WANDB_DIR"],
@@ -203,6 +203,8 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             os.environ["BASE_CACHE_DIR"],
             f"{self.evaluation_config.save_to_checkpoint}_{seed}.pt",
         )
+
+        print(f"\n\nSaving checkpoint to {output_path}\n\n")
 
         if self.training_config.use_deepspeed:
             convert_zero_checkpoint_to_fp32_state_dict(checkpoint_path, output_path)

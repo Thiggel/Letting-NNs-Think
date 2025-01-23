@@ -13,6 +13,10 @@ import os
 from datasets import load_dataset
 
 from experiment.datasets import DatasetConfigurator
+from experiment.datasets.synthetic_datasets import (
+    ArithmeticDataset,
+    PatternDataset,
+)
 from experiment.configs import ModelConfig, DataConfig
 
 
@@ -47,7 +51,7 @@ class HasTokenizer:
             )
 
             print("\nExample tokenizations:")
-            test_strings = ["1 * 9 + 8 + 4 * 18 + 19 - 2 + 3 + 8 = 117"]
+            test_strings = ["1 + 99 + 32 = 132"]
             for test in test_strings:
                 ids = fast_tokenizer.encode(str(test))
                 decoded = fast_tokenizer.decode(ids)
@@ -73,11 +77,8 @@ class HasTokenizer:
     def _train_tokenizer(self, dataset_name: str) -> PreTrainedTokenizer:
         """Train a simple tokenizer on any text dataset."""
         print(f"Training new tokenizer for dataset: {dataset_name}")
-
-        # Initialize with BPE model
         tokenizer = Tokenizer(models.BPE())
 
-        # Basic normalizer
         tokenizer.normalizer = normalizers.Sequence(
             [
                 normalizers.Strip(),
@@ -87,7 +88,6 @@ class HasTokenizer:
             ]
         )
 
-        # Enhanced pre-tokenizer
         tokenizer.pre_tokenizer = pre_tokenizers.Sequence(
             [
                 pre_tokenizers.Digits(individual_digits=True),
@@ -96,18 +96,37 @@ class HasTokenizer:
             ]
         )
 
-        # Get dataset config and prepare training data
         dataset_config = DatasetConfigurator.get_dataset_config(dataset_name)
-        print("Loading dataset for tokenizer training...")
-        ds = load_dataset(dataset_config["name"], dataset_config.get("subset"))
-        train_data = ds[dataset_config["train_field"]]
+        training_samples = []
+
+        if "dataset_class" in dataset_config:
+            dataset_classes = {
+                "ArithmeticDataset": ArithmeticDataset,
+                "PatternDataset": PatternDataset,
+            }
+            dataset_class = dataset_classes[dataset_config["dataset_class"]]
+            dataset = dataset_class(**dataset_config.get("dataset_params", {}))
+
+            print("Sampling from streaming dataset...")
+            for i, sample in enumerate(dataset):
+                if i >= 100000:  # Sample 100k examples
+                    break
+                training_samples.append(str(sample["text"]))
+            test_strings = training_samples[:2]
+        else:
+            print("Loading from HuggingFace dataset...")
+            ds = load_dataset(dataset_config["name"], dataset_config.get("subset"))
+            training_samples = [
+                str(text)
+                for text in ds[dataset_config["train_field"]]["text"][:100000]
+                if text is not None
+            ]
+            test_strings = training_samples[:2]
 
         def get_training_corpus():
-            for i in range(0, len(train_data), 1000):
-                batch = train_data[i : i + 1000]
-                yield [str(text) for text in batch["text"] if text is not None]
+            for i in range(0, len(training_samples), 1000):
+                yield training_samples[i : i + 1000]
 
-        # Define special tokens with unique IDs
         special_tokens = {
             "[PAD]": 0,
             "[UNK]": 1,
@@ -116,13 +135,10 @@ class HasTokenizer:
             "[SEP]": 4,
         }
 
-        # Train with more robust parameters and explicit special token IDs
         trainer = trainers.BpeTrainer(
             vocab_size=8000,
             special_tokens=list(special_tokens.keys()),
-            initial_alphabet=[
-                str(i) for i in range(10)
-            ],  # Add digits to initial alphabet
+            initial_alphabet=[str(i) for i in range(10)],
             min_frequency=2,
             show_progress=True,
         )
@@ -130,12 +146,10 @@ class HasTokenizer:
         print("Training tokenizer...")
         tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
 
-        # Explicitly set token IDs for special tokens
         for token, id_ in special_tokens.items():
             tokenizer.add_special_tokens([token])
-            tokenizer.token_to_id(token)  # Ensure token is in vocabulary
+            tokenizer.token_to_id(token)
 
-        # Post-processor for adding BOS/EOS tokens
         tokenizer.post_processor = processors.TemplateProcessing(
             single="[BOS] $A",
             pair="[BOS] $A [SEP] $B",
@@ -146,14 +160,12 @@ class HasTokenizer:
             ],
         )
 
-        # Save tokenizer
         save_path = self._get_tokenizer_path(dataset_name)
         print(f"Saving tokenizer files to {save_path}")
 
         save_path.mkdir(parents=True, exist_ok=True)
         tokenizer.save(str(save_path / "tokenizer.json"))
 
-        # Create and return the PreTrainedTokenizerFast
         fast_tokenizer = PreTrainedTokenizerFast(
             tokenizer_object=tokenizer,
             bos_token="[BOS]",
@@ -165,13 +177,11 @@ class HasTokenizer:
         )
 
         print("\nExample tokenizations:")
-        test_strings = train_data["text"][:2]
         for test in test_strings:
             ids = fast_tokenizer.encode(str(test))
             decoded = fast_tokenizer.decode(ids)
             print(f"'{test}' -> {ids} -> '{decoded}'")
 
-        # Verify special token IDs
         print("\nVerifying special token IDs:")
         for token in special_tokens:
             print(f"{token}: {fast_tokenizer.convert_tokens_to_ids(token)}")

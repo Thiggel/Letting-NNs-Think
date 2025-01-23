@@ -4,7 +4,8 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 from lightning import LightningDataModule
-from datasets import Dataset, IterableDataset, load_dataset, disable_caching, config
+from datasets import Dataset, load_dataset, disable_caching, config
+from torch.utils.data import IterableDataset
 from functools import partial
 
 from experiment.configs import DataConfig, EvaluationConfig, ModelConfig, TrainingConfig
@@ -14,6 +15,7 @@ from .TokenizationProcessor import TokenizationProcessor
 from .DatasetManager import DatasetManager
 from .BatchCollator import BatchCollator
 from .DatasetConfigurator import DatasetConfigurator
+from .synthetic_datasets import ArithmeticDataset, PatternDataset
 
 
 class LanguageDataModule(LightningDataModule):
@@ -107,6 +109,48 @@ class LanguageDataModule(LightningDataModule):
         return DatasetSplit(train_dataset, val_dataset, test_dataset)
 
     def _prepare_streaming_datasets(self) -> DatasetSplit:
+        if "dataset_class" in self.dataset_config:
+            dataset_class = {
+                "ArithmeticDataset": ArithmeticDataset,
+                "PatternDataset": PatternDataset,
+            }[self.dataset_config["dataset_class"]]
+
+            # Create dataset
+            train_dataset = dataset_class(
+                **self.dataset_config.get("dataset_params", {}),
+                tokenizer=self.tokenizer,
+                process_fn=lambda x: self._process_streaming_sample(
+                    x, self.dataset_config["q_func"], self.dataset_config["ans_func"]
+                ),
+            )
+
+            # Create validation set
+            validation_samples = []
+            val_iterator = iter(
+                dataset_class(**self.dataset_config.get("dataset_params", {}))
+            )
+            for _ in range(self.dataset_config["val_subset"]):
+                sample = next(val_iterator)
+                processed = self._process_streaming_sample(
+                    sample,
+                    self.dataset_config["q_func"],
+                    self.dataset_config["ans_func"],
+                )
+                if processed:
+                    validation_samples.append(processed)
+
+            from datasets import Dataset
+
+            validation_dataset = Dataset.from_dict(
+                {
+                    k: [d[k] for d in validation_samples]
+                    for k in validation_samples[0].keys()
+                }
+            )
+
+            return DatasetSplit(train_dataset, validation_dataset, None)
+
+        # Original HuggingFace dataset logic
         ds = load_dataset(
             self.dataset_config["name"],
             self.dataset_config.get("subset"),
@@ -133,9 +177,7 @@ class LanguageDataModule(LightningDataModule):
             )
         )
 
-        # Create validation set from first N examples
         val_dataset = train_dataset.take(self.dataset_config["val_subset"])
-
         return DatasetSplit(train_dataset, val_dataset, None)
 
     def _process_streaming_sample(
@@ -150,7 +192,11 @@ class LanguageDataModule(LightningDataModule):
             ),
         )
 
-        if len(tokenized["input_ids"][0]) < self.data_config.seq_length:
+        if len(
+            tokenized["input_ids"][0]
+        ) < self.data_config.seq_length and not self.dataset_config.get(
+            "synthetic", False
+        ):
             return None
 
         return {
@@ -269,10 +315,12 @@ class LanguageDataModule(LightningDataModule):
                                 time.sleep(5)
                         continue
 
+        shuffle = not isinstance(self.datasets.train, IterableDataset)
+
         return RetryingDataLoader(
             self.datasets.train,
             batch_size=self.data_config.batch_size,
-            shuffle=not isinstance(self.datasets.train, IterableDataset),
+            shuffle=shuffle,
             collate_fn=self.batch_collator,
             num_workers=self._get_num_workers(),
             drop_last=not isinstance(self.datasets.train, IterableDataset),

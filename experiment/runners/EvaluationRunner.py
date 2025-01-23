@@ -31,11 +31,17 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         ]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def run(self, seed: int) -> Dict[str, float]:
+    def run(self, seed: int, state_dict: torch.Tensor = None) -> Dict[str, float]:
         model = self._load_model(seed, mode="test")
         model.to(self.device)
 
-        string = self.tokenizer.encode("my dog is ", return_tensors="pt").to(
+        if state_dict is not None:
+            print("Loading state dict for evaluation")
+            missing, unexpected = model.load_state_dict(state_dict)
+            print(f"Missing keys: {missing}")
+            print(f"Unexpected keys: {unexpected}")
+
+        string = self.tokenizer.encode("1 + 0 + 1 =", return_tensors="pt").to(
             self.device
         )
         generated = model.generate(
@@ -48,12 +54,8 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
         # Determine if we're evaluating on synthetic datasets
         synthetic_tasks = [
-            "copy_task",
-            "reverse_task",
-            "sort_task",
-            "arithmetic_task",
-            "pattern_completion_task",
-            "bracket_matching_task",
+            "arithmetic",
+            "pattern",
         ]
         metrics = self.evaluation_config.evaluation_metrics or ["gsm8k"]
 
@@ -84,7 +86,6 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
                 self.evaluation_config.evaluate_as_uninterrupted,
                 self.evaluation_config.eval_batch_size,
                 self.evaluation_config.num_fewshot,
-                self.evaluation_config.uninterrupted_alpha,
             )
             standard_results = evaluator.evaluate(
                 standard_metrics,
@@ -100,7 +101,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
     def _log_results(self, results: Dict[str, Any], seed: int):
         wandb.init(
-            project="variable-depth-lms3",
+            project=self.experiment_config.project_name,
             name=f"{self.experiment_config.experiment_name}_{seed}",
             group=self.experiment_config.experiment_name,
         )
@@ -108,15 +109,11 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         wandb.finish()
 
     def _format_standard_results(self, results: Dict[str, Any]) -> Dict[str, float]:
-        print()
-        print("Results: ", results)
-        print()
-
-        res = {}
-
-        for key, value in results.items():
-            for result_key, result_value in value.items():
-                if isinstance(result_value, (int, float)):
-                    res[f"{key}_{result_key}"] = result_value
-
-        return res
+        return {
+            f"{key}_accuracy": (
+                value["acc,none"]
+                if "acc,none" in value
+                else value["exact_match,flexible-extract"]
+            )
+            for key, value in results.items()
+        }
