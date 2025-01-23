@@ -68,7 +68,7 @@ class DefaultLightningModule(
         self.metrics_logger.dump_first_batch(kwargs)
         return self.model.generate(*args, **kwargs)
 
-    def on_validation_start(self):
+    def on_validation_epoch_start(self):
         string = self.tokenizer.encode("my dog is ", return_tensors="pt").to(
             self.device
         )

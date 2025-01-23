@@ -146,6 +146,8 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             )
 
         trainer_args = {
+            "check_val_every_n_epoch": 1,
+            "enable_model_summary": True,
             "callbacks": callbacks,
             "enable_checkpointing": True,
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
