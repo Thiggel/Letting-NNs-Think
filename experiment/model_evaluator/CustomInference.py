@@ -90,6 +90,10 @@ class UninterruptedTransformer(nn.Module):
         ):
             self.reset_inputs_embeds()
             next_token_id = self.get_next_token_id(output.logits)
+
+            if len(next_token_id.size()) == 0:
+                next_token_id = next_token_id.unsqueeze(0)
+
             token_embedding = self.model.get_input_embeddings()(
                 next_token_id
             ).unsqueeze(1)
@@ -136,12 +140,33 @@ class UninterruptedTransformer(nn.Module):
         token_embedding = self.model.get_input_embeddings()(token_id)
         return alpha * hidden_state + (1 - alpha) * token_embedding
 
+    def filter_out_thought_tokens(self, output_ids):
+        # num_thought_tokens = self.config.uninterrupted_recurrence_depth - 1
+        # only keep every num_thought_tokens + 1 token
+        # so if num_thought_tokens = 4, we keep every 5th token
+        return output_ids[:, :: self.config.uninterrupted_recurrence_depth]
+
     @torch.no_grad()
     def generate(self, *args, **kwargs):
+        if self.config.train_to_backtrack:
+            if "max_length" in kwargs:
+                kwargs["max_length"] = (
+                    kwargs["max_length"] * self.config.uninterrupted_recurrence_depth
+                )
+
+            if "max_new_tokens" in kwargs:
+                kwargs["max_new_tokens"] = (
+                    kwargs["max_new_tokens"]
+                    * self.config.uninterrupted_recurrence_depth
+                )
+
         output = self.model.generate(
             *args,
             **kwargs,
         )
+
+        if self.config.train_to_backtrack:
+            output[0] = self.filter_out_thought_tokens(output[0])
 
         print("Generated: ", self.tokenizer.decode(output[0], skip_special_tokens=True))
         self.reset_inputs_embeds()

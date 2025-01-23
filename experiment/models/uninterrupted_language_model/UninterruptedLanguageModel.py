@@ -62,16 +62,16 @@ class UninterruptedLanguageModel:
     def _uninterruted_setup(self: UninterruptedLanguageModelProtocol) -> None:
         if self.config.uninterrupted_mode == UninterruptedMode.GMM:
             self.uninterrupted_adapter = GMMHead(self.model.config.hidden_size)
-            self.generator = UninterruptedTransformer(self, self.tokenizer, alpha=1.0)
+            self._generator = UninterruptedTransformer(self, self.tokenizer, alpha=1.0)
         elif self.config.uninterrupted_mode == UninterruptedMode.DIRECT:
             self.uninterrupted_adapter = nn.Identity()
-            self.generator = UninterruptedTransformer(
+            self._generator = UninterruptedTransformer(
                 self, self.tokenizer, alpha=1.0, use_adapter=False
             )
 
         if self.config.different_lm_head_per_step:
 
-            self.lm_heads = nn.ModuleList()
+            self.lm_heads: nn.ModuleList = nn.ModuleList()
 
             for _ in range(self.config.uninterrupted_recurrence_depth - 1):
                 lm_head_params = self.model.get_output_embeddings().weight.data
@@ -116,7 +116,6 @@ class UninterruptedLanguageModel:
         labels: torch.Tensor,
         step_idx: int,
     ) -> torch.Tensor:
-        # get cross entropy loss
         if self.config.different_lm_head_per_step and step_idx > 0:
             assert self.lm_heads is not None
             lm_head = self.lm_heads[step_idx - 1]
@@ -147,54 +146,73 @@ class UninterruptedLanguageModel:
         all_prediction_losses = []
         all_hidden_state_losses = []
 
-        seq_len = input_embeddings.shape[1]
+        seq_len = sequence.shape[1]
         num_steps = min(seq_len - 1, self.config.uninterrupted_recurrence_depth)
+
+        last_hidden_states = None
 
         for i in range(num_steps):
             outputs = self._forward(self.model, sequence, attention_mask, labels)
 
             last_hidden_states = outputs.hidden_states[-1]
 
-            if self.config.uninterrupted_mode == UninterruptedMode.GMM:
-                next_states = self.uninterrupted_adapter.reparameterized_sample(
-                    last_hidden_states
-                )
-            else:
-                next_states = self.normalize_hidden_state(last_hidden_states)
+            if not self.config.train_to_backtrack or i < num_steps - 1:
 
-            if self.config.finetune_mode != FinetuneMode.FROZEN:
-                loss = self.loss(last_hidden_states, labels, i)
-                prediction_loss = loss * self.config.loss_discount_factor**i
-                print(f"Prediction loss: {prediction_loss} at step {i}")
+                if self.config.finetune_mode != FinetuneMode.FROZEN:
+                    loss = self.loss(last_hidden_states, labels, i)
+                    prediction_loss = loss * self.config.loss_discount_factor**i
 
-                self.log(
-                    f"{mode}_prediction_loss_step_{i}",
-                    prediction_loss,
-                    sync_dist=True,
-                    batch_size=self.data_config.batch_size,
-                )
-
-                all_prediction_losses.append(prediction_loss)
-
-            if self.config.uninterrupted_mode == UninterruptedMode.GMM:
-                gmm_loss = (
-                    self.uninterrupted_adapter.loss(
-                        last_hidden_states[:, :-1],
-                        input_embeddings[:, 1:],
+                    self.log(
+                        f"{mode}_prediction_loss_step_{i}",
+                        prediction_loss,
+                        sync_dist=True,
+                        batch_size=self.data_config.batch_size,
                     )
-                    * self.config.loss_discount_factor**i
-                )
 
-                self.log(
-                    f"{mode}_gmm_loss_step_{i}",
-                    gmm_loss,
-                    sync_dist=True,
-                    batch_size=self.data_config.batch_size,
-                )
+                    all_prediction_losses.append(prediction_loss)
 
-                all_hidden_state_losses.append(gmm_loss)
+                if self.config.uninterrupted_mode == UninterruptedMode.GMM:
+                    gmm_loss = (
+                        self.uninterrupted_adapter.loss(
+                            last_hidden_states[:, :-1],
+                            sequence[:, 1:],
+                        )
+                        * self.config.loss_discount_factor**i
+                    )
+
+                    self.log(
+                        f"{mode}_gmm_loss_step_{i}",
+                        gmm_loss,
+                        sync_dist=True,
+                        batch_size=self.data_config.batch_size,
+                    )
+
+                    all_hidden_state_losses.append(gmm_loss)
 
             if i < num_steps - 1:
+                next_states = (
+                    # either we use the GMM to sample the next hidden state
+                    # (the GMM models the distribution of the next token's HS)
+                    self.uninterrupted_adapter.reparameterized_sample(
+                        last_hidden_states
+                    )
+                    if self.config.uninterrupted_mode == UninterruptedMode.GMM
+                    # or we normalize the hidden state to be closer to the embedding
+                    # manifold (the embedding is the next token's HS)
+                    # since Transformers end increasing the norm of the hidden states
+                    # with each layer, we normalize the hidden state to
+                    # have the same norm of the embedding (otherwise
+                    # it would be OOD)
+                    else self.normalize_hidden_state(last_hidden_states)
+                )
+
+                # we always prepend the first input_embedding again
+                # that way, the sequence is always the same length
+                # and we do not have to change the labels.
+                # Also, the model then always has tokens at varying
+                # stages of "thought" in context and hence does not get
+                # confused during inference when it e.g. sees one real token
+                # followed by four thought tokens and so on.
                 sequence = torch.cat(
                     [
                         input_embeddings[:, :1],
@@ -202,6 +220,42 @@ class UninterruptedLanguageModel:
                     ],
                     dim=1,
                 )
+
+        main_prediction_loss = 0
+        if self.config.train_to_backtrack:
+            assert last_hidden_states is not None
+            assert len(all_prediction_losses) == num_steps - 1
+
+            if self.config.uninterrupted_mode == UninterruptedMode.GMM:
+                assert len(all_hidden_state_losses) == num_steps - 1
+
+            # Only take all the hidden states that have been processed
+            # from the very beginning. E.g. for num_steps = 5, we have
+            # prepended the first input_embedding after every step except
+            # the last one, so 4 times. Therefore we remove the first 4
+            # hidden states.
+            last_hidden_states = last_hidden_states[:, num_steps - 1 :]
+
+            assert (
+                last_hidden_states.shape[1] == input_embeddings.shape[1] - num_steps + 1
+            )
+
+            # we now have num_steps - 1 fewer hidden states
+            # and therefore also cut off the labels at the end
+            labels_truncated = labels[:, : last_hidden_states.shape[1]]
+
+            assert labels_truncated.shape[1] == last_hidden_states.shape[1]
+
+            main_prediction_loss = self.loss(
+                last_hidden_states, labels_truncated, num_steps - 1
+            )
+
+            self.log(
+                f"{mode}_main_prediction_loss",
+                main_prediction_loss,
+                sync_dist=True,
+                batch_size=self.data_config.batch_size,
+            )
 
         avg_prediction_loss = 0
         if len(all_prediction_losses) != 0:
@@ -224,9 +278,15 @@ class UninterruptedLanguageModel:
                 batch_size=self.data_config.batch_size,
             )
 
-        total_loss = (
+        total_intermediate_loss = (
             self.config.recurrent_prediction_weight * avg_prediction_loss
             + self.config.recurrent_hidden_state_weight * avg_hidden_loss
+        )
+
+        total_loss = (
+            main_prediction_loss
+            + self.config.uninterrupted_intermediate_supervision_loss_weight
+            * total_intermediate_loss
         )
 
         return total_loss

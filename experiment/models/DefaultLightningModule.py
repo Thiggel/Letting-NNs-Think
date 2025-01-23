@@ -72,15 +72,15 @@ class DefaultLightningModule(
         string = self.tokenizer.encode("my dog is ", return_tensors="pt").to(
             self.device
         )
-        if hasattr(self, "generator"):
-            self.generator.setup()
-            generated = self.generator.generate(
+        if hasattr(self, "_generator"):
+            self._generator.setup()
+            generated = self._generator.generate(
                 input_ids=string,
                 max_length=100,
                 max_new_tokens=100,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
-            self.generator.reset()
+            self._generator.reset()
         else:
             generated = self.model.generate(
                 input_ids=string,

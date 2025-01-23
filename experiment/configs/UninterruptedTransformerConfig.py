@@ -35,3 +35,10 @@ class UninterruptedTransformerConfig:
     different_lm_head_per_step: bool = Field(
         False, description="Whether to use a different LM head per step"
     )
+    train_to_backtrack: bool = Field(
+        False,
+        description="Whether to train to backtrack - the model has recurrent-prediction-steps - 1 to think (with supervision) before being forced to predict the next token",
+    )
+    uninterrupted_intermediate_supervision_loss_weight: float = Field(
+        1.0, description="The weight for the intermediate supervision loss"
+    )
