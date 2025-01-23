@@ -53,10 +53,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
         # Determine if we're evaluating on synthetic datasets
-        synthetic_tasks = [
-            "arithmetic",
-            "pattern",
-        ]
+        synthetic_tasks = ["arithmetic", "pattern", "complex_arithmetic_reasoning"]
         metrics = self.evaluation_config.evaluation_metrics or ["gsm8k"]
 
         results = {}

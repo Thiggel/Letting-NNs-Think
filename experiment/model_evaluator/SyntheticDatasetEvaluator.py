@@ -7,7 +7,11 @@ from tqdm import tqdm
 
 from experiment.configs import DataConfig, ModelConfig, TrainingConfig
 from experiment.models import DefaultLightningModule
-from experiment.datasets.synthetic_datasets import ArithmeticDataset, PatternDataset
+from experiment.datasets.synthetic_datasets import (
+    ArithmeticDataset,
+    PatternDataset,
+    ComplexArithmeticDataset,
+)
 
 
 class SyntheticDatasetEvaluator:
@@ -22,7 +26,7 @@ class SyntheticDatasetEvaluator:
         model_config: ModelConfig = None,
         training_config: TrainingConfig = None,
         seed: int = 42,
-        num_eval_samples: int = 10000,  # New parameter for evaluation size
+        num_eval_samples: int = 10000,
     ):
         self.model = model
         self.tokenizer = tokenizer
@@ -33,6 +37,9 @@ class SyntheticDatasetEvaluator:
         self.datasets = {
             "arithmetic": lambda: ArithmeticDataset(max_len=50, min_len=3),
             "pattern": lambda: PatternDataset(seq_length=5),
+            "complex_arithmetic": lambda: ComplexArithmeticDataset(
+                max_len=15, min_len=8
+            ),
         }
 
         self.model.to(self.device)
@@ -236,4 +243,77 @@ class SyntheticDatasetEvaluator:
             "mean_relative_error": (
                 np.mean(relative_errors) if relative_errors else float("inf")
             ),
+        }
+
+    def _evaluate_complex_arithmetic_task(
+        self, dataloader: DataLoader
+    ) -> Dict[str, float]:
+        correct = total = 0
+        relative_errors = []
+        step_accuracy = []
+
+        with torch.no_grad():
+            for batch in tqdm(dataloader):
+                input_ids, attention_mask = self._get_arithmetic_input(
+                    batch["input_ids"].to(self.device),
+                    batch["attention_mask"].to(self.device),
+                )
+
+                outputs = self.model.generate(
+                    input_ids=input_ids,
+                    max_new_tokens=200,  # Increased for longer reasoning chains
+                    pad_token_id=self.tokenizer.pad_token_id,
+                )
+
+                for i, output in enumerate(outputs):
+                    pred_text = self.tokenizer.decode(output).split("[EOS]")[0]
+                    true_text = self.tokenizer.decode(
+                        batch["labels"][i], skip_special_tokens=True
+                    )
+
+                    try:
+                        # Extract final answer
+                        pred_steps = pred_text.split("Answer:")[1].strip().split(")")
+                        true_steps = true_text.split("Answer:")[1].strip().split(")")
+
+                        # Get final values
+                        pred_final = float(pred_steps[-2].split("=")[1].strip())
+                        true_final = float(true_steps[-2].split("=")[1].strip())
+
+                        # Calculate relative error for final answer
+                        rel_error = abs(pred_final - true_final) / (
+                            abs(true_final) + 1e-8
+                        )
+                        relative_errors.append(rel_error)
+
+                        # Check step accuracy
+                        correct_steps = 0
+                        total_steps = min(len(pred_steps), len(true_steps))
+
+                        for j in range(total_steps - 1):  # -1 to skip empty last split
+                            try:
+                                pred_val = float(pred_steps[j].split("=")[1].strip())
+                                true_val = float(true_steps[j].split("=")[1].strip())
+                                if (
+                                    abs(pred_val - true_val) / (abs(true_val) + 1e-8)
+                                    < 0.01
+                                ):
+                                    correct_steps += 1
+                            except:
+                                continue
+
+                        step_accuracy.append(correct_steps / total_steps)
+
+                        if rel_error < 0.01:
+                            correct += 1
+                    except Exception as e:
+                        pass
+                    total += 1
+
+        return {
+            "final_accuracy": correct / total if total > 0 else 0,
+            "mean_relative_error": (
+                np.mean(relative_errors) if relative_errors else float("inf")
+            ),
+            "step_accuracy": np.mean(step_accuracy) if step_accuracy else 0,
         }
