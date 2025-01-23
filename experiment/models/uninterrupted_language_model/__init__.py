@@ -1,2 +1,3 @@
 from .GMMHead import GMMHead
 from .UninterruptedLanguageModel import UninterruptedLanguageModel
+from .UninterruptedLanguageModelInference import UninterruptedLanguageModelInference

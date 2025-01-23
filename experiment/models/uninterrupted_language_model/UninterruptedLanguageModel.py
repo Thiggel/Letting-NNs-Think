@@ -6,7 +6,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from experiment.configs import ModelConfig, DataConfig, UninterruptedMode, FinetuneMode
 
-from experiment.model_evaluator.CustomInference import UninterruptedTransformer
+from .UninterruptedLanguageModelInference import UninterruptedLanguageModelInference
 
 from .GMMHead import GMMHead
 
@@ -18,7 +18,7 @@ class UninterruptedLanguageModelProtocol(Protocol):
     device: torch.device
     uninterrupted_adapter: GMMHead
     tokenizer: PreTrainedTokenizer
-    generator: Optional[UninterruptedTransformer]
+    _generator: Optional[UninterruptedLanguageModelInference]
     lm_heads: Optional[nn.ModuleList]
 
     def log(
@@ -62,10 +62,12 @@ class UninterruptedLanguageModel:
     def _uninterruted_setup(self: UninterruptedLanguageModelProtocol) -> None:
         if self.config.uninterrupted_mode == UninterruptedMode.GMM:
             self.uninterrupted_adapter = GMMHead(self.model.config.hidden_size)
-            self._generator = UninterruptedTransformer(self, self.tokenizer, alpha=1.0)
+            self._generator = UninterruptedLanguageModelInference(
+                self, self.tokenizer, alpha=1.0
+            )
         elif self.config.uninterrupted_mode == UninterruptedMode.DIRECT:
             self.uninterrupted_adapter = nn.Identity()
-            self._generator = UninterruptedTransformer(
+            self._generator = UninterruptedLanguageModelInference(
                 self, self.tokenizer, alpha=1.0, use_adapter=False
             )
 

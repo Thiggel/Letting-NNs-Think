@@ -7,7 +7,9 @@ import torch
 from transformers import PreTrainedTokenizer
 import os
 
-from .CustomInference import UninterruptedTransformer
+from experiment.models.uninterrupted_language_model import (
+    UninterruptedLanguageModelInference,
+)
 
 
 class ModelEvaluator:
@@ -26,7 +28,9 @@ class ModelEvaluator:
         self.num_fewshot = num_fewshot
 
         if is_uninterrupted:
-            self.model = UninterruptedTransformer(model, tokenizer, uninterrupted_alpha)
+            self.model = UninterruptedLanguageModelInference(
+                model, tokenizer, uninterrupted_alpha
+            )
             self.model.setup()
         else:
             self.model = model

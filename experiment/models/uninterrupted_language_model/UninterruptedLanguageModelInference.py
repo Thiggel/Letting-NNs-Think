@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import types
 
 
-class UninterruptedTransformer(nn.Module):
+class UninterruptedLanguageModelInference(nn.Module):
     def __init__(self, model, tokenizer, alpha, use_adapter=False):
         super().__init__()
         self.model = model.model
@@ -12,6 +12,8 @@ class UninterruptedTransformer(nn.Module):
         self.uninterrupted_recurrence_depth = (
             model.config.uninterrupted_recurrence_depth
         )
+
+        self.train_to_backtrack = model.config.train_to_backtrack
 
         self.lm_heads = None
         if hasattr(model, "lm_heads"):
@@ -141,23 +143,22 @@ class UninterruptedTransformer(nn.Module):
         return alpha * hidden_state + (1 - alpha) * token_embedding
 
     def filter_out_thought_tokens(self, output_ids):
-        # num_thought_tokens = self.config.uninterrupted_recurrence_depth - 1
+        # num_thought_tokens = self.uninterrupted_recurrence_depth - 1
         # only keep every num_thought_tokens + 1 token
         # so if num_thought_tokens = 4, we keep every 5th token
-        return output_ids[:, :: self.config.uninterrupted_recurrence_depth]
+        return output_ids[:, :: self.uninterrupted_recurrence_depth]
 
     @torch.no_grad()
     def generate(self, *args, **kwargs):
-        if self.config.train_to_backtrack:
+        if self.train_to_backtrack:
             if "max_length" in kwargs:
                 kwargs["max_length"] = (
-                    kwargs["max_length"] * self.config.uninterrupted_recurrence_depth
+                    kwargs["max_length"] * self.uninterrupted_recurrence_depth
                 )
 
             if "max_new_tokens" in kwargs:
                 kwargs["max_new_tokens"] = (
-                    kwargs["max_new_tokens"]
-                    * self.config.uninterrupted_recurrence_depth
+                    kwargs["max_new_tokens"] * self.uninterrupted_recurrence_depth
                 )
 
         output = self.model.generate(
@@ -165,8 +166,8 @@ class UninterruptedTransformer(nn.Module):
             **kwargs,
         )
 
-        if self.config.train_to_backtrack:
-            output[0] = self.filter_out_thought_tokens(output[0])
+        if self.train_to_backtrack:
+            output = self.filter_out_thought_tokens(output)
 
         print("Generated: ", self.tokenizer.decode(output[0], skip_special_tokens=True))
         self.reset_inputs_embeds()
