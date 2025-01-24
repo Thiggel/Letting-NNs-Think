@@ -32,30 +32,30 @@ class ComplexArithmeticReasoningDataset(IterableDataset):
         return expression
 
     def evaluate_with_steps(self, expression):
-        # First handle multiplication
         terms = expression.split("+")
         new_terms = []
         steps = []
 
-        # Process each term (which might contain multiplications or subtractions)
         for term in terms:
             sub_terms = term.split("-")
             processed_sub_terms = []
 
-            # Handle multiplication in each sub_term
             for sub_term in sub_terms:
                 if "*" in sub_term:
                     mult_terms = sub_term.split("*")
-                    result = 1
-                    mult_expression = sub_term
-                    for num in mult_terms:
-                        result *= int(num)
-                    steps.append(f"({mult_expression}={result})")
+                    result = int(mult_terms[0])
+                    sub_steps = []
+
+                    for i in range(1, len(mult_terms)):
+                        prev_result = result
+                        result *= int(mult_terms[i])
+                        sub_steps.append(f"{prev_result}*{mult_terms[i]}={result}")
+
+                    steps.append(f"({' -> '.join(sub_steps)})")
                     processed_sub_terms.append(str(result))
                 else:
                     processed_sub_terms.append(sub_term)
 
-            # Reconstruct subtraction terms
             reconstructed_term = processed_sub_terms[0]
             current_value = int(processed_sub_terms[0])
 
@@ -69,12 +69,13 @@ class ComplexArithmeticReasoningDataset(IterableDataset):
 
             new_terms.append(reconstructed_term)
 
-        # Finally handle addition
         result = int(new_terms[0])
         for i in range(1, len(new_terms)):
             addend = int(new_terms[i])
             steps.append(f"({result}+{addend}={result+addend})")
             result += addend
+
+        steps.append(f" Result: {result}")
 
         return steps
 

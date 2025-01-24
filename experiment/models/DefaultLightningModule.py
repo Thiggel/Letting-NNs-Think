@@ -12,23 +12,21 @@ from experiment.configs import (
     DataConfig,
     UninterruptedMode,
 )
-from experiment.models.GatedLM import GatedLM
+from experiment.configs.ModelConfig import FinetuneMode
 
 from .uninterrupted_language_model import UninterruptedLanguageModel
 from .model_adapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
-from .RecurrentLanguageModel import RecurrentLanguageModel
-from .MoDModel import MoDModel
 from .HasLayers import HasLayers
+
+
+import time
 
 
 class DefaultLightningModule(
     LightningModule,
     UninterruptedLanguageModel,
-    RecurrentLanguageModel,
-    MoDModel,
     HasLayers,
-    GatedLM,
 ):
     """Main Lightning Module for language model training"""
 
@@ -55,11 +53,10 @@ class DefaultLightningModule(
         self.metrics_logger = MetricsLogger(
             self, self.tokenizer, self.data_config.batch_size
         )
-        self.setup_random_intermediate_supervision()
 
     def on_before_optimizer_step(self, _):
         """Log gradient norms before optimization step"""
-        self.metrics_logger.log_gradient_norms()
+        # self.metrics_logger.log_gradient_norms()
 
     def forward(self, input_ids, **kwargs):
         return self.model(input_ids, **kwargs)
@@ -133,15 +130,12 @@ class DefaultLightningModule(
         adam_params = {
             "lr": base_lr,
             "betas": (0.9, 0.95),
-            "weight_decay": 0.001 if not self.config.enable_normalization else 0.0,
+            "weight_decay": 0.001,
         }
 
-        # Filter trainable parameters for each group
-        main_params = [
-            p
-            for p in self.get_decoder_layers(self.model).parameters()
-            if p.requires_grad
-        ]
+        main_params = []
+        if self.config.finetune_mode != FinetuneMode.FROZEN:
+            main_params = [p for p in self.model.parameters() if p.requires_grad]
 
         if self.config.uninterrupted_mode == UninterruptedMode.GMM:
             print("Uninterrupted GMM finetuning")
@@ -153,27 +147,10 @@ class DefaultLightningModule(
             print("Using different LM head per step")
             main_params += [p for p in self.lm_heads.parameters()]
 
-        embedding_params = [
-            p for p in self.model.get_input_embeddings().parameters() if p.requires_grad
-        ]
-
-        if self.config.untie_embedding_and_softmax:
-            embedding_params += [
-                p
-                for p in self.model.get_output_embeddings().parameters()
-                if p.requires_grad
-            ]
-
         parameters = [
             {
                 "params": main_params,
                 "lr": base_lr,
-            },
-            {
-                "params": embedding_params,
-                "lr": (
-                    base_lr / 10 if self.config.untie_embedding_and_softmax else base_lr
-                ),
             },
         ]
 
@@ -189,11 +166,7 @@ class DefaultLightningModule(
 
         scheduler = LambdaLR(
             optimizer,
-            lr_lambda=(
-                self.lr_lambda_warmup_decay
-                if not self.config.enable_normalization
-                else self.lr_lambda_decay
-            ),
+            lr_lambda=self.lr_lambda_warmup_decay,
         )
 
         return {
@@ -206,9 +179,6 @@ class DefaultLightningModule(
         }
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
-        if self.config.enable_normalization:
-            self.model_adapter.normalize_weights()
-
         """Perform a single training/validation/test step"""
         self.metrics_logger.dump_first_batch(batch)
 
@@ -222,11 +192,29 @@ class DefaultLightningModule(
             self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
         self.metrics_logger.log_loss(loss, mode)
-        # loss += self.get_mod_loss()
-        loss += self.get_loss_for_intermediate_supervision()
-        # loss += self.get_gate_loss()
 
         return loss
+
+    def on_train_batch_start(self, batch, batch_idx):
+        if hasattr(self, "optimizer_start_time"):
+            torch.cuda.synchronize()
+            optimizer_end_time = time.perf_counter() - self.optimizer_start_time
+            print(f"Optimizer time: {optimizer_end_time}")
+            print()
+
+        self.forward_start_time = time.perf_counter()
+
+    def on_before_zero_grad(self, optimizer):
+        forward_end_time = time.perf_counter() - self.forward_start_time
+        print(f"Forward time: {forward_end_time}")
+
+        self.backward_start_time = time.perf_counter()
+
+    def on_after_backward(self):
+        backward_end_time = time.perf_counter() - self.backward_start_time
+        print(f"Backward time: {backward_end_time}")
+
+        self.optimizer_start_time = time.perf_counter()
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")

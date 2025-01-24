@@ -12,19 +12,11 @@ from peft import get_peft_model, LoraConfig, TaskType
 from experiment.configs import ModelConfig, FinetuneMode
 
 from ..HasLayers import HasLayers
-from .MoDAdapter import MoDAdapter
-from .NormalizedLanguageModelAdapter import NormalizedLanguageModelAdapter
-from .RecurrentLanguageModelAdapter import RecurrentLanguageModelAdapter
-from .GatedLanguageModelAdapter import GatedLanguageModelAdapter
 from .UninterruptedLanguageModelAdapter import UninterruptedLanguageModelAdapter
 
 
 class ModelAdapter(
     HasLayers,
-    MoDAdapter,
-    NormalizedLanguageModelAdapter,
-    RecurrentLanguageModelAdapter,
-    GatedLanguageModelAdapter,
     UninterruptedLanguageModelAdapter,
 ):
     """Handles model initialization and modification with LoRA support"""
@@ -49,9 +41,6 @@ class ModelAdapter(
 
         if not self.config.pretrained:
             self._init_embeddings()
-
-        if self.config.enable_normalization:
-            self.normalize_weights()
 
     def _adjust_embedding_size(self, model: PreTrainedModel) -> PreTrainedModel:
         # Has caused cuda device-side error in the past
@@ -82,15 +71,7 @@ class ModelAdapter(
         for param in model.parameters():
             param.requires_grad = False
 
-        if self.config.finetune_mode == FinetuneMode.UNINTERRUPTED:
-            self._unfreeze_last_layer(model)
-
-        elif self.config.finetune_mode == FinetuneMode.UNINTERRUPTED_LORA:
-            model = get_peft_model(model, self.lora_config)
-            self._unfreeze_lm_head(model)
-            model.print_trainable_parameters()
-
-        elif self.config.finetune_mode == FinetuneMode.FULL:
+        if self.config.finetune_mode == FinetuneMode.FULL:
             for param in model.parameters():
                 param.requires_grad = True
 
@@ -118,22 +99,10 @@ class ModelAdapter(
         model = self._remove_layers(model)
         # model = self._adjust_embedding_size(model)
 
-        if self.config.untie_embedding_and_softmax or self.config.enable_normalization:
+        if self.config.untie_embedding_and_softmax:
             self._untie_embedding_and_softmax(model)
 
-        if self.config.use_gating:
-            model = self._add_gating(model)
-
-        if self.config.enable_normalization:
-            model = self._add_normalization(model)
-
-        if self.config.use_mod:
-            model = self._add_mod(model)
-
         model = self._get_peft_model(model)
-
-        if self.config.make_layers_recurrent is not None:
-            model = self._add_recurrence(model)
 
         return model
 

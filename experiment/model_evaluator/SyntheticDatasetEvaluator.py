@@ -10,7 +10,7 @@ from experiment.models import DefaultLightningModule
 from experiment.datasets.synthetic_datasets import (
     ArithmeticDataset,
     PatternDataset,
-    ComplexArithmeticDataset,
+    ComplexArithmeticReasoningDataset,
 )
 
 
@@ -37,7 +37,7 @@ class SyntheticDatasetEvaluator:
         self.datasets = {
             "arithmetic": lambda: ArithmeticDataset(max_len=50, min_len=3),
             "pattern": lambda: PatternDataset(seq_length=5),
-            "complex_arithmetic": lambda: ComplexArithmeticDataset(
+            "complex_arithmetic_reasoning": lambda: ComplexArithmeticReasoningDataset(
                 max_len=15, min_len=8
             ),
         }
@@ -70,6 +70,8 @@ class SyntheticDatasetEvaluator:
             return self._evaluate_arithmetic_task(dataloader)
         elif dataset_name == "pattern":
             return self._evaluate_pattern_completion_task(dataloader)
+        elif dataset_name == "complex_arithmetic_reasoning":
+            return self._evaluate_complex_arithmetic_task(dataloader)
 
     def _collate_fn(self, batch):
         # Implement batching logic similar to your BatchCollator
@@ -245,6 +247,29 @@ class SyntheticDatasetEvaluator:
             ),
         }
 
+    def _get_arithmetic_reasoning_input(
+        self, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ):
+        batch_size = input_ids.size(0)
+
+        # Batch decode
+        seq_lengths = attention_mask.sum(dim=1)
+        texts = self.tokenizer.batch_decode(
+            [input_ids[i, : seq_lengths[i]] for i in range(batch_size)]
+        )
+
+        # Extract queries and append Answer:
+        queries = [text.split("Answer:")[0].strip() + " Answer:" for text in texts]
+
+        # Batch encode with padding
+        encodings = self.tokenizer(
+            queries, add_special_tokens=False, padding=True, return_tensors="pt"
+        ).to(input_ids.device)
+
+        return self._shift_padding_left(
+            encodings["input_ids"], encodings["attention_mask"]
+        )
+
     def _evaluate_complex_arithmetic_task(
         self, dataloader: DataLoader
     ) -> Dict[str, float]:
@@ -254,7 +279,7 @@ class SyntheticDatasetEvaluator:
 
         with torch.no_grad():
             for batch in tqdm(dataloader):
-                input_ids, attention_mask = self._get_arithmetic_input(
+                input_ids, attention_mask = self._get_arithmetic_reasoning_input(
                     batch["input_ids"].to(self.device),
                     batch["attention_mask"].to(self.device),
                 )

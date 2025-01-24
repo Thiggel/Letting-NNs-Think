@@ -113,7 +113,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
         callbacks = [
             self.step_checkpoint,
             self.epoch_checkpoint,
-            DeviceStatsMonitor(),
+            # DeviceStatsMonitor(),
             LearningRateMonitor(logging_interval="step"),
         ]
 

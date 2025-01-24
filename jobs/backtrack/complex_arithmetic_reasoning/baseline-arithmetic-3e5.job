@@ -1,0 +1,54 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=8:30:00
+#SBATCH --job-name=Baseline-ComplexArithmetic-3e-5
+#SBATCH --output=job_logs/baseline-complex-arithmetic-3e-5-%A.out
+
+cd $HOME/Letting-NNs-Think
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset complex_arithmetic_reasoning \
+  --pretrained \
+  --batch-size 128 \
+  --grad-acc-steps 1 \
+  --eval-batch-size 512 \
+  --seq-length 1024 \
+  --learning-rate 3e-5 \
+  --warmup-steps 100 \
+  --max-epochs 1 \
+  --max-hours 5 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 1000 \
+  --finetune-mode full \
+  --use-deepspeed \
+  --experiment-name Baseline_ComplexArithmetic_3e5 \
+  --save-to-checkpoint Baseline_ComplexArithmetic_3e5 \
+  --project-name uninterrupted-transformers \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset complex_arithmetic_reasoning \
+  --pretrained \
+  --batch-size 8 \
+  --grad-acc-steps 8 \
+  --eval-batch-size 1024 \
+  --seq-length 1024 \
+  --learning-rate 3e-5 \
+  --max-epochs 1 \
+  --max-training-steps 1 \
+  --finetune-mode full \
+  --use-deepspeed \
+  --evaluation-metrics complex_arithmetic_reasoning \
+  --mode evaluate \
+  --experiment-name Baseline_ComplexArithmetic_3e5_Eval \
+  --load-from-checkpoint Baseline_ComplexArithmetic_3e5 \
+  --project-name uninterrupted-transformers \
+  --enable-logging

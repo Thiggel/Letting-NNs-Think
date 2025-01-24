@@ -8,14 +8,18 @@ from datasets import Dataset, load_dataset, disable_caching, config
 from torch.utils.data import IterableDataset
 from functools import partial
 
-from experiment.configs import DataConfig, EvaluationConfig, ModelConfig, TrainingConfig
+from experiment.configs import DataConfig, ModelConfig, TrainingConfig
 
 from .DatasetSplit import DatasetSplit
 from .TokenizationProcessor import TokenizationProcessor
 from .DatasetManager import DatasetManager
 from .BatchCollator import BatchCollator
 from .DatasetConfigurator import DatasetConfigurator
-from .synthetic_datasets import ArithmeticDataset, PatternDataset
+from .synthetic_datasets import (
+    ArithmeticDataset,
+    PatternDataset,
+    ComplexArithmeticReasoningDataset,
+)
 
 
 class LanguageDataModule(LightningDataModule):
@@ -113,6 +117,7 @@ class LanguageDataModule(LightningDataModule):
             dataset_class = {
                 "ArithmeticDataset": ArithmeticDataset,
                 "PatternDataset": PatternDataset,
+                "ComplexArithmeticReasoningDataset": ComplexArithmeticReasoningDataset,
             }[self.dataset_config["dataset_class"]]
 
             # Create dataset
