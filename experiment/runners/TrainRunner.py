@@ -153,13 +153,15 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             "log_every_n_steps": 10,
             "max_epochs": self.training_config.max_epochs,
             "max_steps": self.training_config.max_training_steps,
-            "max_time": {
-                "hours": self.training_config.max_hours,
-            },
             "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": self.data_config.grad_acc_steps,
             "devices": "auto",
         }
+
+        if self.training_config.max_hours:
+            trainer_args["max_time"] = {
+                "hours": self.training_config.max_hours,
+            }
 
         if self.training_config.use_profiler:
             trainer_args["profiler"] = "simple"

@@ -15,6 +15,7 @@ from datasets import load_dataset
 from experiment.datasets import DatasetConfigurator
 from experiment.datasets.synthetic_datasets import (
     ArithmeticDataset,
+    ComplexArithmeticReasoningDataset,
     PatternDataset,
 )
 from experiment.configs import ModelConfig, DataConfig
@@ -103,6 +104,7 @@ class HasTokenizer:
             dataset_classes = {
                 "ArithmeticDataset": ArithmeticDataset,
                 "PatternDataset": PatternDataset,
+                "ComplexArithmeticReasoningDataset": ComplexArithmeticReasoningDataset,
             }
             dataset_class = dataset_classes[dataset_config["dataset_class"]]
             dataset = dataset_class(**dataset_config.get("dataset_params", {}))

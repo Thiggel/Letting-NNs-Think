@@ -42,13 +42,6 @@ class ModelAdapter(
         if not self.config.pretrained:
             self._init_embeddings()
 
-    def _adjust_embedding_size(self, model: PreTrainedModel) -> PreTrainedModel:
-        # Has caused cuda device-side error in the past
-        if self.tokenizer.vocab_size != model.config.vocab_size:
-            model.resize_token_embeddings(self.tokenizer.vocab_size)
-
-        return model
-
     def _remove_layers(self, model: PreTrainedModel) -> PreTrainedModel:
         if self.config.remove_layers is not None:
             removed_layers = self._get_removed_layers(model)
@@ -89,23 +82,21 @@ class ModelAdapter(
             )
         else:
             config = AutoConfig.from_pretrained(self.config.model_name)
+            config.vocab_size = self.tokenizer.vocab_size
             model = AutoModelForCausalLM.from_config(
                 config, attn_implementation="eager"
             )
 
         model.use_cache = False
+        model.gradient_checkpointing_enable()
         model.train()
 
         model = self._remove_layers(model)
-        # model = self._adjust_embedding_size(model)
 
         if self.config.untie_embedding_and_softmax:
             self._untie_embedding_and_softmax(model)
 
         model = self._get_peft_model(model)
-
-        model.gradient_checkpointing_enable()
-        model.config.use_cache = False
 
         return model
 
