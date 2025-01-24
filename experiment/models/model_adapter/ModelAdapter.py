@@ -104,6 +104,9 @@ class ModelAdapter(
 
         model = self._get_peft_model(model)
 
+        model.gradient_checkpointing_enable()
+        model.config.use_cache = False
+
         return model
 
     def _get_removed_layers(self, model: AutoModel) -> list[tuple[int, int]]:

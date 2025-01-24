@@ -30,18 +30,6 @@ class BatchCollator:
             "labels": labels,
         }
 
-        if "loss_mask" in batch[0]:
-            # Convert character-level masks to token-level masks
-            token_level_masks = []
-            for item in batch:
-                char_mask = item["loss_mask"]
-                text = self.tokenizer.decode(item["input_ids"])
-                token_mask = self._char_to_token_mask(text, char_mask)
-                token_level_masks.append(torch.tensor(token_mask))
-
-            loss_mask = self._pad_and_truncate(token_level_masks, 0)
-            result["loss_mask"] = loss_mask
-
         return result
 
     def _char_to_token_mask(self, text: str, char_mask: list[int]) -> list[int]:

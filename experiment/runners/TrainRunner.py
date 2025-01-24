@@ -86,7 +86,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
 
         self.step_checkpoint = ModelCheckpoint(
             monitor=None,
-            every_n_train_steps=2,
+            every_n_train_steps=self.training_config.validate_every_n_steps,
             dirpath=checkpoint_dir,
             filename=self.experiment_config.experiment_name
             + "_"
@@ -147,7 +147,6 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
 
         trainer_args = {
             "check_val_every_n_epoch": 1,
-            "enable_model_summary": True,
             "callbacks": callbacks,
             "enable_checkpointing": True,
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
@@ -161,6 +160,9 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             "accumulate_grad_batches": self.data_config.grad_acc_steps,
             "devices": "auto",
         }
+
+        if self.training_config.use_profiler:
+            trainer_args["profiler"] = "simple"
 
         if self.training_config.validate_every_n_steps is not None:
             trainer_args["val_check_interval"] = (
@@ -178,12 +180,16 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                 * torch.cuda.device_count(),
                 "zero_optimization": {
                     "stage": 2,
-                    "offload_optimizer": {"device": "cpu"},
-                    "reduce_bucket_size": 1e7,
+                    "offload_optimizer": {"device": "cpu", "pin_memory": True},
+                    "overlap_comm": True,
+                    "allgather_bucket_size": 5e8,
+                    "reduce_bucket_size": 5e8,
+                    "contiguous_gradients": True,
                 },
-                "bf16": {
-                    "enabled": True,
-                },
+                "gradient_clipping": self.training_config.max_grad_norm,
+                "bf16": {"enabled": True},
+                "wall_clock_breakdown": False,
+                "zero_allow_untested_optimizer": True,
             }
         )
         args = {

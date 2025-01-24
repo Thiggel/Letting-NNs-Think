@@ -14,8 +14,10 @@ class TrainingConfig(BaseModel):
     use_deepspeed: bool = Field(
         False, description="Whether to use DeepSpeed for training"
     )
-    max_epochs: int = Field(None, description="The maximum number of epochs")
-    max_training_steps: int = Field(None, description="The maximum number of epochs")
+    max_epochs: Optional[int] = Field(None, description="The maximum number of epochs")
+    max_training_steps: Optional[int] = Field(
+        None, description="The maximum number of epochs"
+    )
     max_hours: int = Field(4, description="The maximum number of hours to train")
     use_early_stopping: bool = Field(
         False, description="Whether to use early stopping during training"
@@ -41,3 +43,4 @@ class TrainingConfig(BaseModel):
     validate_every_n_steps: Optional[int] = Field(
         None, description="The number of steps between validation runs"
     )
+    use_profiler: bool = Field(False, description="Whether to use the PyTorch profiler")

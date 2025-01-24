@@ -20,9 +20,6 @@ from .MetricsLogger import MetricsLogger
 from .HasLayers import HasLayers
 
 
-import time
-
-
 class DefaultLightningModule(
     LightningModule,
     UninterruptedLanguageModel,
@@ -94,7 +91,8 @@ class DefaultLightningModule(
         training_config.learning_rate during warmup, then decays with cosine schedule
         """
         warmup_steps = self.training_config.warmup_steps
-        total_steps = self.training_config.max_training_steps
+        default_max_steps = 10_000
+        total_steps = self.training_config.max_training_steps or default_max_steps
         min_lr_factor = 0.1
 
         # Calculate the ratio between initial and target learning rate
@@ -117,7 +115,8 @@ class DefaultLightningModule(
 
         The scheduler starts from training_config.initial_lr and decays with cosine schedule
         """
-        total_steps = self.training_config.max_training_steps
+        default_max_steps = 10_000
+        total_steps = self.training_config.max_training_steps or default_max_steps
         min_lr_factor = 0.1
 
         # Cosine decay from learning_rate to min_lr
@@ -194,27 +193,6 @@ class DefaultLightningModule(
         self.metrics_logger.log_loss(loss, mode)
 
         return loss
-
-    def on_train_batch_start(self, batch, batch_idx):
-        if hasattr(self, "optimizer_start_time"):
-            torch.cuda.synchronize()
-            optimizer_end_time = time.perf_counter() - self.optimizer_start_time
-            print(f"Optimizer time: {optimizer_end_time}")
-            print()
-
-        self.forward_start_time = time.perf_counter()
-
-    def on_before_zero_grad(self, optimizer):
-        forward_end_time = time.perf_counter() - self.forward_start_time
-        print(f"Forward time: {forward_end_time}")
-
-        self.backward_start_time = time.perf_counter()
-
-    def on_after_backward(self):
-        backward_end_time = time.perf_counter() - self.backward_start_time
-        print(f"Backward time: {backward_end_time}")
-
-        self.optimizer_start_time = time.perf_counter()
 
     def training_step(self, batch, batch_idx):
         return self._step(batch, batch_idx, mode="train")
