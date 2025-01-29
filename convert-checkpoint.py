@@ -14,8 +14,7 @@ def is_deepspeed_checkpoint(checkpoint_dir):
     """
     # Check if it's a directory and contains DeepSpeed-specific files
     if os.path.isdir(checkpoint_dir):
-        files = os.listdir(checkpoint_dir)
-        return any(f.startswith("zero_pp_rank_") for f in files)
+        return True
     return False
 
 

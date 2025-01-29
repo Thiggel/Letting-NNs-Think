@@ -62,10 +62,11 @@ class DefaultLightningModule(
         self.metrics_logger.dump_first_batch(kwargs)
         return self.model.generate(*args, **kwargs)
 
-    def on_validation_epoch_start(self):
-        string = self.tokenizer.encode("my dog is ", return_tensors="pt").to(
-            self.device
-        )
+    def sample_generate(self):
+        string = self.tokenizer.encode(
+            "[BOS] query : 5 + 0 * 9 - 5 + 1 + 4 * 9 + 4 - 3 + 6 + 9 answer :",
+            return_tensors="pt",
+        ).to(self.device)
         if hasattr(self, "_generator"):
             self._generator.setup()
             generated = self._generator.generate(
@@ -83,6 +84,9 @@ class DefaultLightningModule(
                 eos_token_id=self.tokenizer.eos_token_id,
             )
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
+
+    def on_validation_start(self):
+        self.sample_generate()
 
     def lr_lambda_warmup_decay(self, current_step: int) -> float:
         """Get the learning rate for the given step using a lambda function
@@ -198,6 +202,7 @@ class DefaultLightningModule(
         return self._step(batch, batch_idx, mode="train")
 
     def validation_step(self, batch, batch_idx):
+        self.sample_generate()
         return self._step(batch, batch_idx, mode="val")
 
     def test_step(self, batch, batch_idx):

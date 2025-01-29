@@ -222,7 +222,15 @@ class LanguageDataModule(LightningDataModule):
     def _process_streaming_sample(
         self, sample: dict[str, Any], q_func: callable, ans_func: callable
     ) -> dict[str, Any]:
-        full_text = q_func(sample) + ans_func(sample)
+        full_text = (
+            q_func(sample)
+            + ans_func(sample)
+            + (
+                self.tokenizer.eos_token
+                if self.dataset_config.get("synthetic", False)
+                else ""
+            )
+        )
 
         tokenized = self.token_processor.tokenize_text(
             [full_text],
@@ -277,6 +285,7 @@ class LanguageDataModule(LightningDataModule):
             + (
                 self.tokenizer.eos_token
                 if not self.dataset_config.get("streaming", False)
+                or self.dataset_config.get("synthetic", False)
                 else ""
             )
             for sample in samples

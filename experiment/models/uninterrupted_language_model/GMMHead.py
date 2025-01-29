@@ -4,7 +4,6 @@ import torch.nn as nn
 from torch.distributions import (
     Categorical,
     Independent,
-    MultivariateNormal,
     Normal,
     MixtureSameFamily,
 )
@@ -66,19 +65,23 @@ class GMMHead(nn.Module):
         features = self.mlp(hidden_states)
 
         # Mixture weights (softmaxed)
-        mixture_weights = (
-            F.softmax(self.mixture_weights_head(features), dim=-1)
-            if not without_mixture
-            else None
-        )
+        if not without_mixture:
+            # Ensure numerical stability with log_softmax
+            logits = self.mixture_weights_head(features)
+            log_probs = F.log_softmax(logits, dim=-1)
+            mixture_weights = torch.exp(log_probs)
+        else:
+            mixture_weights = None
 
         # Means
         means = self.means_head(features)
         means = means.view(batch_size, seq_len, self.n_components, self.hidden_size)
 
+        # Covariances (ensure positive definiteness)
         covs = self.covariance_head(features)
         covs = covs.view(batch_size, seq_len, self.n_components, self.hidden_size)
-        covs = F.softplus(covs) + 1e-5
+        # Add small epsilon before softplus to ensure numerical stability
+        covs = F.softplus(covs + 1e-6) + 1e-6
 
         return mixture_weights, means, covs
 
@@ -86,85 +89,89 @@ class GMMHead(nn.Module):
         """
         Compute negative log likelihood following exactly:
         -∑(b=1)^B ∑(ℓ=1)^L log(∑(n=1)^k π(b,ℓ)^(n) ∏(c=1)^d 𝒩(z(b,ℓ,c)|m(b,ℓ,c)^(n), s(b,ℓ,c)^(n)))
-
-        Args:
-            hidden_states: Input hidden states [B x L x H]
-            target_embeddings: Target embeddings [B x L x H]
-        Returns:
-            Negative log likelihood (scalar)
         """
-        # Get GMM parameters: [B x L x K], [B x L x K x H], [B x L x K x H]
+        # Get GMM parameters
         mixture_weights, means, scales = self.get_gmm_params(hidden_states)
 
         batch_size, seq_len = hidden_states.shape[0:2]
         BL = batch_size * seq_len
 
-        mixture_weights = mixture_weights.view(BL, self.n_components)  # [B*L x K]
-        means = means.view(BL, self.n_components, self.hidden_size)  # [B*L x K x H]
-        scales = scales.view(BL, self.n_components, self.hidden_size)  # [B*L x K x H]
+        mixture_weights = mixture_weights.view(BL, self.n_components)
+        means = means.view(BL, self.n_components, self.hidden_size)
+        scales = scales.view(BL, self.n_components, self.hidden_size)
 
-        gmm = MixtureSameFamily(
-            mixture_distribution=Categorical(probs=mixture_weights),
-            component_distribution=Independent(
+        # Ensure target_embeddings has correct shape
+        target_embeddings = target_embeddings.reshape(BL, self.hidden_size)
+
+        try:
+            # Create GMM distribution
+            mixture_dist = Categorical(probs=mixture_weights)
+            component_dist = Independent(
                 Normal(means, torch.sqrt(scales)), reinterpreted_batch_ndims=1
-            ),
-        )
+            )
+            gmm = MixtureSameFamily(
+                mixture_distribution=mixture_dist,
+                component_distribution=component_dist,
+            )
 
-        log_prob = gmm.log_prob(target_embeddings).reshape(batch_size, seq_len)
+            # Compute log probability
+            log_prob = gmm.log_prob(target_embeddings)
+            log_prob = log_prob.reshape(batch_size, seq_len)
 
-        nll = -log_prob.mean() / self.hidden_size
+            # Normalize by hidden size and return negative log likelihood
+            nll = -log_prob.mean() / self.hidden_size
 
-        return nll
+            return nll
+
+        except ValueError as e:
+            # Debug information
+            print(
+                "Mixture weights stats:",
+                mixture_weights.min().item(),
+                mixture_weights.max().item(),
+                mixture_weights.sum(-1).mean().item(),
+            )
+            print("Means stats:", means.mean().item(), means.std().item())
+            print("Scales stats:", scales.min().item(), scales.max().item())
+            raise e
 
     def loss(self, hidden_states, target_embeddings):
-        batch_size, seq_len = hidden_states.shape[0:2]
-        target_embeddings = target_embeddings.reshape(
-            batch_size * seq_len, self.hidden_size
-        )  # [B*L x H]
+        """Compute loss for training"""
         return self.nll(hidden_states, target_embeddings)
 
     def sample(self, hidden_states, temperature=1.0, mode=False):
-        """
-        Sample from the GMM or take the mode
-        Args:
-            hidden_states: Input hidden states [B x L x H]
-            temperature: Temperature for sampling (higher = more diverse) (default: 1.0)
-            mode: If True, return the most likely sample instead of random sampling (default: False)
-        Returns:
-            Samples or modes from the distribution [B*L x H]
-        """
+        """Sample from the GMM or take the mode"""
         # Get GMM parameters
         mixture_weights, means, scales = self.get_gmm_params(hidden_states)
 
         # Reshape to combine batch and sequence dimensions
         B_L = mixture_weights.shape[0] * mixture_weights.shape[1]
-        mixture_weights = mixture_weights.view(B_L, self.n_components)  # [B*L x K]
-        means = means.view(B_L, self.n_components, self.hidden_size)  # [B*L x K x H]
-        scales = scales.view(B_L, self.n_components, self.hidden_size)  # [B*L x K x H]
+        mixture_weights = mixture_weights.view(B_L, self.n_components)
+        means = means.view(B_L, self.n_components, self.hidden_size)
+        scales = scales.view(B_L, self.n_components, self.hidden_size)
 
         if mode:
-            # For mode, select the component with highest mixture weight
-            best_components = mixture_weights.argmax(dim=-1)  # [B*L]
-
-            # Index into means to get the modes
+            # For mode, select component with highest mixture weight
+            best_components = mixture_weights.argmax(dim=-1)
             batch_indices = torch.arange(B_L, device=means.device)
-            modes = means[batch_indices, best_components]  # [B*L x H]
+            modes = means[batch_indices, best_components]
             return modes
         else:
-            # For sampling with temperature, scale the scales
+            # Scale the variances by temperature
             scaled_scales = scales * temperature
 
-            # Create mixture distribution with temperature scaling
+            # Create mixture distribution
+            mixture_dist = Categorical(probs=mixture_weights)
+            component_dist = Independent(
+                Normal(means, torch.sqrt(scaled_scales)), reinterpreted_batch_ndims=1
+            )
             gmm = MixtureSameFamily(
-                mixture_distribution=Categorical(probs=mixture_weights),
-                component_distribution=Independent(
-                    Normal(means, torch.sqrt(scaled_scales)),
-                    reinterpreted_batch_ndims=1,
-                ),
+                mixture_distribution=mixture_dist,
+                component_distribution=component_dist,
             )
 
             # Sample from the distribution
-            samples = gmm.sample()  # [B*L x H]
+            samples = gmm.sample()
             return samples
 
     def reparameterized_sample(self, hidden_states, temperature=1.0):
@@ -173,7 +180,7 @@ class GMMHead(nn.Module):
         batch_size, seq_len = hidden_states.shape[:2]
         device = hidden_states.device
 
-        # Sample component indicators using Gumbel-Softmax
+        # Get logits and apply Gumbel-Softmax with temperature
         logits = self.mixture_weights_head(self.mlp(hidden_states))
         component_samples = F.gumbel_softmax(logits, tau=temperature, hard=False)
 
@@ -182,7 +189,7 @@ class GMMHead(nn.Module):
             batch_size, seq_len, self.n_components, self.hidden_size, device=device
         )
 
-        # Apply reparameterization trick: z = mu + sigma * epsilon
+        # Apply reparameterization trick with temperature scaling
         scaled_noise = torch.sqrt(scales) * epsilon * temperature
         samples = means + scaled_noise
 

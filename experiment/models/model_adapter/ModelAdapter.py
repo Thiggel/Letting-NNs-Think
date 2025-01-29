@@ -88,7 +88,7 @@ class ModelAdapter(
             )
 
         model.use_cache = False
-        model.gradient_checkpointing_enable()
+        # model.gradient_checkpointing_enable()
         model.train()
 
         model = self._remove_layers(model)

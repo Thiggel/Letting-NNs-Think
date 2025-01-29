@@ -41,9 +41,10 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             print(f"Missing keys: {missing}")
             print(f"Unexpected keys: {unexpected}")
 
-        string = self.tokenizer.encode("1 + 0 + 1 =", return_tensors="pt").to(
-            self.device
-        )
+        string = self.tokenizer.encode(
+            "query : 7 - 3 + 8 + 0 + 6 + 0 + 6 + 9 - 1 + 3 + 0 - 7 * 1 * 4 + 9 + 0 + 5 * 0 + 1 - 1 + 0 + 9 - 4 - 5 + 4 + 1 * 8 answer :",
+            return_tensors="pt",
+        ).to(self.device)
         generated = model.generate(
             input_ids=string,
             max_length=100,

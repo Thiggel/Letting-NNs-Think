@@ -62,7 +62,7 @@ class DatasetConfigurator:
                 "train_field": "train",
                 "process_on_the_fly": True,
                 "val_subset": 1000,
-                "dataset_params": {"max_len": 15, "min_len": 8},
+                "dataset_params": {"max_len": 30, "min_len": 15},
                 "synthetic": True,
             },
             "pattern": {

@@ -38,7 +38,7 @@ class SyntheticDatasetEvaluator:
             "arithmetic": lambda: ArithmeticDataset(max_len=50, min_len=3),
             "pattern": lambda: PatternDataset(seq_length=5),
             "complex_arithmetic_reasoning": lambda: ComplexArithmeticReasoningDataset(
-                max_len=15, min_len=8
+                max_len=30, min_len=15
             ),
         }
 
@@ -259,7 +259,7 @@ class SyntheticDatasetEvaluator:
         )
 
         # Extract queries and append Answer:
-        queries = [text.split("Answer:")[0].strip() + " Answer:" for text in texts]
+        queries = [text.split("answer :")[0].strip() + " answer :" for text in texts]
 
         # Batch encode with padding
         encodings = self.tokenizer(
@@ -275,7 +275,6 @@ class SyntheticDatasetEvaluator:
     ) -> Dict[str, float]:
         correct = total = 0
         relative_errors = []
-        step_accuracy = []
 
         with torch.no_grad():
             for batch in tqdm(dataloader):
@@ -296,43 +295,23 @@ class SyntheticDatasetEvaluator:
                         batch["labels"][i], skip_special_tokens=True
                     )
 
-                    try:
-                        # Extract final answer
-                        pred_steps = pred_text.split("Answer:")[1].strip().split(")")
-                        true_steps = true_text.split("Answer:")[1].strip().split(")")
+                    if i == 0:
+                        print(pred_text)
 
-                        # Get final values
-                        pred_final = float(pred_steps[-2].split("=")[1].strip())
-                        true_final = float(true_steps[-2].split("=")[1].strip())
+                    try:
+                        pred = float(pred_text.split("result :")[1].replace(" ", ""))
+                        target = float(true_text.split("result :")[1].replace(" ", ""))
 
                         # Calculate relative error for final answer
-                        rel_error = abs(pred_final - true_final) / (
-                            abs(true_final) + 1e-8
-                        )
+                        rel_error = abs(pred - target) / (abs(target) + 1e-8)
                         relative_errors.append(rel_error)
 
-                        # Check step accuracy
-                        correct_steps = 0
-                        total_steps = min(len(pred_steps), len(true_steps))
-
-                        for j in range(total_steps - 1):  # -1 to skip empty last split
-                            try:
-                                pred_val = float(pred_steps[j].split("=")[1].strip())
-                                true_val = float(true_steps[j].split("=")[1].strip())
-                                if (
-                                    abs(pred_val - true_val) / (abs(true_val) + 1e-8)
-                                    < 0.01
-                                ):
-                                    correct_steps += 1
-                            except:
-                                continue
-
-                        step_accuracy.append(correct_steps / total_steps)
-
-                        if rel_error < 0.01:
+                        if pred == target:
                             correct += 1
+
                     except Exception as e:
                         pass
+
                     total += 1
 
         return {
@@ -340,5 +319,4 @@ class SyntheticDatasetEvaluator:
             "mean_relative_error": (
                 np.mean(relative_errors) if relative_errors else float("inf")
             ),
-            "step_accuracy": np.mean(step_accuracy) if step_accuracy else 0,
         }

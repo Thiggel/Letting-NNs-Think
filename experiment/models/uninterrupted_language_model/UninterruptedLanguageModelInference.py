@@ -142,11 +142,32 @@ class UninterruptedLanguageModelInference(nn.Module):
         token_embedding = self.model.get_input_embeddings()(token_id)
         return alpha * hidden_state + (1 - alpha) * token_embedding
 
-    def filter_out_thought_tokens(self, output_ids):
-        # num_thought_tokens = self.uninterrupted_recurrence_depth - 1
-        # only keep every num_thought_tokens + 1 token
-        # so if num_thought_tokens = 4, we keep every 5th token
-        return output_ids[:, :: self.uninterrupted_recurrence_depth]
+    def filter_out_thought_tokens(self, output_ids, prompt_length):
+        """
+        Filters out thought tokens from the generated response, keeping every 5th token.
+
+        Args:
+            output_ids (torch.Tensor): The generated token IDs, including the prompt.
+            prompt_length (int): The length of the prompt (number of tokens).
+
+        Returns:
+            torch.Tensor: The filtered token IDs, with the prompt intact and thought tokens removed.
+        """
+        # Separate the prompt and the generated tokens
+        prompt = output_ids[:, :prompt_length]  # Shape: [batch_size, prompt_length]
+        generated_tokens = output_ids[
+            :, prompt_length:
+        ]  # Shape: [batch_size, generated_length]
+
+        # Keep every 5th token from the generated tokens
+        filtered_generated_tokens = generated_tokens[
+            :, :: self.uninterrupted_recurrence_depth
+        ]
+
+        # Recombine the prompt and the filtered generated tokens
+        filtered_output_ids = torch.cat([prompt, filtered_generated_tokens], dim=-1)
+
+        return filtered_output_ids
 
     @torch.no_grad()
     def generate(self, *args, **kwargs):
@@ -161,15 +182,26 @@ class UninterruptedLanguageModelInference(nn.Module):
                     kwargs["max_new_tokens"] * self.uninterrupted_recurrence_depth
                 )
 
-        output = self.model.generate(
-            *args,
-            **kwargs,
-        )
+        # Generate the output
+        output = self.model.generate(*args, **kwargs)
 
         if self.train_to_backtrack:
-            output = self.filter_out_thought_tokens(output)
+            # Calculate the prompt length
+            input_ids = kwargs.get("input_ids", None)
+            if input_ids is not None:
+                prompt_length = input_ids.shape[1]  # Get the length of the prompt
+            else:
+                raise ValueError(
+                    "Input IDs must be provided to calculate prompt length."
+                )
 
-        print("Generated: ", self.tokenizer.decode(output[0], skip_special_tokens=True))
+            output = self.filter_out_thought_tokens(output, prompt_length)
+
+        print(
+            "Generated: ",
+            self.tokenizer.decode(output[0], skip_special_tokens=True),
+        )
+
         self.reset_inputs_embeds()
 
         return output
