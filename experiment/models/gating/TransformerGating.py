@@ -6,7 +6,7 @@ from typing import Dict
 from experiment.configs.GatingConfig import GatingConfig, GatingType
 
 
-class TransformerGating:
+class TransformerGating(nn.Module):
     """Handles gating for transformer models using TransformerLens"""
 
     def __init__(self, model: HookedTransformer, config: GatingConfig):
@@ -17,6 +17,11 @@ class TransformerGating:
 
         self.gates = self._initialize_gates()
         self.current_gate_values: Dict[str, torch.Tensor] = {}
+        self.register_buffer("current_gate_values", {})
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Forward can be empty since we use hooks, but needed for nn.Module
+        return x
 
     def _initialize_gates(self) -> nn.ModuleDict:
         gates = nn.ModuleDict()

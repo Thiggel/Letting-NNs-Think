@@ -182,5 +182,4 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
     def tie_weights(self):
         """Tie the model's weights"""
-        if not self.config.untie_embedding_and_softmax:
-            self.model.tie_weights()
+        self.model.tie_weights()

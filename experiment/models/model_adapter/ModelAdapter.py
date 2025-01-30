@@ -10,6 +10,7 @@ import torch
 from torch import nn
 from peft import get_peft_model, LoraConfig, TaskType
 from experiment.configs import ModelConfig, FinetuneMode
+from transformer_lens import HookedTransformer
 
 from ..HasLayers import HasLayers
 from ..gating.TransformerGating import TransformerGating
@@ -93,22 +94,19 @@ class ModelAdapter(
 
         model = self._remove_layers(model)
 
-        if self.config.untie_embedding_and_softmax:
-            self._untie_embedding_and_softmax(model)
-
         if self.config.use_gating:
             # Convert to TransformerLens model
             hooked_model = HookedTransformer.from_pretrained(model)
 
-            # Initialize gating
+            # Initialize gating and register it as a submodule
             gating = TransformerGating(hooked_model, self.config)
+            self.gating = (
+                gating  # Will be registered since TransformerGating is nn.Module
+            )
 
             # Add hooks
             hooks = GatingHooks.add_hooks(hooked_model, gating)
             hooked_model.add_hooks(hooks)
-
-            # Store gating instance for loss computation
-            model.gating = gating
 
             model = hooked_model
 
