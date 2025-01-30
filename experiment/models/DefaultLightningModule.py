@@ -12,14 +12,13 @@ from experiment.configs import (
     DataConfig,
 )
 from experiment.configs.ModelConfig import FinetuneMode
-from experiment.models.GatedLM import GatedLM
 
 from .model_adapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
 from .HasLayers import HasLayers
 
 
-class DefaultLightningModule(LightningModule, HasLayers, GatedLM):
+class DefaultLightningModule(LightningModule, HasLayers):
     """Main Lightning Module for language model training"""
 
     def __init__(
@@ -163,6 +162,9 @@ class DefaultLightningModule(LightningModule, HasLayers, GatedLM):
         outputs = self.model(**batch)
         loss = outputs.loss
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
+
+        if self.config.use_gating:
+            loss += self.model.gating.compute_gate_loss()
 
         self.metrics_logger.log_loss(loss, mode)
 

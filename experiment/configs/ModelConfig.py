@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from .LoraConfig import LoraConfig
 from .LayerRange import LayerRange
+from .GatingConfig import GatingConfig
 
 
 class FinetuneMode(str, Enum):
@@ -15,6 +16,7 @@ class FinetuneMode(str, Enum):
 class ModelConfig(
     BaseModel,
     LoraConfig,
+    GatingConfig,
 ):
     """Configuration for model architecture and behavior"""
 

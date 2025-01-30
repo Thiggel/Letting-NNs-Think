@@ -12,12 +12,12 @@ from peft import get_peft_model, LoraConfig, TaskType
 from experiment.configs import ModelConfig, FinetuneMode
 
 from ..HasLayers import HasLayers
-from .GatedLanguageModelAdapter import GatedLanguageModelAdapter
+from ..gating.TransformerGating import TransformerGating
+from ..gating.GatingHooks import GatingHooks
 
 
 class ModelAdapter(
     HasLayers,
-    GatedLanguageModelAdapter,
 ):
     """Handles model initialization and modification with LoRA support"""
 
@@ -97,7 +97,20 @@ class ModelAdapter(
             self._untie_embedding_and_softmax(model)
 
         if self.config.use_gating:
-            model = self._add_gating(model)
+            # Convert to TransformerLens model
+            hooked_model = HookedTransformer.from_pretrained(model)
+
+            # Initialize gating
+            gating = TransformerGating(hooked_model, self.config)
+
+            # Add hooks
+            hooks = GatingHooks.add_hooks(hooked_model, gating)
+            hooked_model.add_hooks(hooks)
+
+            # Store gating instance for loss computation
+            model.gating = gating
+
+            model = hooked_model
 
         model = self._get_peft_model(model)
 
