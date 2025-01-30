@@ -2,7 +2,6 @@ from enum import Enum
 from typing import Optional, Annotated
 from pydantic import BaseModel, Field
 
-from .UninterruptedTransformerConfig import UninterruptedTransformerConfig
 from .LoraConfig import LoraConfig
 from .LayerRange import LayerRange
 
@@ -15,7 +14,6 @@ class FinetuneMode(str, Enum):
 
 class ModelConfig(
     BaseModel,
-    UninterruptedTransformerConfig,
     LoraConfig,
 ):
     """Configuration for model architecture and behavior"""

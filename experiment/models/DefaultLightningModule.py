@@ -10,11 +10,9 @@ from experiment.configs import (
     ModelConfig,
     TrainingConfig,
     DataConfig,
-    UninterruptedMode,
 )
 from experiment.configs.ModelConfig import FinetuneMode
 
-from .uninterrupted_language_model import UninterruptedLanguageModel
 from .model_adapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
 from .HasLayers import HasLayers
@@ -22,7 +20,6 @@ from .HasLayers import HasLayers
 
 class DefaultLightningModule(
     LightningModule,
-    UninterruptedLanguageModel,
     HasLayers,
 ):
     """Main Lightning Module for language model training"""
@@ -45,8 +42,6 @@ class DefaultLightningModule(
 
         print(self.model)
 
-        self._uninterruted_setup()
-
         self.metrics_logger = MetricsLogger(
             self, self.tokenizer, self.data_config.batch_size
         )
@@ -64,25 +59,17 @@ class DefaultLightningModule(
 
     def sample_generate(self):
         string = self.tokenizer.encode(
-            "[BOS] query : 5 + 0 * 9 - 5 + 1 + 4 * 9 + 4 - 3 + 6 + 9 answer :",
+            "query : 5 + 0 * 9 - 5 + 1 + 4 * 9 + 4 - 3 + 6 + 9 answer :",
             return_tensors="pt",
         ).to(self.device)
-        if hasattr(self, "_generator"):
-            self._generator.setup()
-            generated = self._generator.generate(
-                input_ids=string,
-                max_length=100,
-                max_new_tokens=100,
-                eos_token_id=self.tokenizer.eos_token_id,
-            )
-            self._generator.reset()
-        else:
-            generated = self.model.generate(
-                input_ids=string,
-                max_length=100,
-                max_new_tokens=100,
-                eos_token_id=self.tokenizer.eos_token_id,
-            )
+
+        generated = self.model.generate(
+            input_ids=string,
+            max_length=100,
+            max_new_tokens=100,
+            eos_token_id=self.tokenizer.eos_token_id,
+        )
+
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
     def on_validation_start(self):
@@ -140,16 +127,6 @@ class DefaultLightningModule(
         if self.config.finetune_mode != FinetuneMode.FROZEN:
             main_params = [p for p in self.model.parameters() if p.requires_grad]
 
-        if self.config.uninterrupted_mode == UninterruptedMode.GMM:
-            print("Uninterrupted GMM finetuning")
-            main_params += [
-                p for p in self.uninterrupted_adapter.parameters() if p.requires_grad
-            ]
-
-        if self.config.different_lm_head_per_step:
-            print("Using different LM head per step")
-            main_params += [p for p in self.lm_heads.parameters()]
-
         parameters = [
             {
                 "params": main_params,
@@ -185,14 +162,9 @@ class DefaultLightningModule(
         """Perform a single training/validation/test step"""
         self.metrics_logger.dump_first_batch(batch)
 
-        if self.config.uninterrupted_mode != UninterruptedMode.INTERRUPTED:
-            batch["output_hidden_states"] = True
-            loss = self.get_recurrent_prediction_loss(batch, mode)
-
-        else:
-            outputs = self.model(**batch)
-            loss = outputs.loss
-            self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
+        outputs = self.model(**batch)
+        loss = outputs.loss
+        self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
         self.metrics_logger.log_loss(loss, mode)
 

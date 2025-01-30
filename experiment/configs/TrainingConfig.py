@@ -39,9 +39,6 @@ class TrainingConfig(BaseModel):
     gamma: float = Field(0.99, description="The discount factor")
     temperature: float = Field(1.0, description="The sampling temperature")
     baseline_decay: float = Field(0.99, description="The decay factor for the baseline")
-    use_random_intermediate_supervision: bool = Field(
-        False, description="Whether to use random intermediate supervision"
-    )
     validate_every_n_steps: Optional[int] = Field(
         None, description="The number of steps between validation runs"
     )
