@@ -12,16 +12,14 @@ from experiment.configs import (
     DataConfig,
 )
 from experiment.configs.ModelConfig import FinetuneMode
+from experiment.models.GatedLM import GatedLM
 
 from .model_adapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
 from .HasLayers import HasLayers
 
 
-class DefaultLightningModule(
-    LightningModule,
-    HasLayers,
-):
+class DefaultLightningModule(LightningModule, HasLayers, GatedLM):
     """Main Lightning Module for language model training"""
 
     def __init__(

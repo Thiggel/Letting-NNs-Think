@@ -12,12 +12,12 @@ from peft import get_peft_model, LoraConfig, TaskType
 from experiment.configs import ModelConfig, FinetuneMode
 
 from ..HasLayers import HasLayers
-from .UninterruptedLanguageModelAdapter import UninterruptedLanguageModelAdapter
+from .GatedLanguageModelAdapter import GatedLanguageModelAdapter
 
 
 class ModelAdapter(
     HasLayers,
-    UninterruptedLanguageModelAdapter,
+    GatedLanguageModelAdapter,
 ):
     """Handles model initialization and modification with LoRA support"""
 
@@ -95,6 +95,9 @@ class ModelAdapter(
 
         if self.config.untie_embedding_and_softmax:
             self._untie_embedding_and_softmax(model)
+
+        if self.config.use_gating:
+            model = self._add_gating(model)
 
         model = self._get_peft_model(model)
 
