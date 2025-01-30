@@ -21,6 +21,7 @@ class UninterruptedLanguageModelInference(nn.Module):
 
         if use_adapter:
             self.uninterrupted_adapter = model.uninterrupted_adapter
+            self.temperature = 0.1  # Add temperature parameter for GMM sampling
 
         self.use_adapter = use_adapter
 
@@ -76,15 +77,10 @@ class UninterruptedLanguageModelInference(nn.Module):
 
         if self.use_adapter:
             predicted_next_embedding = self.uninterrupted_adapter.sample(
-                last_hidden_state, temperature=0.1
+                last_hidden_state, temperature=self.temperature
             )
         else:
-            predicted_next_embedding = last_hidden_state
-
-        if not self.use_adapter:
-            predicted_next_embedding = self.normalize_hidden_state(
-                predicted_next_embedding
-            )
+            predicted_next_embedding = self.normalize_hidden_state(last_hidden_state)
 
         if (
             self.uninterrupted_recurrence_depth is not None

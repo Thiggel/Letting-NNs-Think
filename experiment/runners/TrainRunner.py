@@ -92,7 +92,6 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             + "_"
             + str(seed)
             + "_step-checkpoint-{step:06d}",
-            save_last="link",
             save_top_k=1,
             verbose=True,
         )

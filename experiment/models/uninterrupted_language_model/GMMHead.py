@@ -46,22 +46,6 @@ class GMMHead(nn.Module):
         mixture_weights, means, covs = self.get_gmm_params(hidden_states)
         return mixture_weights, means, covs
 
-    def normalize_probabilities(self, logits):
-        """Ensure probabilities sum to 1 with numerical stability"""
-        # Apply log_softmax for numerical stability
-        log_probs = F.log_softmax(logits.float(), dim=-1)
-
-        # Convert back to probabilities
-        probs = torch.exp(log_probs)
-
-        # Force normalization to ensure sum is exactly 1
-        probs = probs / probs.sum(dim=-1, keepdim=True)
-
-        # Convert back to original dtype
-        probs = probs.to(logits.dtype)
-
-        return probs
-
     def get_gmm_params(self, hidden_states, without_mixture=False):
         """Convert network outputs to GMM parameters"""
         batch_size, seq_len = hidden_states.shape[0:2]
@@ -82,11 +66,91 @@ class GMMHead(nn.Module):
 
         return mixture_weight_logits, means, covs
 
+    def get_distribution_stats(self, mixture_weight_logits, means, scales):
+        """Get distribution statistics for logging"""
+        with torch.no_grad():
+            probs = F.softmax(mixture_weight_logits, dim=-1)
+            entropy = (
+                -(probs * F.log_softmax(mixture_weight_logits, dim=-1)).sum(-1).mean()
+            )
+            return {
+                "gmm/prob_min": probs.min(),
+                "gmm/prob_max": probs.max(),
+                "gmm/entropy": entropy,
+                "gmm/means_mean": means.mean(),
+                "gmm/means_std": means.std(),
+                "gmm/scales_mean": scales.mean(),
+                "gmm/scales_std": scales.std(),
+            }
+
+    def entropy_loss(self, mixture_weight_logits, min_entropy=None, sharpness=10.0):
+        """
+        Compute entropy regularization loss with exponential barrier.
+
+        Args:
+            mixture_weight_logits: Raw logits for mixture weights
+            min_entropy: Minimum desired entropy. If None, uses log(n_components)/2
+                        which would represent using half the available components
+            sharpness: How sharply the loss increases below min_entropy
+        """
+        probs = F.softmax(mixture_weight_logits, dim=-1)
+        log_probs = F.log_softmax(mixture_weight_logits, dim=-1)
+        entropy = -(probs * log_probs).sum(-1).mean()
+
+        # If min_entropy not provided, set it based on number of components
+        if min_entropy is None:
+            # log(n) would be entropy of uniform distribution
+            # we use log(n)/2 as minimum to allow some concentration
+            min_entropy = (
+                torch.log(torch.tensor(self.n_components, dtype=torch.float)) / 2
+            )
+
+        # Compute how far below minimum entropy we are
+        entropy_deficit = F.relu(min_entropy - entropy)
+
+        # Exponential barrier loss: grows rapidly as entropy drops below minimum
+        barrier_loss = torch.exp(sharpness * entropy_deficit) - 1.0
+
+        return barrier_loss
+
+    def component_variance_loss(self, means, min_variance=None, sharpness=10.0):
+        """
+        Compute variance loss to prevent component collapse.
+        Only activates strongly when components get too close together.
+
+        Args:
+            means: Component means tensor [B*L, n_components, hidden_size]
+            min_variance: Minimum desired variance between components.
+                         If None, set based on initial embedding variance
+            sharpness: How sharply the loss increases below min_variance
+        """
+        # Compute variance of means across components
+        mean_variance = means.var(
+            dim=1
+        ).mean()  # Average variance across batch and hidden dims
+
+        # If min_variance not provided, set it based on initial variance divided by 4
+        # (allowing components to be closer than initial but not collapse)
+        if min_variance is None:
+            with torch.no_grad():
+                init_variance = means.var(dim=1).mean()
+                min_variance = init_variance / 4
+
+        # Compute how far below minimum variance we are
+        variance_deficit = F.relu(min_variance - mean_variance)
+
+        # Exponential barrier loss: grows rapidly as variance drops below minimum
+        barrier_loss = torch.exp(sharpness * variance_deficit) - 1.0
+
+        return barrier_loss
+
     def nll(self, hidden_states, target_embeddings):
         """Compute negative log likelihood of target embeddings under GMM"""
         # Get GMM parameters
         mixture_weight_logits, means, scales = self.get_gmm_params(hidden_states)
         batch_size, seq_len = hidden_states.shape[0:2]
+
+        stats = self.get_distribution_stats(mixture_weight_logits, means, scales)
 
         # Reshape tensors
         BL = batch_size * seq_len
@@ -123,7 +187,17 @@ class GMMHead(nn.Module):
 
         # Return negative log likelihood normalized by hidden size
         nll = -log_prob.mean() / self.hidden_size
-        return nll
+        # Add entropy regularization
+        entropy_barrier = self.entropy_loss(
+            mixture_weight_logits.view(-1, self.n_components)
+        )
+
+        variance_barrier = self.component_variance_loss(means)
+
+        nll_scale = nll.detach()
+        total_loss = nll + entropy_barrier * nll_scale + variance_barrier * nll_scale
+
+        return total_loss, stats
 
     def loss(self, hidden_states, target_embeddings):
         return self.nll(hidden_states, target_embeddings)

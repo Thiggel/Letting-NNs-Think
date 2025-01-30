@@ -174,13 +174,20 @@ class UninterruptedLanguageModel:
                     all_prediction_losses.append(prediction_loss)
 
                 if self.config.uninterrupted_mode == UninterruptedMode.GMM:
-                    gmm_loss = (
-                        self.uninterrupted_adapter.loss(
-                            last_hidden_states[:, :-1],
-                            sequence[:, 1:],
-                        )
-                        * self.config.loss_discount_factor**i
+                    gmm_loss, gmm_stats = self.uninterrupted_adapter.loss(
+                        last_hidden_states[:, :-1],
+                        sequence[:, 1:],
                     )
+                    gmm_loss = gmm_loss * self.config.loss_discount_factor**i
+
+                    # Log the GMM stats
+                    for stat_name, stat_value in gmm_stats.items():
+                        self.log(
+                            f"{mode}_{stat_name}_step_{i}",
+                            stat_value,
+                            sync_dist=True,
+                            batch_size=self.data_config.batch_size,
+                        )
 
                     self.log(
                         f"{mode}_gmm_loss_step_{i}",
