@@ -124,6 +124,11 @@ class DefaultLightningModule(LightningModule, HasLayers):
         if self.config.finetune_mode != FinetuneMode.FROZEN:
             main_params = [p for p in self.model.parameters() if p.requires_grad]
 
+        if self.config.use_gating:
+            main_params += [
+                p for p in self.model.gating.parameters() if p.requires_grad
+            ]
+
         parameters = [
             {
                 "params": main_params,

@@ -7,10 +7,6 @@ import torch
 from transformers import PreTrainedTokenizer
 import os
 
-from experiment.models.uninterrupted_language_model import (
-    UninterruptedLanguageModelInference,
-)
-
 
 class ModelEvaluator:
     """Handles model evaluation using lm-eval-harness with multi-GPU support"""
@@ -19,21 +15,13 @@ class ModelEvaluator:
         self,
         model: DefaultLightningModule,
         tokenizer: PreTrainedTokenizer,
-        is_uninterrupted: bool = False,
         eval_batch_size: int = 128,
         num_fewshot: int = 0,
-        uninterrupted_alpha: float = 0.0,
     ):
         self.eval_batch_size = eval_batch_size
         self.num_fewshot = num_fewshot
 
-        if is_uninterrupted:
-            self.model = UninterruptedLanguageModelInference(
-                model, tokenizer, uninterrupted_alpha
-            )
-            self.model.setup()
-        else:
-            self.model = model
+        self.model = model
 
         self.tokenizer = tokenizer
 

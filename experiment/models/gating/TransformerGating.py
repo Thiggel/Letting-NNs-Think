@@ -10,23 +10,35 @@ class TransformerGating(nn.Module):
     """Handles gating for transformer models using TransformerLens"""
 
     def __init__(self, model: HookedTransformer, config: GatingConfig):
-        self.model = model
+        # Call parent class __init__ first
+        super().__init__()
+
+        # Store config as an attribute since it doesn't contain parameters
         self.config = config
+
+        # Store model properties we need
         self.n_layers = model.cfg.n_layers
         self.d_model = model.cfg.d_model
 
+        # Initialize gates as ModuleDict
         self.gates = self._initialize_gates()
-        self.current_gate_values: Dict[str, torch.Tensor] = {}
-        self.register_buffer("current_gate_values", {})
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Forward can be empty since we use hooks, but needed for nn.Module
-        return x
+        # Register buffer for storing intermediate values
+        self.register_buffer("_current_gate_values", torch.zeros(1))
+        self._current_gate_dict: Dict[str, torch.Tensor] = {}
+
+    @property
+    def current_gate_values(self) -> Dict[str, torch.Tensor]:
+        return self._current_gate_dict
+
+    @current_gate_values.setter
+    def current_gate_values(self, value: Dict[str, torch.Tensor]):
+        self._current_gate_dict = value
 
     def _initialize_gates(self) -> nn.ModuleDict:
         gates = nn.ModuleDict()
 
-        if self.config.gating_type == GatingType.SHARED:
+        if self.config.gating_type == "shared":
             if self.config.gate_attention:
                 gates["attn"] = self._create_gate_layer()
             if self.config.gate_mlp:
@@ -49,7 +61,7 @@ class TransformerGating(nn.Module):
     def get_gate_value(
         self, name: str, layer_idx: int, hidden_states: torch.Tensor
     ) -> torch.Tensor:
-        if self.config.gating_type == GatingType.SHARED:
+        if self.config.gating_type == "shared":
             gate = self.gates[name]
         else:
             gate = self.gates[f"{name}_{layer_idx}"]
@@ -60,9 +72,18 @@ class TransformerGating(nn.Module):
 
     def compute_gate_loss(self) -> torch.Tensor:
         if not self.current_gate_values:
-            return torch.tensor(0.0, device=self.model.device)
+            return torch.tensor(
+                0.0,
+                device=(
+                    self.gates["attn_0"].weight.device
+                    if "attn_0" in self.gates
+                    else self.gates["mlp_0"].weight.device
+                ),
+            )
 
-        loss = torch.tensor(0.0, device=self.model.device)
+        loss = torch.tensor(
+            0.0, device=next(iter(self.current_gate_values.values())).device
+        )
 
         for gate_value in self.current_gate_values.values():
             if self.config.entropy_loss_weight > 0:
@@ -83,3 +104,7 @@ class TransformerGating(nn.Module):
             + (1 - gate_value) * (1 - gate_value + eps).log()
         )
         return entropy.mean()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Forward pass is empty since we use hooks
+        return x

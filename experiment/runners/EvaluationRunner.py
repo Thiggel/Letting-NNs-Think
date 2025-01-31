@@ -81,7 +81,6 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             evaluator = ModelEvaluator(
                 model,
                 self.tokenizer,
-                self.evaluation_config.evaluate_as_uninterrupted,
                 self.evaluation_config.eval_batch_size,
                 self.evaluation_config.num_fewshot,
             )

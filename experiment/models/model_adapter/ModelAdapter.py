@@ -77,10 +77,30 @@ class ModelAdapter(
         nn.init.normal_(self.model.get_output_embeddings().weight, std=std)
 
     def _initialize_model(self) -> PreTrainedModel:
+        """Initialize the model with appropriate configuration"""
         if self.config.pretrained:
-            model = AutoModelForCausalLM.from_pretrained(
-                self.config.model_name, attn_implementation="eager"
-            )
+            if self.config.use_gating:
+                # Load directly into TransformerLens instead of converting
+                hooked_model = HookedTransformer.from_pretrained(
+                    self.config.model_name,
+                    center_writing_weights=False,
+                    center_unembed=False,
+                    fold_ln=False,
+                    device=self.device,
+                )
+
+                # Initialize gating
+                gating = TransformerGating(hooked_model, self.config)
+                hooked_model.gating = gating
+
+                # Add hooks one by one instead of all at once
+                GatingHooks.add_hooks(hooked_model, gating)
+
+                model = hooked_model
+            else:
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.config.model_name, attn_implementation="eager"
+                )
         else:
             config = AutoConfig.from_pretrained(self.config.model_name)
             config.vocab_size = self.tokenizer.vocab_size
@@ -89,28 +109,12 @@ class ModelAdapter(
             )
 
         model.use_cache = False
-        # model.gradient_checkpointing_enable()
         model.train()
 
         model = self._remove_layers(model)
 
-        if self.config.use_gating:
-            # Convert to TransformerLens model
-            hooked_model = HookedTransformer.from_pretrained(model)
-
-            # Initialize gating and register it as a submodule
-            gating = TransformerGating(hooked_model, self.config)
-            self.gating = (
-                gating  # Will be registered since TransformerGating is nn.Module
-            )
-
-            # Add hooks
-            hooks = GatingHooks.add_hooks(hooked_model, gating)
-            hooked_model.add_hooks(hooks)
-
-            model = hooked_model
-
-        model = self._get_peft_model(model)
+        if not self.config.use_gating:
+            model = self._get_peft_model(model)
 
         return model
 
