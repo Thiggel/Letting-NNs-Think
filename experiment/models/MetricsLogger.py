@@ -81,17 +81,39 @@ class MetricsLogger:
         return accuracy
 
     def log_metrics(self, loss: torch.Tensor, outputs, labels: torch.Tensor, mode: str):
+
         if mode == "train":
-            return
+            metrics = {}
+        else:
+            perplexity = math.exp(loss.item())
+            topk = 5
+            accuracy = self.accuracy(outputs, labels, top_k=topk)
 
-        perplexity = math.exp(loss.item())
-        topk = 5
-        accuracy = self.accuracy(outputs, labels, top_k=topk)
+            metrics = {
+                f"{mode}_perplexity": perplexity,
+                f"{mode}_top{topk}_accuracy": accuracy,
+            }
 
-        metrics = {
-            f"{mode}_perplexity": perplexity,
-            f"{mode}_top{topk}_accuracy": accuracy,
-        }
+        # Log gate metrics if gating is used
+        if hasattr(self.module.model, "gating"):
+            for name, module in self.module.model.gating.wrapped_modules.items():
+                if module.current_gate_value is not None:
+                    gate_value = module.current_gate_value
+
+                    # Log mean gate value (sparsity indicator)
+                    metrics[f"{mode}_gate_value/{name}"] = gate_value.mean().item()
+
+                    # Log entropy
+                    eps = 1e-6
+                    entropy = (
+                        -(
+                            gate_value * (gate_value + eps).log()
+                            + (1 - gate_value) * (1 - gate_value + eps).log()
+                        )
+                        .mean()
+                        .item()
+                    )
+                    metrics[f"{mode}_gate_entropy/{name}"] = entropy
 
         for name, value in metrics.items():
             self.module.log(

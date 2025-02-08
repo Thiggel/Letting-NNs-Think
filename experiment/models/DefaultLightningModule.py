@@ -36,8 +36,9 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
         self.model_adapter = ModelAdapter(self.config, self.tokenizer, self.device)
         self.model = self.model_adapter.model
-
-        print(self.model)
+        self.old_forward = self.model.forward
+        self.model.forward = self.forward
+        self.percent_tokens_skipped = []
 
         self.metrics_logger = MetricsLogger(
             self, self.tokenizer, self.data_config.batch_size
@@ -48,7 +49,28 @@ class DefaultLightningModule(LightningModule, HasLayers):
         # self.metrics_logger.log_gradient_norms()
 
     def forward(self, input_ids, **kwargs):
-        return self.model(input_ids, **kwargs)
+        output = self.old_forward(input_ids, **kwargs)
+
+        if self.config.use_gating:
+            for name, module in self.model.gating.wrapped_modules.items():
+                self.percent_tokens_skipped.append(
+                    module.current_percent_tokens_skipped
+                )
+                # if module.current_gate_value is not None:
+                # gate_value = module.current_gate_value
+
+                # mean_gate_value = gate_value.mean().item()
+                # min_gate_value = gate_value.min().item()
+                # max_gate_value = gate_value.max().item()
+
+                # if mean_gate_value <= 0.7 or min_gate_value <= 0.7:
+                #    print(
+                #        f"Gate value for {name}: {mean_gate_value}, {min_gate_value}, {max_gate_value}"
+                #    )
+
+            # print("-" * 60)
+
+        return output
 
     def generate(self, *args, **kwargs):
         self.metrics_logger.dump_first_batch(kwargs)
@@ -56,7 +78,7 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
     def sample_generate(self):
         string = self.tokenizer.encode(
-            "query : 5 + 0 * 9 - 5 + 1 + 4 * 9 + 4 - 3 + 6 + 9 answer :",
+            "My dog is ",
             return_tensors="pt",
         ).to(self.device)
 
@@ -115,29 +137,11 @@ class DefaultLightningModule(LightningModule, HasLayers):
     def configure_optimizers(self):
         base_lr = self.training_config.learning_rate
         adam_params = {
-            "lr": base_lr,
             "betas": (0.9, 0.95),
             "weight_decay": 0.001,
         }
 
-        main_params = []
-        if self.config.finetune_mode != FinetuneMode.FROZEN:
-            main_params = [p for p in self.model.parameters() if p.requires_grad]
-
-        if self.config.use_gating:
-            main_params += [
-                p for p in self.model.gating.parameters() if p.requires_grad
-            ]
-
-        parameters = [
-            {
-                "params": main_params,
-                "lr": base_lr,
-            },
-        ]
-
-        # Only create parameter groups if they have parameters
-        parameters = [group for group in parameters if len(group["params"]) > 0]
+        parameters = [param for param in self.model.parameters() if param.requires_grad]
 
         if torch.cuda.is_available() and self.training_config.use_deepspeed:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
@@ -167,11 +171,29 @@ class DefaultLightningModule(LightningModule, HasLayers):
         outputs = self.model(**batch)
         loss = outputs.loss
         self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
+        self.metrics_logger.log_loss(loss, mode)
 
         if self.config.use_gating:
-            loss += self.model.gating.compute_gate_loss()
+            gate_entropy_loss, gate_sparsity_loss = (
+                self.model.gating.compute_gate_loss()
+            )
 
-        self.metrics_logger.log_loss(loss, mode)
+            self.log(
+                f"{mode}_gate_entropy_loss",
+                gate_entropy_loss,
+                sync_dist=True,
+                batch_size=batch["labels"].shape[0],
+            )
+
+            self.log(
+                f"{mode}_gate_sparsity_loss",
+                gate_sparsity_loss,
+                sync_dist=True,
+                batch_size=batch["labels"].shape[0],
+            )
+
+            loss += gate_entropy_loss * self.config.entropy_loss_weight
+            loss += gate_sparsity_loss * self.config.sparsity_loss_weight
 
         return loss
 

@@ -42,7 +42,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             print(f"Unexpected keys: {unexpected}")
 
         string = self.tokenizer.encode(
-            "query : 7 - 3 + 8 + 0 + 6 + 0 + 6 + 9 - 1 + 3 + 0 - 7 * 1 * 4 + 9 + 0 + 5 * 0 + 1 - 1 + 0 + 9 - 4 - 5 + 4 + 1 * 8 answer :",
+            "I am also greatly troubled by the bill's language that expands the federal role in government preschool in Section 9212, bringing us closer to President's Obama's vision for universal preschool. The best research shows that early education has little to no effect on long-term learning. In fact, the Department of Health and Human Services conducted its own rigorous scientific evaluation of Head Start and found that three- and four-year-old preschoolers had no measureable benefits from the program when evaluated in both the first ",
             return_tensors="pt",
         ).to(self.device)
         generated = model.generate(
@@ -90,6 +90,16 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
                 self.experiment_config.experiment_name,
             )
             results.update(self._format_standard_results(standard_results))
+
+        if (
+            hasattr(model, "percent_tokens_skipped")
+            and len(model.percent_tokens_skipped) != 0
+        ):
+            results["percent_tokens_skipped"] = sum(model.percent_tokens_skipped) / len(
+                model.percent_tokens_skipped
+            )
+
+            print("percent_tokens_skipped", results["percent_tokens_skipped"])
 
         if self.experiment_config.enable_logging:
             self._log_results(results, seed)

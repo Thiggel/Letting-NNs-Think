@@ -31,7 +31,14 @@ srun python -m experiment \
   --validate-every-n-steps 500 \
   --finetune-mode frozen \
   --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k \
+  --num-fewshot 3 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.4 \
   --experiment-name Separate-Gates-1e5 \
   --save-to-checkpoint Separate_Gates_1e5 \
+  --load-from-checkpoint Separate-Gates-1e5 \
   --project-name gating \
   --enable-logging
