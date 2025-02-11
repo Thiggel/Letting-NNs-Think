@@ -8,7 +8,7 @@ class GateLayer(nn.Module):
 
     def __init__(self, d_model: int, config: ModelConfig):
         super().__init__()
-        self.gate = nn.Linear(d_model, d_model)
+        self.gate = nn.Linear(d_model, d_model if not config.single_number_gates else 1)
         nn.init.normal_(self.gate.weight, std=config.gate_init_std)
         nn.init.constant_(self.gate.bias, config.gate_init_value)
 

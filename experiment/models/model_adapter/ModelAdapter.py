@@ -10,6 +10,7 @@ import torch
 from torch import nn
 from peft import get_peft_model, LoraConfig, TaskType
 from experiment.configs import ModelConfig, FinetuneMode
+from experiment.models.gating.GateLayer import GateLayer
 from ..HasLayers import HasLayers
 from experiment.models.gating import ModelGating
 
@@ -53,6 +54,17 @@ class ModelAdapter(HasLayers):
         # Create main gating module
         gating = ModelGating(self.config, d_model)
 
+        attn_gate = (
+            GateLayer(d_model, self.config)
+            if not self.config.one_gate_per_layer
+            else None
+        )
+        mlp_gate = (
+            GateLayer(d_model, self.config)
+            if not self.config.one_gate_per_layer
+            else None
+        )
+
         # Wrap attention and MLP modules
         layers = self.get_decoder_layers(model)
         for i, layer in enumerate(layers):
@@ -61,24 +73,32 @@ class ModelAdapter(HasLayers):
                 # Handle attention
                 if self.config.gate_attention:
                     layer.self_attn = gating.wrap_module(
-                        f"attn_{i}", layer.self_attn, parent=layer, layer_idx=i
+                        f"attn_{i}",
+                        layer.self_attn,
+                        parent=layer,
+                        layer_idx=i,
+                        gate=attn_gate,
                     )
                 # Handle MLP
                 if self.config.gate_mlp and hasattr(layer, "mlp"):
                     layer.mlp = gating.wrap_module(
-                        f"mlp_{i}", layer.mlp, parent=layer, layer_idx=i
+                        f"mlp_{i}", layer.mlp, parent=layer, layer_idx=i, gate=mlp_gate
                     )
 
             elif hasattr(layer, "attn"):
                 # Handle attention
                 if self.config.gate_attention:
                     layer.attn = gating.wrap_module(
-                        f"attn_{i}", layer.attn, parent=layer, layer_idx=i
+                        f"attn_{i}",
+                        layer.attn,
+                        parent=layer,
+                        layer_idx=i,
+                        gate=attn_gate,
                     )
                 # Handle MLP/FF
                 if self.config.gate_mlp and hasattr(layer, "ff"):
                     layer.ff = gating.wrap_module(
-                        f"mlp_{i}", layer.ff, parent=layer, layer_idx=i
+                        f"mlp_{i}", layer.ff, parent=layer, layer_idx=i, gate=mlp_gate
                     )
 
         # Add gating module to model as a module to ensure proper registration

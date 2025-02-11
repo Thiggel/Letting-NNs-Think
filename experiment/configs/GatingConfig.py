@@ -15,6 +15,12 @@ class GatingConfig:
         True,
         description="Whether to just compute the gate value or actually gate the output",
     )
+    single_number_gates: bool = Field(
+        False, description="Whether to use output single number for gating"
+    )
+    one_gate_per_layer: bool = Field(
+        True, description="Whether to use one gate per layer"
+    )
     skip_modules: bool = Field(
         False,
         description="Whether to, based ona gate's mean of values, skip attention and mlp modules if the contribute very little to the residual stream",

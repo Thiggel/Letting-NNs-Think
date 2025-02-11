@@ -1,6 +1,6 @@
 from torch import nn
 import torch
-from typing import Dict
+from typing import Dict, Optional
 
 from experiment.configs.ModelConfig import ModelConfig
 
@@ -18,10 +18,15 @@ class ModelGating(nn.Module):
         self.wrapped_modules: Dict[str, GatedWrapper] = {}
 
     def wrap_module(
-        self, name: str, module: nn.Module, parent: nn.Module, layer_idx: int
+        self,
+        name: str,
+        module: nn.Module,
+        parent: nn.Module,
+        layer_idx: int,
+        gate: Optional[GateLayer] = None,
     ) -> GatedWrapper:
         """Wrap a module with gating"""
-        gate = GateLayer(self.d_model, self.config)
+        gate = GateLayer(self.d_model, self.config) if gate is None else gate
         wrapped = GatedWrapper(
             module,
             gate,
