@@ -3,17 +3,29 @@ import torch.nn as nn
 import torch.nn.functional as F
 import types
 
+from experiment.configs.UninterruptedTransformerConfig import UninterruptedMode
+
 
 class UninterruptedLanguageModelInference(nn.Module):
-    def __init__(self, model, tokenizer, alpha, use_adapter=False):
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        alpha,
+        use_adapter=False,
+        beam_width=5,
+        lookahead_length=5,
+        temperature=1.0,
+    ):
         super().__init__()
         self.model = model.model
-
         self.uninterrupted_recurrence_depth = (
             model.config.uninterrupted_recurrence_depth
         )
-
         self.train_to_backtrack = model.config.train_to_backtrack
+        self.beam_width = beam_width
+        self.lookahead_length = lookahead_length
+        self.temperature = temperature
 
         self.lm_heads = None
         if hasattr(model, "lm_heads"):
@@ -21,15 +33,15 @@ class UninterruptedLanguageModelInference(nn.Module):
 
         if use_adapter:
             self.uninterrupted_adapter = model.uninterrupted_adapter
-            self.temperature = 0.1  # Add temperature parameter for GMM sampling
 
         self.use_adapter = use_adapter
-
         self.tokenizer = tokenizer
         self.alpha = alpha
-
         self.inputs_embeds = None
         self.step_idx = 0
+        self.use_continuous_generation = (
+            self.config.uninterrupted_mode != UninterruptedMode.INTERRUPTED
+        )
 
     def setup(self):
         self.old_forward = self.model.forward
@@ -50,11 +62,66 @@ class UninterruptedLanguageModelInference(nn.Module):
     def config(self):
         return self.model.config
 
-    def tie_weights(self):
-        self.model.tie_weights()
+    def compute_sequence_likelihood(self, input_embeds, initial_prob=1.0):
+        """Compute likelihood of a sequence through continuous generation."""
+        overall_prob = initial_prob
+        cont_inputs_embeds = input_embeds.clone()
 
-    def embed_input_ids(self, input_ids):
-        self.inputs_embeds = self.model.get_input_embeddings()(input_ids)
+        for _ in range(self.lookahead_length):
+            output = self.old_forward(
+                inputs_embeds=cont_inputs_embeds,
+                return_dict=True,
+                output_hidden_states=True,
+            )
+
+            last_hidden_state = output.hidden_states[-1][:, -1:, :]
+            if self.use_continuous_generation:
+                last_hidden_state = self.normalize_hidden_state(last_hidden_state)
+                current_embedding = cont_inputs_embeds[:, -1:, :]
+                next_token_id = self.get_next_token_id(output.logits)
+                next_embedding = self.model.get_input_embeddings()(
+                    next_token_id
+                ).unsqueeze(1)
+                last_hidden_state = (
+                    last_hidden_state - current_embedding + next_embedding
+                )
+            else:
+                next_token_id = self.get_next_token_id(output.logits)
+                last_hidden_state = self.model.get_input_embeddings()(
+                    next_token_id
+                ).unsqueeze(1)
+
+            cont_inputs_embeds = torch.cat(
+                [cont_inputs_embeds, last_hidden_state], dim=1
+            )
+            probs = self.get_probs(output.logits)
+            token_prob = probs[0, -1, next_token_id]
+            overall_prob *= token_prob
+
+        return overall_prob, cont_inputs_embeds
+
+    def get_beam_logits(self, hidden_states):
+        """Get logits for beam search with continuous generation."""
+        logits = torch.zeros(hidden_states.size(0), self.model.config.vocab_size).to(
+            self.device
+        )
+        top_logits, top_indices = torch.topk(
+            self.get_probs(hidden_states), self.beam_width, dim=-1
+        )
+
+        for idx, token_id in enumerate(top_indices[0, -1]):
+            initial_prob = top_logits[0, -1, idx]
+            next_embedding = (
+                self.model.get_input_embeddings()(token_id).unsqueeze(0).unsqueeze(1)
+            )
+            cont_inputs_embeds = torch.cat([self.inputs_embeds, next_embedding], dim=1)
+
+            sequence_prob, _ = self.compute_sequence_likelihood(
+                cont_inputs_embeds, initial_prob
+            )
+            logits[0, token_id] = sequence_prob
+
+        return logits
 
     def forward(self, *args, **kwargs):
         kwargs["return_dict"] = True
@@ -67,13 +134,15 @@ class UninterruptedLanguageModelInference(nn.Module):
         kwargs["inputs_embeds"] = self.inputs_embeds
 
         output = self.old_forward(**kwargs)
-
-        # Get the last hidden state
         last_hidden_state = output.hidden_states[-1][:, -1:, :]
 
         if self.lm_heads is not None and self.step_idx > 0:
             logits = self.lm_heads[self.step_idx - 1](last_hidden_state)
             output["logits"] = logits
+        else:
+            # Replace logits with beam search logits
+            beam_logits = self.get_beam_logits(output.logits)
+            output["logits"] = beam_logits.unsqueeze(1)
 
         if self.use_adapter:
             predicted_next_embedding = self.uninterrupted_adapter.sample(
@@ -88,27 +157,26 @@ class UninterruptedLanguageModelInference(nn.Module):
         ):
             self.reset_inputs_embeds()
             next_token_id = self.get_next_token_id(output.logits)
-
-            if len(next_token_id.size()) == 0:
-                next_token_id = next_token_id.unsqueeze(0)
-
             token_embedding = self.model.get_input_embeddings()(
                 next_token_id
             ).unsqueeze(1)
             self.inputs_embeds = token_embedding
-
         else:
-            self.inputs_embeds = predicted_next_embedding
+            if self.use_continuous_generation:
+                self.inputs_embeds = predicted_next_embedding
+            else:
+                next_token_id = self.get_next_token_id(output.logits)
+                self.inputs_embeds = self.model.get_input_embeddings()(
+                    next_token_id
+                ).unsqueeze(1)
             self.step_idx += 1
 
         return output
 
-    def to(self, *args, **kwargs):
-        self.model = self.model.to(*args, **kwargs)
-        return self
+    def embed_input_ids(self, input_ids):
+        self.inputs_embeds = self.model.get_input_embeddings()(input_ids)
 
     def normalize_hidden_state(self, hidden_state, embedding_norm=None):
-        """Project hidden state closer to embedding manifold"""
         if embedding_norm is None:
             embedding_norm = (
                 self.model.get_input_embeddings().weight.norm(dim=-1).mean()
@@ -121,83 +189,39 @@ class UninterruptedLanguageModelInference(nn.Module):
             softcap = self.model.config.final_logit_softcapping
             if softcap is not None:
                 logits = softcap * F.tanh(logits / softcap)
-        probs = F.softmax(logits, dim=-1)
-        return probs
-
-    def get_top_probs(self, hidden_states):
-        probs = self.get_probs(hidden_states)
-        top_probs, top_indices = torch.topk(probs[:, -1, :], 5, dim=-1)
-
-        return top_probs, top_indices
+        return F.softmax(logits / self.temperature, dim=-1)
 
     def get_next_token_id(self, logits):
-        next_token_ids = torch.argmax(logits, dim=-1)
+        probs = self.get_probs(logits)
+        next_token_ids = torch.multinomial(probs[:, -1, :], num_samples=1)
         return next_token_ids.squeeze()
 
-    def mix_with_embeddings(self, hidden_state, token_id, alpha=0.8):
-        token_embedding = self.model.get_input_embeddings()(token_id)
-        return alpha * hidden_state + (1 - alpha) * token_embedding
-
-    def filter_out_thought_tokens(self, output_ids, prompt_length):
-        """
-        Filters out thought tokens from the generated response, keeping every 5th token.
-
-        Args:
-            output_ids (torch.Tensor): The generated token IDs, including the prompt.
-            prompt_length (int): The length of the prompt (number of tokens).
-
-        Returns:
-            torch.Tensor: The filtered token IDs, with the prompt intact and thought tokens removed.
-        """
-        # Separate the prompt and the generated tokens
-        prompt = output_ids[:, :prompt_length]  # Shape: [batch_size, prompt_length]
-        generated_tokens = output_ids[
-            :, prompt_length:
-        ]  # Shape: [batch_size, generated_length]
-
-        # Keep every 5th token from the generated tokens
-        filtered_generated_tokens = generated_tokens[
-            :, :: self.uninterrupted_recurrence_depth
-        ]
-
-        # Recombine the prompt and the filtered generated tokens
-        filtered_output_ids = torch.cat([prompt, filtered_generated_tokens], dim=-1)
-
-        return filtered_output_ids
-
-    @torch.no_grad()
     def generate(self, *args, **kwargs):
         if self.train_to_backtrack:
             if "max_length" in kwargs:
-                kwargs["max_length"] = (
-                    kwargs["max_length"] * self.uninterrupted_recurrence_depth
-                )
-
+                kwargs["max_length"] *= self.uninterrupted_recurrence_depth
             if "max_new_tokens" in kwargs:
-                kwargs["max_new_tokens"] = (
-                    kwargs["max_new_tokens"] * self.uninterrupted_recurrence_depth
-                )
+                kwargs["max_new_tokens"] *= self.uninterrupted_recurrence_depth
 
-        # Generate the output
         output = self.model.generate(*args, **kwargs)
 
         if self.train_to_backtrack:
-            # Calculate the prompt length
-            input_ids = kwargs.get("input_ids", None)
-            if input_ids is not None:
-                prompt_length = input_ids.shape[1]  # Get the length of the prompt
-            else:
+            input_ids = kwargs.get("input_ids")
+            if input_ids is None:
                 raise ValueError(
                     "Input IDs must be provided to calculate prompt length."
                 )
-
+            prompt_length = input_ids.shape[1]
             output = self.filter_out_thought_tokens(output, prompt_length)
 
-        print(
-            "Generated: ",
-            self.tokenizer.decode(output[0], skip_special_tokens=True),
-        )
-
+        print("Generated:", self.tokenizer.decode(output[0], skip_special_tokens=True))
         self.reset_inputs_embeds()
-
         return output
+
+    def filter_out_thought_tokens(self, output_ids, prompt_length):
+        prompt = output_ids[:, :prompt_length]
+        generated_tokens = output_ids[:, prompt_length:]
+        filtered_generated_tokens = generated_tokens[
+            :, :: self.uninterrupted_recurrence_depth
+        ]
+        return torch.cat([prompt, filtered_generated_tokens], dim=-1)
