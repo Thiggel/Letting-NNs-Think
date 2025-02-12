@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=8:30:00
+#SBATCH --job-name=One-Gate
+#SBATCH --output=job_logs/Qwen-Eval-%A.out
+
+cd $HOME/Gating
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "Qwen/Qwen2.5-3B" \
+  --pretrained \
+  --eval-batch-size 64 \
+  --seq-length 1024 \
+  --max-hours 5 \
+  --finetune-mode frozen \
+  --mode evaluate \
+  --evaluation-metrics gsm8k_cot,commonsense_qa,piqa \
+  --num-fewshot 5 \
+  --experiment-name Qwen-Baseline-Eval \
+  --project-name gating \
+  --enable-logging

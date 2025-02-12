@@ -30,6 +30,7 @@ class GatedWrapper(nn.Module):
         self.current_gate_value: Optional[torch.Tensor] = None
         self.current_percent_tokens_skipped = 0.0
         self.current_token_importance: Optional[torch.Tensor] = None
+        self.past_percent_skipped: list[float] = []
 
         object.__setattr__(self, "parent", parent)
 
@@ -147,6 +148,7 @@ class GatedWrapper(nn.Module):
 
             num_skip = process_mask.logical_not().sum().item()
             self.current_percent_tokens_skipped = num_skip / batch_size
+            self.past_percent_skipped.append(self.current_percent_tokens_skipped)
 
             is_attn_layer = hasattr(self.module, "rotary_emb")
 

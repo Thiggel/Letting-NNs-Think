@@ -91,6 +91,17 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             )
             results.update(self._format_standard_results(standard_results))
 
+        results = self._log_percent_tokens_skipped(model, results)
+        results = self._log_percent_tokens_skipped_per_layer(model, results)
+
+        if self.experiment_config.enable_logging:
+            self._log_results(results, seed)
+
+        return results
+
+    def _log_percent_tokens_skipped(
+        self, model: torch.nn.Module, results: Dict[str, Any]
+    ) -> Dict[str, Any]:
         if (
             hasattr(model, "percent_tokens_skipped")
             and len(model.percent_tokens_skipped) != 0
@@ -99,10 +110,25 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
                 model.percent_tokens_skipped
             )
 
-            print("percent_tokens_skipped", results["percent_tokens_skipped"])
+        return results
 
-        if self.experiment_config.enable_logging:
-            self._log_results(results, seed)
+    def _log_percent_tokens_skipped_per_layer(
+        self, model: torch.nn.Module, results: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        decoder_layers = model.get_decoder_layers(model.model)
+
+        for idx, layer in enumerate(decoder_layers):
+            mlp = layer.mlp if hasattr(layer, "mlp") else layer.ff
+            attn = layer.self_attn if hasattr(layer, "self_attn") else layer.attn
+
+            for module in [mlp, attn]:
+                if (
+                    hasattr(module, "past_percent_skipped")
+                    and len(module.past_percent_skipped) != 0
+                ):
+                    results[f"percent_tokens_skipped_{module.module_name}_{idx}"] = sum(
+                        module.past_percent_skipped
+                    ) / len(module.past_percent_skipped)
 
         return results
 

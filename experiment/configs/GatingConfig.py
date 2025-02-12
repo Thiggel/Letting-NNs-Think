@@ -15,6 +15,9 @@ class GatingConfig:
         True,
         description="Whether to just compute the gate value or actually gate the output",
     )
+    use_mlp_gate: bool = Field(
+        False, description="Whether to use MLP for gating instead of linear layer"
+    )
     single_number_gates: bool = Field(
         False, description="Whether to use output single number for gating"
     )

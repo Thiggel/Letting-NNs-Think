@@ -8,9 +8,30 @@ class GateLayer(nn.Module):
 
     def __init__(self, d_model: int, config: ModelConfig):
         super().__init__()
-        self.gate = nn.Linear(d_model, d_model if not config.single_number_gates else 1)
-        nn.init.normal_(self.gate.weight, std=config.gate_init_std)
-        nn.init.constant_(self.gate.bias, config.gate_init_value)
+        self.gate = self.init_gate(d_model, config)
+
+    def init_gate(self, d_model: int, config: ModelConfig) -> nn.Module:
+        if config.use_mlp_gate:
+            gate = nn.Sequential(
+                nn.Linear(d_model, 2 * d_model),
+                nn.ReLU(),
+                nn.Linear(
+                    2 * d_model, d_model if not config.single_number_gates else 1
+                ),
+            )
+
+            nn.init.normal_(gate[0].weight, std=config.gate_init_std)
+            nn.init.constant_(gate[0].bias, 0.0)
+            nn.init.normal_(gate[2].weight, std=config.gate_init_std)
+            nn.init.constant_(gate[2].bias, config.gate_init_value)
+
+            return gate
+
+        gate = nn.Linear(d_model, d_model if not config.single_number_gates else 1)
+        nn.init.normal_(gate.weight, std=config.gate_init_std)
+        nn.init.constant_(gate.bias, config.gate_init_value)
+
+        return gate
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.sigmoid(self.gate(x))

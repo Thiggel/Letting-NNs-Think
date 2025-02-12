@@ -54,6 +54,7 @@ class ModelEvaluator:
             fewshot_random_seed=seed,
             device=self.device,
             log_samples=True,
+            limit=100,
         )
 
         self._save_results(output["results"], experiment_name)
