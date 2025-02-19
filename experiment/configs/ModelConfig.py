@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from .LoraConfig import LoraConfig
 from .LayerRange import LayerRange
 from .GatingConfig import GatingConfig
+from .MoDConfig import MoDConfig
 
 
 class FinetuneMode(str, Enum):
@@ -13,11 +14,7 @@ class FinetuneMode(str, Enum):
     FROZEN = "frozen"
 
 
-class ModelConfig(
-    BaseModel,
-    LoraConfig,
-    GatingConfig,
-):
+class ModelConfig(BaseModel, LoraConfig, GatingConfig, MoDConfig):
     """Configuration for model architecture and behavior"""
 
     model_name: str = Field("gpt2", description="The model name to be used")

@@ -42,9 +42,24 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             print(f"Unexpected keys: {unexpected}")
 
         string = self.tokenizer.encode(
-            "I am also greatly troubled by the bill's language that expands the federal role in government preschool in Section 9212, bringing us closer to President's Obama's vision for universal preschool. The best research shows that early education has little to no effect on long-term learning. In fact, the Department of Health and Human Services conducted its own rigorous scientific evaluation of Head Start and found that three- and four-year-old preschoolers had no measureable benefits from the program when evaluated in both the first ",
+            "Joe has 20 horses. He sells 5 of them for $200 each. How much money does he make?",
             return_tensors="pt",
         ).to(self.device)
+
+        print([self.tokenizer.decode(token) for token in string[0]])
+
+        model(string)
+
+        decoder_layers = model.get_decoder_layers(model.model)
+
+        for idx, layer in enumerate(decoder_layers):
+            mlp = layer.mlp if hasattr(layer, "mlp") else layer.ff
+            attn = layer.self_attn if hasattr(layer, "self_attn") else layer.attn
+
+            for module in [mlp, attn]:
+                if hasattr(module, "current_token_importance"):
+                    print(module.module_name, module.current_token_importance)
+
         generated = model.generate(
             input_ids=string,
             max_length=100,
@@ -88,6 +103,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
                 standard_metrics,
                 seed,
                 self.experiment_config.experiment_name,
+                self.model_config.generation_mode,
             )
             results.update(self._format_standard_results(standard_results))
 

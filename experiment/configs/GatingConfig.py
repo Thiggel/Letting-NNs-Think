@@ -7,6 +7,12 @@ class GatingType(str, Enum):
     SHARED = "shared"  # Shared gates across all layers
 
 
+class GenerationMode(str, Enum):
+    GREEDY = "greedy"
+    BEAM = "beam"
+    SAMPLING = "sampling"
+
+
 class GatingConfig:
     """Configuration for gating mechanism"""
 
@@ -62,3 +68,6 @@ class GatingConfig:
 
     gate_attention: bool = Field(True, description="Whether to gate attention outputs")
     gate_mlp: bool = Field(True, description="Whether to gate MLP outputs")
+    generation_mode: GenerationMode = Field(
+        "greedy", description="Generation mode for gating"
+    )

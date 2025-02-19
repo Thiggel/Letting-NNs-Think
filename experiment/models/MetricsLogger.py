@@ -121,7 +121,7 @@ class MetricsLogger:
                 value,
                 on_step=False,
                 on_epoch=True,
-                prog_bar=True,
+                prog_bar=False,
                 sync_dist=True,
                 batch_size=self.batch_size,
             )

@@ -56,25 +56,26 @@ class DefaultLightningModule(LightningModule, HasLayers):
                 self.percent_tokens_skipped.append(
                     module.current_percent_tokens_skipped
                 )
-                # if module.current_gate_value is not None:
-                # gate_value = module.current_gate_value
-
-                # mean_gate_value = gate_value.mean().item()
-                # min_gate_value = gate_value.min().item()
-                # max_gate_value = gate_value.max().item()
-
-                # if mean_gate_value <= 0.7 or min_gate_value <= 0.7:
-                #    print(
-                #        f"Gate value for {name}: {mean_gate_value}, {min_gate_value}, {max_gate_value}"
-                #    )
-
-            # print("-" * 60)
+        elif self.config.use_mod:
+            for module in self.model.mod.wrapped_modules.values():
+                self.percent_tokens_skipped.append(
+                    1 - module.current_percent_tokens_processed
+                )
 
         return output
 
     def generate(self, *args, **kwargs):
         self.metrics_logger.dump_first_batch(kwargs)
-        return self.model.generate(*args, **kwargs)
+        output = self.model.generate(*args, **kwargs)
+
+        print(
+            "Output: ",
+            self.tokenizer.decode(output[0]),
+        )
+
+        print("Tokens skipped: ", torch.mean(torch.tensor(self.percent_tokens_skipped)))
+
+        return output
 
     def sample_generate(self):
         string = self.tokenizer.encode(
@@ -194,6 +195,18 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
             loss += gate_entropy_loss * self.config.entropy_loss_weight
             loss += gate_sparsity_loss * self.config.sparsity_loss_weight
+
+        elif self.config.use_mod:
+            predictor_loss = self.model.mod.compute_predictor_loss(dtype=loss.dtype)
+
+            self.log(
+                f"{mode}_predictor_loss",
+                predictor_loss,
+                sync_dist=True,
+                batch_size=batch["labels"].shape[0],
+            )
+
+            loss += predictor_loss * self.config.predictor_loss_weight
 
         return loss
 

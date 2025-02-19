@@ -13,6 +13,7 @@ from experiment.configs import ModelConfig, FinetuneMode
 from experiment.models.gating.GateLayer import GateLayer
 from ..HasLayers import HasLayers
 from experiment.models.gating import ModelGating
+from experiment.models.mixture_of_depths import ModelMod
 
 
 class ModelAdapter(HasLayers):
@@ -39,9 +40,9 @@ class ModelAdapter(HasLayers):
         if not self.config.pretrained:
             self._init_embeddings()
 
-    def _wrap_with_gating(self, model: PreTrainedModel) -> PreTrainedModel:
-        """Add gating wrappers to model components"""
-        if not self.config.use_gating:
+    def _wrap_with_gating_or_mod(self, model: PreTrainedModel) -> PreTrainedModel:
+        """Add gating or MoD wrappers to model components"""
+        if not (self.config.use_gating or self.config.use_mod):
             return model
 
         # Get model dimensions
@@ -51,58 +52,88 @@ class ModelAdapter(HasLayers):
             else self._infer_hidden_size(model)
         )
 
-        # Create main gating module
-        gating = ModelGating(self.config, d_model)
+        # Create main routing module (either gating or MoD)
+        if self.config.use_mod:
+            routing = ModelMod(self.config, d_model)
+        else:
+            routing = ModelGating(self.config, d_model)
 
-        attn_gate = (
-            GateLayer(d_model, self.config)
-            if not self.config.one_gate_per_layer
-            else None
-        )
-        mlp_gate = (
-            GateLayer(d_model, self.config)
-            if not self.config.one_gate_per_layer
-            else None
-        )
+        if self.config.use_mod:
+            # Create MoD routing
+            routing = ModelMod(self.config, d_model)
 
-        # Wrap attention and MLP modules
-        layers = self.get_decoder_layers(model)
-        for i, layer in enumerate(layers):
-            # Handle different model architectures
-            if hasattr(layer, "self_attn"):
-                # Handle attention
-                if self.config.gate_attention:
-                    layer.self_attn = gating.wrap_module(
-                        f"attn_{i}",
-                        layer.self_attn,
-                        parent=layer,
-                        layer_idx=i,
-                        gate=attn_gate,
-                    )
-                # Handle MLP
-                if self.config.gate_mlp and hasattr(layer, "mlp"):
-                    layer.mlp = gating.wrap_module(
-                        f"mlp_{i}", layer.mlp, parent=layer, layer_idx=i, gate=mlp_gate
-                    )
+            # Get decoder layers
+            layers = self.get_decoder_layers(model)
 
-            elif hasattr(layer, "attn"):
-                # Handle attention
-                if self.config.gate_attention:
-                    layer.attn = gating.wrap_module(
-                        f"attn_{i}",
-                        layer.attn,
-                        parent=layer,
-                        layer_idx=i,
-                        gate=attn_gate,
-                    )
-                # Handle MLP/FF
-                if self.config.gate_mlp and hasattr(layer, "ff"):
-                    layer.ff = gating.wrap_module(
-                        f"mlp_{i}", layer.ff, parent=layer, layer_idx=i, gate=mlp_gate
-                    )
+            # Wrap entire decoder layers
+            for i, layer in enumerate(layers):
+                wrapped_layer = routing.wrap_module(
+                    f"layer_{i}",
+                    layer,
+                    parent=model,  # Parent is now the model itself
+                    layer_idx=i,
+                )
+                # Replace the layer in the model's layers
+                layers[i] = wrapped_layer
 
-        # Add gating module to model as a module to ensure proper registration
-        model.add_module("gating", gating)
+            # Add routing module to model
+            model.add_module("mod", routing)
+        else:
+            # Original gating logic
+            attn_gate = (
+                GateLayer(d_model, self.config)
+                if not self.config.one_gate_per_layer
+                else None
+            )
+            mlp_gate = (
+                GateLayer(d_model, self.config)
+                if not self.config.one_gate_per_layer
+                else None
+            )
+
+            layers = self.get_decoder_layers(model)
+            for i, layer in enumerate(layers):
+                if hasattr(layer, "self_attn"):
+                    if self.config.gate_attention:
+                        layer.self_attn = routing.wrap_module(
+                            f"attn_{i}",
+                            layer.self_attn,
+                            parent=layer,
+                            layer_idx=i,
+                            gate=attn_gate,
+                        )
+                    if self.config.gate_mlp and hasattr(layer, "mlp"):
+                        layer.mlp = routing.wrap_module(
+                            f"mlp_{i}",
+                            layer.mlp,
+                            parent=layer,
+                            layer_idx=i,
+                            gate=mlp_gate,
+                        )
+                elif hasattr(layer, "attn"):
+                    if self.config.gate_attention:
+                        layer.attn = routing.wrap_module(
+                            f"attn_{i}",
+                            layer.attn,
+                            parent=layer,
+                            layer_idx=i,
+                            gate=attn_gate,
+                        )
+                    if self.config.gate_mlp and hasattr(layer, "ff"):
+                        layer.ff = routing.wrap_module(
+                            f"mlp_{i}",
+                            layer.ff,
+                            parent=layer,
+                            layer_idx=i,
+                            gate=mlp_gate,
+                        )
+
+        # Add routing module to model
+        if self.config.use_mod:
+            model.add_module("mod", routing)
+        else:
+            model.add_module("gating", routing)
+
         return model
 
     def _infer_hidden_size(self, model: PreTrainedModel) -> int:
@@ -136,9 +167,8 @@ class ModelAdapter(HasLayers):
             for param in model.parameters():
                 param.requires_grad = False
 
-        # Add gating if needed - its parameters will have requires_grad=True by default
-        if self.config.use_gating:
-            model = self._wrap_with_gating(model)
+        # Add gating or MoD if needed
+        model = self._wrap_with_gating_or_mod(model)
 
         # Apply LoRA if needed
         if self.config.finetune_mode == FinetuneMode.LORA:

@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+from experiment.configs.GatingConfig import GenerationMode
 from experiment.models import DefaultLightningModule
 from lm_eval import evaluator
 from lm_eval.models.huggingface import HFLM
@@ -30,18 +31,50 @@ class ModelEvaluator:
         self.model = self.model.to(self.device)
         self.model.eval()
 
+    def get_gen_kwargs(self, generation_mode: GenerationMode) -> dict[str, any]:
+        if generation_mode == GenerationMode.SAMPLING:
+            return {
+                "do_sample": True,
+                "temperature": 0.2,
+                "top_k": 50,
+                "top_p": 0.95,
+            }
+
+        if generation_mode == GenerationMode.BEAM:
+            return {
+                "num_beams": 3,
+                "early_stopping": True,
+            }
+
+        return {}
+
+    def dict_to_str(self, d: dict[str, any]) -> str:
+        """cononverts dict to e.g. args1=val1,arg2=val2"""
+        return ",".join([f"{k}={v}" for k, v in d.items()])
+
     def evaluate(
-        self, metrics: list[str], seed: int, experiment_name: str
+        self,
+        metrics: list[str],
+        seed: int,
+        experiment_name: str,
+        generation_mode: GenerationMode,
     ) -> dict[str, float]:
         wrapped_model = HFLM(
             pretrained=self.model,
             tokenizer=self.tokenizer,
             batch_size=self.eval_batch_size,
-            max_length=4096,
+            max_length=2048,
+            max_new_tokens=2048,
             backend="causal",
             device=self.device,
             add_bos_token=True,
+            limit=200,
         )
+
+        gen_kwargs = self.get_gen_kwargs(generation_mode)
+        gen_kwargs_str = self.dict_to_str(gen_kwargs) if gen_kwargs != {} else None
+
+        print("gen_kwargs_str:", gen_kwargs_str)
 
         output = evaluator.simple_evaluate(
             model=wrapped_model,
@@ -54,7 +87,7 @@ class ModelEvaluator:
             fewshot_random_seed=seed,
             device=self.device,
             log_samples=True,
-            limit=100,
+            gen_kwargs=gen_kwargs_str,
         )
 
         self._save_results(output["results"], experiment_name)
