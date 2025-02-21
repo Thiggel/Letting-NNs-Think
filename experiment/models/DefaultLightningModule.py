@@ -3,6 +3,7 @@ from lightning import LightningModule
 from transformers import PreTrainedTokenizer
 from torch.optim import AdamW
 import torch
+import torch.nn.functional as F
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -16,6 +17,8 @@ from experiment.configs.ModelConfig import FinetuneMode
 from .model_adapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
 from .HasLayers import HasLayers
+
+from deepspeed.utils import safe_get_full_grad
 
 
 class DefaultLightningModule(LightningModule, HasLayers):
@@ -46,6 +49,15 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
     def on_before_optimizer_step(self, _):
         """Log gradient norms before optimization step"""
+        capacity = self.config.mod_capacity_factor + (
+            1 - self.config.mod_capacity_factor
+        ) * (1.0 / (self.global_step / 1000 + 1))
+
+        if self.config.use_mod:
+            self.model.mod.update_capacity(capacity)
+
+            self.log("mod_capacity", capacity, sync_dist=True)
+
         # self.metrics_logger.log_gradient_norms()
 
     def forward(self, input_ids, **kwargs):
@@ -142,7 +154,22 @@ class DefaultLightningModule(LightningModule, HasLayers):
             "weight_decay": 0.001,
         }
 
-        parameters = [param for param in self.model.parameters() if param.requires_grad]
+        model_params = [
+            param
+            for name, param in self.model.named_parameters()
+            if param.requires_grad and "router" not in name and "predictor" not in name
+        ]
+
+        mod_params = [
+            param
+            for name, param in self.model.named_parameters()
+            if "router" in name or "predictor" in name
+        ]
+
+        parameters = [
+            {"params": model_params, "lr": base_lr},
+            {"params": mod_params, "lr": 1e-3},
+        ]
 
         if torch.cuda.is_available() and self.training_config.use_deepspeed:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
@@ -170,20 +197,51 @@ class DefaultLightningModule(LightningModule, HasLayers):
         self.metrics_logger.dump_first_batch(batch)
 
         outputs = self.model(**batch)
-        loss = outputs.loss
-        self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
-        self.metrics_logger.log_loss(loss, mode)
+
+        if self.config.use_kl_div_training:
+            logits = outputs.logits
+
+            self.model_adapter.orig_model.to(self.device)
+            ref_logits = self.model_adapter.orig_model(**batch).logits
+
+            loss = F.kl_div(
+                F.log_softmax(logits, dim=-1),
+                F.softmax(ref_logits, dim=-1),
+                reduction="batchmean",
+            )
+
+            self.log(
+                f"{mode}_kl_div_loss",
+                loss,
+                sync_dist=True,
+                batch_size=batch["labels"].shape[0],
+            )
+
+            self.log(
+                f"{mode}_cross_entropy_loss",
+                outputs.loss,
+                sync_dist=True,
+                batch_size=batch["labels"].shape[0],
+            )
+            self.metrics_logger.log_metrics(
+                outputs.loss, outputs, batch["labels"], mode
+            )
+
+        else:
+            loss = outputs.loss
+
+            self.log(
+                f"{mode}_cross_entropy_loss",
+                loss,
+                sync_dist=True,
+                batch_size=batch["labels"].shape[0],
+            )
+
+            self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
         if self.config.use_gating:
             gate_entropy_loss, gate_sparsity_loss = (
                 self.model.gating.compute_gate_loss()
-            )
-
-            self.log(
-                f"{mode}_gate_entropy_loss",
-                gate_entropy_loss,
-                sync_dist=True,
-                batch_size=batch["labels"].shape[0],
             )
 
             self.log(
@@ -207,6 +265,8 @@ class DefaultLightningModule(LightningModule, HasLayers):
             )
 
             loss += predictor_loss * self.config.predictor_loss_weight
+
+        self.metrics_logger.log_loss(loss, mode)
 
         return loss
 

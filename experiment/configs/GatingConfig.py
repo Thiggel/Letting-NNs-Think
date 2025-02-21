@@ -13,10 +13,21 @@ class GenerationMode(str, Enum):
     SAMPLING = "sampling"
 
 
+class GatingMode(str, Enum):
+    BEFORE_MODULE = "before_module"
+    AFTER_MODULE = "after_module"
+
+
 class GatingConfig:
     """Configuration for gating mechanism"""
 
     use_gating: bool = Field(False, description="Whether to use gating")
+    gating_mode: GatingMode = Field(
+        "after_module", description="Whether to gate before or after the module"
+    )
+    use_kl_div_training: bool = Field(
+        False, description="Whether to use KL divergence for training"
+    )
     actually_gate: bool = Field(
         True,
         description="Whether to just compute the gate value or actually gate the output",
@@ -56,7 +67,7 @@ class GatingConfig:
         False, description="Whether to only skip every second layer"
     )
     gating_type: GatingType = Field("per_layer", description="Type of gating to use")
-    gate_init_value: float = Field(2.2, description="Initial gate bias value")
+    gate_init_value: float = Field(1.0, description="Initial gate bias value")
     gate_init_std: float = Field(
         0.01, description="Initial gate weight standard deviation"
     )

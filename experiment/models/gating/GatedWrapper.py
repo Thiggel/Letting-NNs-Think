@@ -2,11 +2,8 @@ from torch import nn
 import torch
 from typing import Any, Optional, Union
 
-from transformers import Cache
-
 from experiment.configs.ModelConfig import ModelConfig
-
-from .GateLayer import GateLayer
+from experiment.configs.GatingConfig import GatingMode
 
 
 class GatedWrapper(nn.Module):
@@ -36,39 +33,6 @@ class GatedWrapper(nn.Module):
         self.current_token_importance: Optional[torch.Tensor] = None
         self.past_percent_skipped: list[float] = []
         object.__setattr__(self, "parent", parent)
-
-    def update_cache(
-        self,
-        hidden_states: torch.Tensor,
-        position_ids: torch.Tensor,
-        past_key_value: Any,
-        cache_position: torch.Tensor,
-        position_embeddings: tuple[torch.Tensor, torch.Tensor],
-    ):
-        batch_size, seq_len, hidden_dim = hidden_states.shape
-        current_length = past_key_value.get_seq_length(self.module.layer_idx)
-        key_states = value_states = torch.zeros(
-            (
-                batch_size,
-                self.module.config.num_key_value_heads,
-                seq_len,
-                self.module.config.head_dim,
-            ),
-            dtype=hidden_states.dtype,
-            device=hidden_states.device,
-        )
-        if position_ids is None:
-            position_ids = torch.arange(
-                current_length, current_length + seq_len, device=hidden_states.device
-            ).unsqueeze(0)
-        cos, sin = position_embeddings
-        cache_kwargs = {"sin": sin, "cos": cos}
-        if cache_position is not None:
-            cache_kwargs["cache_position"] = cache_position
-        key_states, value_states = past_key_value.update(
-            key_states, value_states, self.module.layer_idx, cache_kwargs
-        )
-        return key_states, value_states
 
     def get_attn_token_importance(self) -> Optional[torch.Tensor]:
         if hasattr(self.parent, "attn"):
@@ -156,6 +120,35 @@ class GatedWrapper(nn.Module):
                     process_mask.expand_as(hidden_states), hidden_states, zeros
                 )
                 module_output = self.module(effective_hidden_states, *args, **kwargs)
+
+                # Get the past_key_value if it exists
+                past_kv = kwargs.get("past_key_value")
+                if past_kv is not None and not process_mask.all():
+                    # Get previous layer's cache
+                    prev_layer_cache = past_kv[
+                        self.layer_idx - 1
+                    ]  # This returns (k, v) tuple
+
+                    if (
+                        isinstance(module_output, tuple)
+                        and len(module_output) > 1
+                        and module_output[1] is not None
+                    ):
+                        current_layer_cache = module_output[1][
+                            self.layer_idx
+                        ]  # Get current layer cache
+                        skip_mask = ~process_mask.expand(
+                            -1, -1, current_layer_cache[0].size(-1)
+                        )
+
+                        # Copy k,v from previous layer for skipped tokens
+                        current_layer_cache[0][skip_mask] = prev_layer_cache[0][
+                            skip_mask
+                        ]
+                        current_layer_cache[1][skip_mask] = prev_layer_cache[1][
+                            skip_mask
+                        ]
+
                 if isinstance(module_output, tuple):
                     processed_output = module_output[0]
                     if self.config.actually_gate:
@@ -193,16 +186,27 @@ class GatedWrapper(nn.Module):
                     return output
 
         # If no skipping is applied at all:
+        if (
+            self.config.gating_mode == GatingMode.BEFORE_MODULE
+            and self.config.actually_gate
+        ):
+            hidden_states = gate_value * hidden_states
+
         module_output = self.module(hidden_states, *args, **kwargs)
+
         if isinstance(module_output, tuple):
             main_output = module_output[0]
             gated_output = (
-                (gate_value * main_output) if self.config.actually_gate else main_output
+                (gate_value * main_output)
+                if self.config.actually_gate
+                and self.config.gating_mode == GatingMode.AFTER_MODULE
+                else main_output
             )
             return (gated_output,) + module_output[1:]
         else:
             return (
                 (gate_value * module_output)
                 if self.config.actually_gate
+                and self.config.gating_mode == GatingMode.AFTER_MODULE
                 else module_output
             )

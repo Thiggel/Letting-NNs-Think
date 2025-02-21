@@ -36,8 +36,9 @@ class ModWrapper(nn.Module):
         object.__setattr__(self, "parent", parent)
 
         # Router projects hidden states to scalar weights
-        self.router = nn.Linear(d_model, 1, bias=False)
-        nn.init.normal_(self.router.weight, mean=1 / d_model, std=0.02)
+        self.router = nn.Linear(d_model, 1)
+        nn.init.normal_(self.router.weight, mean=0.0, std=0.01)
+        nn.init.constant_(self.router.bias, 1.0)
 
         # Predictor for sampling
         self.predictor = nn.Sequential(
@@ -50,6 +51,12 @@ class ModWrapper(nn.Module):
         self.current_token_importance: Optional[torch.Tensor] = None
         self.current_percent_tokens_processed = 0.0
         self.past_percent_processed: list[float] = []
+
+        self.capacity = 1.0
+
+    def update_capacity(self, capacity: float) -> None:
+        """Update capacity for routing"""
+        self.capacity = capacity
 
     def forward(
         self,
@@ -96,14 +103,21 @@ class ModWrapper(nn.Module):
                 return torch.where(selection_mask, output, hidden_states)
 
         # Compute router logits
-        router_logits = self.router(hidden_states)  # [B, S, 1]
+        router_logits = self.router(hidden_states).sigmoid()  # [B, S, 1]
         self.current_token_importance = router_logits
+
+        print(router_logits.min(), router_logits.max())
 
         # get true/false mask whether tokens are above the 12.5% threshold of
         # highest router logits
         # always select the same number of tokens per batch item
 
-        k = int(seq_len * self.config.mod_capacity_factor)
+        k = int(seq_len * self.capacity)
+        import random
+
+        if random.random() < 0.01:
+            print(k, seq_len)
+            print(self.capacity)
         # Get indices of top k values per batch item
         topk_indices = torch.topk(router_logits, k, dim=1).indices.squeeze(-1)
         # Create mask of zeros

@@ -1,0 +1,192 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=8:30:00
+#SBATCH --job-name=Separate-Gates-KlDivTraining
+#SBATCH --output=job_logs/Separate-Gates-KlDivTraining-%A.out
+
+cd $HOME/Gating
+
+. jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --use-kl-div-training \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 15.0 \
+  --batch-size 8 \
+  --grad-acc-steps 8 \
+  --eval-batch-size 16 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 5 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --experiment-name Separate-Gates-KLDivTraining \
+  --save-to-checkpoint Separate_Gates_KLDivTraining \
+  --project-name gating \
+  --enable-logging
+
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --batch-size 8 \
+  --grad-acc-steps 8 \
+  --eval-batch-size 64 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 5 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k \
+  --num-fewshot 3 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.2 \
+  --experiment-name Separate-Gates-KLDivTraining_Thr02 \
+  --load-from-checkpoint Separate_Gates_KLDivTraining \  
+  --project-name gating \
+  --enable-logging
+
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --batch-size 8 \
+  --grad-acc-steps 8 \
+  --eval-batch-size 64 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 5 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k \
+  --num-fewshot 3 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.3 \
+  --experiment-name Separate-Gates-KLDivTraining_Thr03 \
+  --load-from-checkpoint Separate_Gates_KLDivTraining \  
+  --project-name gating \
+  --enable-logging
+
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --batch-size 8 \
+  --grad-acc-steps 8 \
+  --eval-batch-size 64 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 5 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k \
+  --num-fewshot 3 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.3 \
+  --experiment-name Separate-Gates-KLDivTraining_Thr03 \
+  --load-from-checkpoint Separate_Gates_KLDivTraining \  
+  --project-name gating \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --batch-size 8 \
+  --grad-acc-steps 8 \
+  --eval-batch-size 64 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 5 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k \
+  --num-fewshot 3 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.5 \
+  --experiment-name Separate-Gates-KLDivTraining_Thr05 \
+  --load-from-checkpoint Separate_Gates_KLDivTraining \  
+  --project-name gating \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --batch-size 8 \
+  --grad-acc-steps 8 \
+  --eval-batch-size 64 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 5 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k \
+  --num-fewshot 3 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.6 \
+  --experiment-name Separate-Gates-KLDivTraining_Thr06 \
+  --load-from-checkpoint Separate_Gates_KLDivTraining \  
+  --project-name gating \
+  --enable-logging
+

@@ -85,14 +85,18 @@ class MetricsLogger:
         if mode == "train":
             metrics = {}
         else:
-            perplexity = math.exp(loss.item())
-            topk = 5
-            accuracy = self.accuracy(outputs, labels, top_k=topk)
+            try:
+                perplexity = math.exp(loss.item())
+                topk = 5
+                accuracy = self.accuracy(outputs, labels, top_k=topk)
 
-            metrics = {
-                f"{mode}_perplexity": perplexity,
-                f"{mode}_top{topk}_accuracy": accuracy,
-            }
+                metrics = {
+                    f"{mode}_perplexity": perplexity,
+                    f"{mode}_top{topk}_accuracy": accuracy,
+                }
+            except Exception as e:
+                print(f"Error logging metrics: {e}")
+                metrics = {}
 
         # Log gate metrics if gating is used
         if hasattr(self.module.model, "gating"):

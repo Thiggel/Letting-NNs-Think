@@ -2,6 +2,7 @@ from typing import Any, Dict
 import wandb
 import torch
 from pydantic import BaseModel
+from optimum.quanto import QuantizedModelForCausalLM, qint4
 
 from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
@@ -31,15 +32,60 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         ]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    def replace_and_quantize(self, model):
+        model_quantized = QuantizedModelForCausalLM.quantize(
+            model.model, weights=qint4, exclude="lm_head"
+        )
+
+        class QuantizedWrapper(torch.nn.Module):
+            def __init__(self, quantized_model):
+                super().__init__()
+                self.wrapped = quantized_model
+
+            def get_input_embeddings(self):
+                return self.wrapped._wrapped.get_input_embeddings()
+
+            def get_output_embeddings(self):
+                return self.wrapped._wrapped.get_output_embeddings()
+
+            @property
+            def gating(self):
+                return self.wrapped._wrapped.gating
+
+            @property
+            def model(self):
+                return self.wrapped._wrapped
+
+            def generate(self, *args, **kwargs):
+                return self.wrapped.generate(*args, **kwargs)
+
+            def forward(self, *args, **kwargs):
+                return self.model(*args, **kwargs)
+
+            def tie_weights(self):
+                self.wrapped._wrapped.tie_weights()
+
+        model.model = QuantizedWrapper(model_quantized)
+
+        print("Quantized model")
+        print(model)
+        return model
+
     def run(self, seed: int, state_dict: torch.Tensor = None) -> Dict[str, float]:
         model = self._load_model(seed, mode="test")
         model.to(self.device)
 
+        if self.evaluation_config.use_quantization:
+            model = self.replace_and_quantize(model)
+
         if state_dict is not None:
             print("Loading state dict for evaluation")
             missing, unexpected = model.load_state_dict(state_dict)
+            model = model.to(self.device)
             print(f"Missing keys: {missing}")
             print(f"Unexpected keys: {unexpected}")
+
+        model.eval()
 
         string = self.tokenizer.encode(
             "Joe has 20 horses. He sells 5 of them for $200 each. How much money does he make?",
@@ -50,7 +96,11 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
         model(string)
 
-        decoder_layers = model.get_decoder_layers(model.model)
+        decoder_layers = model.get_decoder_layers(
+            model.model
+            if not self.evaluation_config.use_quantization
+            else model.model.model
+        )
 
         for idx, layer in enumerate(decoder_layers):
             mlp = layer.mlp if hasattr(layer, "mlp") else layer.ff

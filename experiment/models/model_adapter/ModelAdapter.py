@@ -167,6 +167,15 @@ class ModelAdapter(HasLayers):
             for param in model.parameters():
                 param.requires_grad = False
 
+        if self.config.use_kl_div_training:
+            self.orig_model = AutoModelForCausalLM.from_pretrained(
+                self.config.model_name, attn_implementation="eager"
+            )
+            self.orig_model.use_cache = False
+            self.orig_model.train()
+            for param in self.orig_model.parameters():
+                param.requires_grad = False
+
         # Add gating or MoD if needed
         model = self._wrap_with_gating_or_mod(model)
 

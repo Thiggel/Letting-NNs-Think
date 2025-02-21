@@ -8,5 +8,5 @@ class MoDConfig:
     )
     route_every_two: bool = Field(True, description="Whether to route every two layers")
     predictor_loss_weight: float = Field(
-        0.1, description="Weight for the predictor loss"
+        0.01, description="Weight for the predictor loss"
     )

@@ -35,6 +35,11 @@ class ModelMod(nn.Module):
         self.wrapped_modules[name] = wrapped
         return wrapped
 
+    def update_capacity(self, capacity: float) -> None:
+        """Update capacity for all modules"""
+        for module in self.wrapped_modules.values():
+            module.update_capacity(capacity)
+
     def compute_predictor_loss(self, dtype: torch.dtype) -> torch.Tensor:
         """Compute combined predictor loss across all modules"""
         if not self.wrapped_modules:

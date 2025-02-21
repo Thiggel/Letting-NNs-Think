@@ -19,3 +19,6 @@ class EvaluationConfig(BaseModel):
         128, description="The batch size to use for evaluation"
     )
     num_fewshot: int = Field(0, description="The number of few-shot examples to use")
+    use_quantization: bool = Field(
+        False, description="Whether to use quantization for evaluation"
+    )
