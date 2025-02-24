@@ -244,6 +244,9 @@ class DefaultLightningModule(LightningModule, HasLayers):
                 self.model.gating.compute_gate_loss()
             )
 
+            gate_entropy_loss = self.config.entropy_loss_weight * gate_entropy_loss
+            gate_sparsity_loss = self.config.sparsity_loss_weight * gate_sparsity_loss
+
             self.log(
                 f"{mode}_gate_sparsity_loss",
                 gate_sparsity_loss,
@@ -251,8 +254,8 @@ class DefaultLightningModule(LightningModule, HasLayers):
                 batch_size=batch["labels"].shape[0],
             )
 
-            loss += gate_entropy_loss * self.config.entropy_loss_weight
-            loss += gate_sparsity_loss * self.config.sparsity_loss_weight
+            loss += gate_entropy_loss
+            loss += gate_sparsity_loss
 
         elif self.config.use_mod:
             predictor_loss = self.model.mod.compute_predictor_loss(dtype=loss.dtype)

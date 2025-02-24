@@ -13,4 +13,4 @@ pytest
 einops
 lm-eval
 peft
-bitsandbytes
+optimum-quanto

@@ -1,0 +1,20 @@
+task: csqa_gen
+dataset_path: commonsense_qa         
+dataset_name: null                   
+output_type: generate_until          
+
+doc_to_text: |
+  <question>{{ question }}</question>
+
+stop_string: "</answer>"
+
+filter_list:
+  - name: "extract_answer"
+    filter:
+      - function: "regex"
+        regex_pattern: "<answer>(.*?)</answer>"
+      - function: "take_first"
+
+metadata:
+  version: 0
+

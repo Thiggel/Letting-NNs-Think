@@ -181,7 +181,11 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
     def _log_percent_tokens_skipped_per_layer(
         self, model: torch.nn.Module, results: Dict[str, Any]
     ) -> Dict[str, Any]:
-        decoder_layers = model.get_decoder_layers(model.model)
+        decoder_layers = model.get_decoder_layers(
+            model.model
+            if not self.evaluation_config.use_quantization
+            else model.model.model
+        )
 
         for idx, layer in enumerate(decoder_layers):
             mlp = layer.mlp if hasattr(layer, "mlp") else layer.ff
