@@ -1,7 +1,9 @@
+import sys
 from pathlib import Path
 import json
 from experiment.configs.GatingConfig import GenerationMode
 from experiment.models import DefaultLightningModule
+from lm_eval.tasks import TaskManager
 from lm_eval import evaluator
 from lm_eval.models.huggingface import HFLM
 import torch
@@ -76,6 +78,8 @@ class ModelEvaluator:
 
         print("gen_kwargs_str:", gen_kwargs_str)
 
+        tm = TaskManager(include_path=os.path.join(sys.path[0], "lm_eval", "tasks"))
+
         output = evaluator.simple_evaluate(
             model=wrapped_model,
             tasks=metrics or ["commonsense_qa", "gsm8k", "piqa"],
@@ -88,6 +92,7 @@ class ModelEvaluator:
             device=self.device,
             log_samples=True,
             gen_kwargs=gen_kwargs_str,
+            task_manager=tm,
         )
 
         self._save_results(output["results"], experiment_name)

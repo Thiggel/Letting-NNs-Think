@@ -45,6 +45,14 @@ class DatasetConfigurator:
                 "train_field": "train",
                 "test_field": "test",
             },
+            "csqa_gen": {
+                "dataset_class": "CSQAGen",
+                "q_func": lambda x: f"<query>{x['query']}</query>\n",
+                "ans_func": lambda x: f"<steps>{x['steps']}</steps>\n<answer>{x['solution']}</answer>",
+                "val_subset": 250,
+                "synthetic": True,
+                "process_on_the_fly": True,
+            },
             "arithmetic": {
                 "dataset_class": "ArithmeticDataset",
                 "q_func": lambda x: x["text"].split(" = ")[0],

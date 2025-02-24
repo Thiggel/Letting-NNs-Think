@@ -19,6 +19,7 @@ from .synthetic_datasets import (
     ArithmeticDataset,
     PatternDataset,
     ComplexArithmeticReasoningDataset,
+    CSQAGen,
 )
 
 
@@ -152,6 +153,7 @@ class LanguageDataModule(LightningDataModule):
                 "ArithmeticDataset": ArithmeticDataset,
                 "PatternDataset": PatternDataset,
                 "ComplexArithmeticReasoningDataset": ComplexArithmeticReasoningDataset,
+                "CSQAGen": CSQAGen,
             }[self.dataset_config["dataset_class"]]
 
             # Create dataset

@@ -1,3 +1,4 @@
+from .CSQAGen import CSQAGen
 from .PatternDataset import PatternDataset
 from .ArithmeticDataset import ArithmeticDataset
 from .ComplexArithmeticReasoningDataset import ComplexArithmeticReasoningDataset
