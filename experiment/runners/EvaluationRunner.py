@@ -212,11 +212,16 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         wandb.finish()
 
     def _format_standard_results(self, results: Dict[str, Any]) -> Dict[str, float]:
+        print(results.items())
         return {
             f"{key}_accuracy": (
                 value["acc,none"]
                 if "acc,none" in value
-                else value["exact_match,flexible-extract"]
+                else (
+                    value["exact_match,flexible-extract"]
+                    if "exact_match,flexible-extract" in value
+                    else value["exact_match,extract_answer"]
+                )
             )
             for key, value in results.items()
         }

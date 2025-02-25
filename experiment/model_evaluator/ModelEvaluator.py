@@ -65,12 +65,11 @@ class ModelEvaluator:
             pretrained=self.model,
             tokenizer=self.tokenizer,
             batch_size=self.eval_batch_size,
-            max_length=2048,
-            max_new_tokens=2048,
+            max_length=4096,
+            max_new_tokens=4096,
             backend="causal",
             device=self.device,
             add_bos_token=True,
-            limit=200,
         )
 
         gen_kwargs = self.get_gen_kwargs(generation_mode)
