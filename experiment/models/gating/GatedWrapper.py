@@ -32,6 +32,9 @@ class GatedWrapper(nn.Module):
         self.current_percent_tokens_skipped = 0.0
         self.current_token_importance: Optional[torch.Tensor] = None
         self.past_percent_skipped: list[float] = []
+
+        self.global_step = 1
+
         object.__setattr__(self, "parent", parent)
 
     def get_attn_token_importance(self) -> Optional[torch.Tensor]:
@@ -42,6 +45,20 @@ class GatedWrapper(nn.Module):
         else:
             raise ValueError("No attention layer found in parent module")
         return attn_layer.current_token_importance
+
+    def get_threshold(self) -> float:
+        if self.config.increasing_threshold:
+            delta_threshold = self.config.skip_threshold - self.config.start_threshold
+            current_threshold = self.config.start_threshold + (
+                self.global_step / self.config.num_increasing_steps * delta_threshold
+            )
+
+            return min(
+                current_threshold,
+                self.config.skip_threshold,
+            )
+
+        return self.config.skip_threshold
 
     def forward(
         self,
@@ -102,11 +119,11 @@ class GatedWrapper(nn.Module):
                 token_importance = self.get_attn_token_importance()
 
             # Compute process_mask only once:
-            process_mask = (token_importance > self.config.skip_threshold).unsqueeze(-1)
+            threshold = self.get_threshold()
+            process_mask = (token_importance > threshold).unsqueeze(-1)
+
             batch_size, seq_len, hidden_dim = hidden_states.shape
-            num_skipped = (
-                (~(token_importance > self.config.skip_threshold)).sum().item()
-            )
+            num_skipped = (~(token_importance > threshold)).sum().item()
             total_tokens = batch_size * seq_len
             self.current_percent_tokens_skipped = num_skipped / total_tokens
             self.past_percent_skipped.append(self.current_percent_tokens_skipped)

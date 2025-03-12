@@ -168,6 +168,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
     def _log_percent_tokens_skipped(
         self, model: torch.nn.Module, results: Dict[str, Any]
     ) -> Dict[str, Any]:
+        print("PERCENT TOKENS SKIPPED", model.percent_tokens_skipped)
         if (
             hasattr(model, "percent_tokens_skipped")
             and len(model.percent_tokens_skipped) != 0

@@ -20,6 +20,7 @@ from .synthetic_datasets import (
     PatternDataset,
     ComplexArithmeticReasoningDataset,
     CSQAGen,
+    ReasoningDataset,
 )
 
 
@@ -154,6 +155,7 @@ class LanguageDataModule(LightningDataModule):
                 "PatternDataset": PatternDataset,
                 "ComplexArithmeticReasoningDataset": ComplexArithmeticReasoningDataset,
                 "CSQAGen": CSQAGen,
+                "ReasoningDataset": ReasoningDataset,
             }[self.dataset_config["dataset_class"]]
 
             # Create dataset
@@ -224,6 +226,7 @@ class LanguageDataModule(LightningDataModule):
     def _process_streaming_sample(
         self, sample: dict[str, Any], q_func: callable, ans_func: callable
     ) -> dict[str, Any]:
+
         full_text = (
             q_func(sample)
             + ans_func(sample)
@@ -233,6 +236,17 @@ class LanguageDataModule(LightningDataModule):
                 else ""
             )
         )
+
+        if self.dataset_config.get("synthetic", False):
+            # filter out sequences too long so that they always end in an EOS token
+            temp_tokenized = self.tokenizer(
+                [full_text],
+                padding="do_not_pad",
+                truncation=False,
+            )
+
+            if len(temp_tokenized["input_ids"][0]) > self.data_config.seq_length:
+                return None
 
         tokenized = self.token_processor.tokenize_text(
             [full_text],
@@ -246,6 +260,8 @@ class LanguageDataModule(LightningDataModule):
         ) < self.data_config.seq_length and not self.dataset_config.get(
             "synthetic", False
         ):
+            # filter out sequences that are too short when using e.g. Fineweb
+            # so that the model is at full capacity
             return None
 
         return {

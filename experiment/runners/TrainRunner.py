@@ -151,11 +151,19 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             "logger": wandb_logger if self.experiment_config.enable_logging else None,
             "log_every_n_steps": 10,
             "max_epochs": self.training_config.max_epochs,
-            "max_steps": self.training_config.max_training_steps,
             "gradient_clip_val": self.training_config.max_grad_norm,
             "accumulate_grad_batches": self.data_config.grad_acc_steps,
             "devices": "auto",
         }
+
+        if self.training_config.max_training_steps is not None:
+            trainer_args["max_steps"] = self.training_config.max_training_steps
+
+        if (
+            self.training_config.max_epochs is not None
+            and self.training_config.max_epochs > 1
+        ):
+            trainer_args.pop("max_steps")
 
         if self.training_config.max_hours:
             trainer_args["max_time"] = {

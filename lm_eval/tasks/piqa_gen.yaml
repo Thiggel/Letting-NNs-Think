@@ -1,0 +1,22 @@
+task: piqa_gen
+dataset_path: piqa
+training_split: train
+validation_split: validation
+output_type: generate_until          
+
+doc_to_text: "Task: answer the question detailed inside <query></query>. Reason about it inside <thought></thought>. In the end, give only the answer (0 or 1) inside <answer></answer>. <query>{{ goal.strip() }}\n 0. {{ sol1 }}, 1. {{ sol2 }}</query>\n<thought>"
+doc_to_target: label
+
+filter_list:
+  - name: "extract_answer"
+    filter:
+      - function: "regex"
+        regex_pattern: "<answer>(.*?)</answer>"
+      - function: "take_first"
+
+metadata:
+  version: 0
+
+dataset_kwargs:
+  trust_remote_code: true
+

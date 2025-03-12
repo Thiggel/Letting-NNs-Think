@@ -12,6 +12,31 @@ cd $HOME/Gating
 
 . jobs/environment.sh
 
+# srun python -m experiment \
+#   --model-name "mistralai/Mistral-7B-Instruct-v0.3" \
+#   --dataset fineweb \
+#   --pretrained \
+#   --use-gating \
+#   --no-one-gate-per-layer \
+#   --entropy-loss-weight 0.0 \
+#   --sparsity-loss-weight 1.0 \
+#   --batch-size 4 \
+#   --grad-acc-steps 16 \
+#   --eval-batch-size 8 \
+#   --seq-length 1024 \
+#   --learning-rate 1e-3 \
+#   --warmup-steps 500 \
+#   --max-epochs 1 \
+#   --max-hours 8 \
+#   --max-training-steps 5000 \
+#   --validate-every-n-steps 500 \
+#   --finetune-mode frozen \
+#   --use-deepspeed \
+#   --experiment-name Mistral-7B-Instruct-shared-linear-gate \
+#   --save-to-checkpoint Mistral_7B_Instruct_shared_linear_gate \
+#   --project-name gating \
+#   --enable-logging
+# 
 srun python -m experiment \
   --model-name "mistralai/Mistral-7B-Instruct-v0.3" \
   --dataset fineweb \
@@ -22,7 +47,7 @@ srun python -m experiment \
   --sparsity-loss-weight 1.0 \
   --batch-size 4 \
   --grad-acc-steps 16 \
-  --eval-batch-size 8 \
+  --eval-batch-size 16 \
   --seq-length 1024 \
   --learning-rate 1e-3 \
   --warmup-steps 500 \
@@ -32,7 +57,106 @@ srun python -m experiment \
   --validate-every-n-steps 500 \
   --finetune-mode frozen \
   --use-deepspeed \
-  --experiment-name Mistral-7B-Instruct-shared-linear-gate \
-  --save-to-checkpoint Mistral_7B_Instruct_shared_linear_gate \
+  --mode evaluate \
+  --evaluation-metrics gsm8k,commonsense_qa,piqa \
+  --num-fewshot 5 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.0 \
+  --experiment-name Mistral-7B-Instruct-shared-linear-gate-Thr0.0 \
+  --load-from-checkpoint Mistral_7B_Instruct_shared_linear_gate \
+  --project-name gating \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "mistralai/Mistral-7B-Instruct-v0.3" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --batch-size 4 \
+  --grad-acc-steps 16 \
+  --eval-batch-size 16 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 8 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k,commonsense_qa,piqa \
+  --num-fewshot 5 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.2 \
+  --experiment-name Mistral-7B-Instruct-shared-linear-gate-Thr0.2 \
+  --load-from-checkpoint Mistral_7B_Instruct_shared_linear_gate \
+  --project-name gating \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "mistralai/Mistral-7B-Instruct-v0.3" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --batch-size 4 \
+  --grad-acc-steps 16 \
+  --eval-batch-size 16 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 8 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k,commonsense_qa,piqa \
+  --num-fewshot 5 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.4 \
+  --experiment-name Mistral-7B-Instruct-shared-linear-gate-Thr0.4 \
+  --load-from-checkpoint Mistral_7B_Instruct_shared_linear_gate \
+  --project-name gating \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "mistralai/Mistral-7B-Instruct-v0.3" \
+  --dataset fineweb \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --batch-size 4 \
+  --grad-acc-steps 16 \
+  --eval-batch-size 16 \
+  --seq-length 1024 \
+  --learning-rate 1e-3 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 8 \
+  --max-training-steps 5000 \
+  --validate-every-n-steps 500 \
+  --finetune-mode frozen \
+  --use-deepspeed \
+  --mode evaluate \
+  --evaluation-metrics gsm8k,commonsense_qa,piqa \
+  --num-fewshot 5 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.6 \
+  --experiment-name Mistral-7B-Instruct-shared-linear-gate-Thr0.6 \
+  --load-from-checkpoint Mistral_7B_Instruct_shared_linear_gate \
   --project-name gating \
   --enable-logging

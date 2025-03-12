@@ -1,0 +1,164 @@
+from torch import nn
+import torch
+import torch.nn.functional as F
+from typing import Any, Optional, Union, Dict, List
+
+from experiment.configs.ModelConfig import ModelConfig
+from experiment.configs.EarlyExitConfig import ConfidenceMeasure
+
+
+class EarlyExitWrapper(nn.Module):
+    """Wrapper that determines when to exit early from transformer layers.
+
+    This wrapper calculates confidence scores to decide if the current token
+    has enough confidence to exit early. It does not modify the module's
+    forward pass, just detects when to exit.
+    """
+
+    def __init__(
+        self,
+        module: nn.Module,
+        config: ModelConfig,
+        layer_idx: int,
+        module_name: str,
+        parent: nn.Module,
+    ):
+        super().__init__()
+        self.config = config
+        self.layer_idx = layer_idx
+        self.module_name = module_name
+        self.module = module
+        object.__setattr__(self, "parent", parent)
+
+        # For tracking statistics
+        self.current_confidence: Optional[torch.Tensor] = None
+        self.current_threshold: Optional[float] = None
+        self.current_exit_decision: Optional[torch.Tensor] = None
+        self.exit_layer_indices: List[int] = []
+        self.tokens_processed = 0
+        self.tokens_exited_early = 0
+
+    def compute_threshold(self, step_idx: int, max_steps: int = 100) -> float:
+        """Compute the decaying threshold based on generation step."""
+        if not self.config.use_decaying_threshold:
+            return self.config.base_threshold
+
+        # Following the paper's decaying threshold formula in Eq. (5)
+        decay = (
+            0.1
+            + 0.9
+            * torch.exp(
+                torch.tensor(-self.config.decay_factor * step_idx / max_steps)
+            ).item()
+        )
+        return min(1.0, max(0.0, self.config.base_threshold * decay))
+
+    def compute_confidence(
+        self, hidden_states: torch.Tensor, prev_hidden: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Compute confidence score based on configured measure."""
+        if self.config.confidence_measure == ConfidenceMeasure.SOFTMAX:
+            # Calculate the gap between top two probabilities in softmax distribution
+            # Get output embeddings from parent model
+            if hasattr(self.parent, "get_output_embeddings"):
+                output_embeddings = self.parent.get_output_embeddings()
+            else:
+                # Try common names for output embeddings
+                output_embeddings = getattr(self.parent, "lm_head", None)
+                if output_embeddings is None:
+                    output_embeddings = getattr(self.parent, "output_projection", None)
+
+            if output_embeddings is not None:
+                logits = output_embeddings(hidden_states)
+                probs = F.softmax(logits, dim=-1)
+                values, _ = torch.topk(probs, k=2, dim=-1)
+                confidence = (values[..., 0] - values[..., 1]) / (2 * values[..., 0])
+            else:
+                # Default to low confidence if we can't find output embeddings
+                confidence = torch.zeros(
+                    hidden_states.shape[0],
+                    hidden_states.shape[1],
+                    device=hidden_states.device,
+                )
+
+        elif self.config.confidence_measure == ConfidenceMeasure.HIDDEN_STATE:
+            # Compute cosine similarity with previous layer's hidden state
+            if prev_hidden is None:
+                confidence = torch.zeros(
+                    hidden_states.shape[0],
+                    hidden_states.shape[1],
+                    device=hidden_states.device,
+                )
+            else:
+                # Normalize both tensors for cosine similarity
+                norm_curr = F.normalize(hidden_states, p=2, dim=-1)
+                norm_prev = F.normalize(prev_hidden, p=2, dim=-1)
+                confidence = torch.sum(norm_curr * norm_prev, dim=-1)
+        else:
+            confidence = torch.zeros(
+                hidden_states.shape[0],
+                hidden_states.shape[1],
+                device=hidden_states.device,
+            )
+
+        return confidence
+
+    def should_exit(
+        self, confidence: torch.Tensor, step_idx: int, max_steps: int = 100
+    ) -> torch.Tensor:
+        """Determine whether to exit early based on confidence and threshold."""
+        # Fixed exit layer takes precedence
+        if self.config.fixed_exit_layer > 0:
+            return torch.tensor(
+                self.layer_idx >= self.config.fixed_exit_layer,
+                device=confidence.device,
+                dtype=torch.bool,
+            ).expand_as(confidence)
+
+        # Don't exit before minimum layer
+        if self.layer_idx < self.config.min_exit_layer:
+            return torch.zeros_like(confidence, dtype=torch.bool)
+
+        threshold = self.compute_threshold(step_idx, max_steps)
+        self.current_threshold = threshold
+        return confidence >= threshold
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        prev_hidden: Optional[torch.Tensor] = None,
+        step_idx: int = 0,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Union[torch.Tensor, tuple[torch.Tensor, ...]]:
+        """
+        Forward pass that also computes early exit confidence.
+
+        Args:
+            hidden_states: Current hidden states
+            prev_hidden: Previous layer's hidden states (for hidden_state confidence)
+            step_idx: Current generation step (for decaying threshold)
+        """
+        # Just pass through to the wrapped module
+        outputs = self.module(hidden_states, *args, **kwargs)
+
+        if isinstance(outputs, tuple):
+            main_output = outputs[0]
+        else:
+            main_output = outputs
+
+        # Compute confidence
+        self.current_confidence = self.compute_confidence(main_output, prev_hidden)
+
+        # Determine exit decision - for tracking purposes
+        self.current_exit_decision = self.should_exit(self.current_confidence, step_idx)
+
+        return outputs
+
+    def get_exit_statistics(self) -> Dict[str, float]:
+        """Get statistics about early exits"""
+        exit_rate = self.tokens_exited_early / max(1, self.tokens_processed)
+        return {
+            "exit_rate": exit_rate,
+            "layer_idx": self.layer_idx,
+        }
