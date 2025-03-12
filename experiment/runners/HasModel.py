@@ -23,7 +23,9 @@ class HasModel:
             self.model_config,
             self.training_config,
             self.data_config,
+            self.evaluation_config,
             self.tokenizer,
+            seed,
         )
         model.setup(mode)
 

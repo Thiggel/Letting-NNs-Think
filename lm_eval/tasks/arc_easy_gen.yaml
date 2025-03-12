@@ -1,0 +1,28 @@
+tag:
+  - ai2_arc
+task: arc_easy_gen
+dataset_path: allenai/ai2_arc
+dataset_name: ARC-Easy
+output_type: generate_until
+training_split: train
+validation_split: validation
+test_split: test
+doc_to_text: "Task: answer the multiple-choice science question detailed inside <query></query>. Reason about it inside <thought></thought>. In the end, give only the answer letter (A, B, C, D, etc.) inside <answer></answer>. <query>{{ question.strip() }}\n{% for choice in choices.text %}{% set label = choices.label[loop.index0] %}{{ label }}. {{ choice }}\n{% endfor %}</query>\n<thought>"
+doc_to_target: answerKey
+filter_list:
+  - name: "extract_answer"
+    filter:
+      - function: "regex"
+        regex_pattern: "<answer>(.*?)</answer>"
+      - function: "take_first"
+should_decontaminate: true
+doc_to_decontamination_query: "Question: {{question}}\nAnswer:"
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+  - metric: acc_norm
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  version: 1.0

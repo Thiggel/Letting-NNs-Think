@@ -37,6 +37,15 @@ class DatasetConfigurator:
                 "process_on_the_fly": True,
                 "val_subset": 1000,
             },
+            "cot_collection": {
+                "name": "kaist-ai/CoT-Collection",
+                "q_func": lambda x: f"<query>{x['source']}</query><thought>{x['rationale']}</thought>",
+                "ans_func": lambda x: f"<answer>{x['target']}</answer>",
+                "train_field": "train",
+                "val_subset": 500,
+                "process_on_the_fly": True,
+                "synthetic": True,
+            },
             "gsm8k": {
                 "name": "gsm8k",
                 "q_func": lambda x: f"Question: {x['question']}\n\nAnswer:",
@@ -47,6 +56,14 @@ class DatasetConfigurator:
             },
             "csqa_gen": {
                 "dataset_class": "CSQAGen",
+                "q_func": lambda x: f"<query>{x['query']}</query>\n",
+                "ans_func": lambda x: f"<steps>{x['steps']}</steps>\n<answer>{x['solution']}</answer>",
+                "val_subset": 250,
+                "synthetic": True,
+                "process_on_the_fly": True,
+            },
+            "csqa_gsm8k_gen": {
+                "dataset_class": "ReasoningDataset",
                 "q_func": lambda x: f"<query>{x['query']}</query>\n",
                 "ans_func": lambda x: f"<steps>{x['steps']}</steps>\n<answer>{x['solution']}</answer>",
                 "val_subset": 250,

@@ -24,9 +24,14 @@ class ModelGating(nn.Module):
         parent: nn.Module,
         layer_idx: int,
         gate: Optional[GateLayer] = None,
+        frozen_gate: bool = False,
     ) -> GatedWrapper:
         """Wrap a module with gating"""
         gate = GateLayer(self.d_model, self.config) if gate is None else gate
+
+        if frozen_gate:
+            gate.requires_grad_(False)
+
         wrapped = GatedWrapper(
             module,
             gate,

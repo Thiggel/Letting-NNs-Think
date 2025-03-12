@@ -7,11 +7,7 @@ import torch.nn.functional as F
 from typing import Optional
 from torch.optim.lr_scheduler import LambdaLR
 
-from experiment.configs import (
-    ModelConfig,
-    TrainingConfig,
-    DataConfig,
-)
+from experiment.configs import ModelConfig, TrainingConfig, DataConfig, EvaluationConfig
 from experiment.configs.ModelConfig import FinetuneMode
 
 from .model_adapter import ModelAdapter
@@ -29,15 +25,24 @@ class DefaultLightningModule(LightningModule, HasLayers):
         config: ModelConfig,
         training_config: TrainingConfig,
         data_config: DataConfig,
+        evaluation_config: EvaluationConfig,
         tokenizer: Optional[PreTrainedTokenizer] = None,
+        seed: int = 42,
     ):
         super().__init__()
         self.config = config
         self.training_config = training_config
         self.data_config = data_config
+        self.evaluation_config = evaluation_config
         self.tokenizer = tokenizer
 
-        self.model_adapter = ModelAdapter(self.config, self.tokenizer, self.device)
+        self.model_adapter = ModelAdapter(
+            self.config,
+            self.evaluation_config,
+            self.tokenizer,
+            self.device,
+            seed,
+        )
         self.model = self.model_adapter.model
         self.old_forward = self.model.forward
         self.model.forward = self.forward
@@ -60,7 +65,13 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
         # self.metrics_logger.log_gradient_norms()
 
+    def give_global_step_to_gates(self):
+        if self.config.use_gating:
+            for module in self.model.gating.wrapped_modules.values():
+                module.global_step = self.global_step
+
     def forward(self, input_ids, **kwargs):
+        self.give_global_step_to_gates()
         output = self.old_forward(input_ids, **kwargs)
 
         if self.config.use_gating:
@@ -69,14 +80,27 @@ class DefaultLightningModule(LightningModule, HasLayers):
                     module.current_percent_tokens_skipped
                 )
         elif self.config.use_mod:
+            percent_skipped = []
             for module in self.model.mod.wrapped_modules.values():
                 self.percent_tokens_skipped.append(
                     1 - module.current_percent_tokens_processed
                 )
+        elif self.config.use_early_exit and hasattr(self.model, "early_exit"):
+            # Get early exit statistics
+            early_exit_stats = self.model.early_exit.compute_early_exit_statistics()
+            if "compute_saved" in early_exit_stats:
+                self.percent_tokens_skipped.append(early_exit_stats["compute_saved"])
 
         return output
 
     def generate(self, *args, **kwargs):
+        # Set generation flag and reset statistics
+        if self.config.use_early_exit and hasattr(self.model, "early_exit"):
+            self.model.early_exit.is_generating = True
+            self.model.early_exit.reset_statistics()
+
+            self.model.early_exit.total_tokens = kwargs["input_ids"].size(-1)
+
         self.metrics_logger.dump_first_batch(kwargs)
         output = self.model.generate(*args, **kwargs)
 
@@ -87,6 +111,25 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
         print("Tokens skipped: ", torch.mean(torch.tensor(self.percent_tokens_skipped)))
 
+        # Log early exit statistics after generation
+        if self.config.use_early_exit and hasattr(self.model, "early_exit"):
+            # Update total tokens based on generation output
+            if len(output.shape) == 2:
+                self.model.early_exit.total_tokens = output.shape[0] * output.shape[1]
+            else:
+                self.model.early_exit.total_tokens = output.shape[0]
+
+            # Compute and log statistics
+            early_exit_stats = self.model.early_exit.compute_early_exit_statistics()
+            print(f"Early exit stats: {early_exit_stats}")
+
+            # Update percent_tokens_skipped for consistency with other methods
+            if "compute_saved" in early_exit_stats:
+                self.percent_tokens_skipped.append(early_exit_stats["compute_saved"])
+
+            # Reset generation flag
+            self.model.early_exit.is_generating = False
+
         return output
 
     def sample_generate(self):
@@ -95,7 +138,7 @@ class DefaultLightningModule(LightningModule, HasLayers):
             return_tensors="pt",
         ).to(self.device)
 
-        generated = self.model.generate(
+        generated = self.generate(
             input_ids=string,
             max_length=100,
             max_new_tokens=100,
@@ -115,7 +158,7 @@ class DefaultLightningModule(LightningModule, HasLayers):
         """
         warmup_steps = self.training_config.warmup_steps
         default_max_steps = 10_000
-        total_steps = self.training_config.max_training_steps or default_max_steps
+        total_steps = self.training_config.lr_decay_steps or default_max_steps
         min_lr_factor = 0.1
 
         # Calculate the ratio between initial and target learning rate
@@ -168,7 +211,7 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
         parameters = [
             {"params": model_params, "lr": base_lr},
-            {"params": mod_params, "lr": 1e-3},
+            {"params": mod_params, "lr": 1e-4},
         ]
 
         if torch.cuda.is_available() and self.training_config.use_deepspeed:
@@ -193,43 +236,53 @@ class DefaultLightningModule(LightningModule, HasLayers):
         }
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
-        """Perform a single training/validation/test step"""
+        """Perform a single training/validation/test step with early exit loss support."""
         self.metrics_logger.dump_first_batch(batch)
 
-        outputs = self.model(**batch)
-
-        if self.config.use_kl_div_training:
-            logits = outputs.logits
-
-            self.model_adapter.orig_model.to(self.device)
-            ref_logits = self.model_adapter.orig_model(**batch).logits
-
-            loss = F.kl_div(
-                F.log_softmax(logits, dim=-1),
-                F.softmax(ref_logits, dim=-1),
-                reduction="batchmean",
+        # For early exit training:
+        if (
+            self.config.use_early_exit
+            and hasattr(self.model, "early_exit")
+            and mode == "train"
+        ):
+            # Run forward pass with output_hidden_states=True to get all intermediate representations
+            outputs = self.model(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                labels=batch["labels"],
+                output_hidden_states=True,
+                return_dict=True,
             )
 
-            self.log(
-                f"{mode}_kl_div_loss",
-                loss,
-                sync_dist=True,
-                batch_size=batch["labels"].shape[0],
+            # Get the hidden states from the output
+            hidden_states = outputs.hidden_states
+
+            # If this is an encoder-decoder model, use decoder hidden states
+            if (
+                hasattr(outputs, "decoder_hidden_states")
+                and outputs.decoder_hidden_states is not None
+            ):
+                hidden_states = outputs.decoder_hidden_states
+
+            # Compute early exit loss
+            loss, layer_losses = self.model.early_exit.compute_early_exit_loss(
+                hidden_states, self.model.get_output_embeddings(), batch["labels"]
             )
 
-            self.log(
-                f"{mode}_cross_entropy_loss",
-                outputs.loss,
-                sync_dist=True,
-                batch_size=batch["labels"].shape[0],
-            )
-            self.metrics_logger.log_metrics(
-                outputs.loss, outputs, batch["labels"], mode
-            )
-
+            # Log individual layer losses
+            for layer_name, layer_loss in layer_losses.items():
+                self.log(
+                    f"{mode}_{layer_name}",
+                    layer_loss,
+                    sync_dist=True,
+                    batch_size=batch["labels"].shape[0],
+                )
         else:
+            # Regular forward pass for validation or non-early-exit training
+            outputs = self.model(**batch)
             loss = outputs.loss
 
+            # Regular logging from the existing implementation
             self.log(
                 f"{mode}_cross_entropy_loss",
                 loss,
@@ -239,35 +292,76 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
             self.metrics_logger.log_metrics(loss, outputs, batch["labels"], mode)
 
+            if self.config.use_gating:
+                gate_entropy_loss, gate_sparsity_loss = (
+                    self.model.gating.compute_gate_loss()
+                )
+
+                gate_entropy_loss = self.config.entropy_loss_weight * gate_entropy_loss
+                gate_sparsity_loss = (
+                    self.config.sparsity_loss_weight * gate_sparsity_loss
+                )
+
+                self.log(
+                    f"{mode}_gate_sparsity_loss",
+                    gate_sparsity_loss,
+                    sync_dist=True,
+                    batch_size=batch["labels"].shape[0],
+                )
+
+                loss += gate_entropy_loss
+                loss += gate_sparsity_loss
+
+            elif self.config.use_mod:
+                predictor_loss = self.model.mod.compute_predictor_loss(dtype=loss.dtype)
+
+                self.log(
+                    f"{mode}_predictor_loss",
+                    predictor_loss,
+                    sync_dist=True,
+                    batch_size=batch["labels"].shape[0],
+                )
+
+                loss += predictor_loss * self.config.predictor_loss_weight
+
         if self.config.use_gating:
-            gate_entropy_loss, gate_sparsity_loss = (
-                self.model.gating.compute_gate_loss()
-            )
-
-            gate_entropy_loss = self.config.entropy_loss_weight * gate_entropy_loss
-            gate_sparsity_loss = self.config.sparsity_loss_weight * gate_sparsity_loss
+            percent_skipped = []
+            for name, module in self.model.gating.wrapped_modules.items():
+                percent_skipped.append(module.current_percent_tokens_skipped)
 
             self.log(
-                f"{mode}_gate_sparsity_loss",
-                gate_sparsity_loss,
+                f"{mode}_threshold",
+                list(self.model.gating.wrapped_modules.items())[0][1].get_threshold(),
                 sync_dist=True,
-                batch_size=batch["labels"].shape[0],
+                batch_size=batch["input_ids"].shape[0],
             )
-
-            loss += gate_entropy_loss
-            loss += gate_sparsity_loss
-
+            percent_skipped = torch.tensor(
+                percent_skipped, device=batch["input_ids"].device
+            ).mean()
+            self.log(
+                f"{mode}_percent_tokens_skipped",
+                percent_skipped,
+                sync_dist=True,
+                batch_size=batch["input_ids"].shape[0],
+            )
         elif self.config.use_mod:
-            predictor_loss = self.model.mod.compute_predictor_loss(dtype=loss.dtype)
-
+            percent_skipped = []
+            for module in self.model.mod.wrapped_modules.values():
+                percent_skipped.append(1 - module.current_percent_tokens_skipped)
+            percent_skipped = torch.tensor(
+                percent_skipped, device=batch["input_ids"].device
+            ).mean()
             self.log(
-                f"{mode}_predictor_loss",
-                predictor_loss,
+                f"{mode}_percent_tokens_skipped",
+                percent_skipped,
                 sync_dist=True,
-                batch_size=batch["labels"].shape[0],
+                batch_size=batch["input_ids"].shape[0],
             )
-
-            loss += predictor_loss * self.config.predictor_loss_weight
+        elif self.config.use_early_exit and hasattr(self.model, "early_exit"):
+            # Get early exit statistics
+            early_exit_stats = self.model.early_exit.compute_early_exit_statistics()
+            if "compute_saved" in early_exit_stats:
+                self.percent_tokens_skipped.append(early_exit_stats["compute_saved"])
 
         self.metrics_logger.log_loss(loss, mode)
 

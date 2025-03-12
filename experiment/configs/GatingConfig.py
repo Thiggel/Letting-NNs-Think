@@ -25,6 +25,9 @@ class GatingConfig:
     gating_mode: GatingMode = Field(
         "after_module", description="Whether to gate before or after the module"
     )
+    frozen_gate: bool = Field(
+        False, description="Whether to freeze the gate weights during training"
+    )
     use_kl_div_training: bool = Field(
         False, description="Whether to use KL divergence for training"
     )
@@ -53,6 +56,15 @@ class GatingConfig:
         description="Percentage of modules to randomly skip if randomly_skip is True",
     )
     skip_threshold: float = Field(0.5, description="Threshold for skipping modules")
+    increasing_threshold: bool = Field(
+        False, description="Whether to increase the threshold during training"
+    )
+    start_threshold: float = Field(
+        0.0, description="Initial threshold for skipping modules"
+    )
+    num_increasing_steps: int = Field(
+        5_000, description="Number of steps to increase the threshold over"
+    )
     always_skip_layer: int = Field(
         -1,
         description="If set, always skip this layer (0-indexed) regardless of gate value",

@@ -35,20 +35,27 @@ class ModelEvaluator:
 
     def get_gen_kwargs(self, generation_mode: GenerationMode) -> dict[str, any]:
         if generation_mode == GenerationMode.SAMPLING:
-            return {
+            gen_kwargs = {
                 "do_sample": True,
                 "temperature": 0.2,
                 "top_k": 50,
                 "top_p": 0.95,
             }
 
-        if generation_mode == GenerationMode.BEAM:
-            return {
+        elif generation_mode == GenerationMode.BEAM:
+            gen_kwargs = {
                 "num_beams": 3,
                 "early_stopping": True,
             }
 
-        return {}
+        else:
+            gen_kwargs = {}
+
+        gen_kwargs["max_length"] = 2048
+        gen_kwargs["max_new_tokens"] = 2048
+        # gen_kwargs["repetition_penalty"] = 1.5
+
+        return gen_kwargs
 
     def dict_to_str(self, d: dict[str, any]) -> str:
         """cononverts dict to e.g. args1=val1,arg2=val2"""
@@ -65,8 +72,6 @@ class ModelEvaluator:
             pretrained=self.model,
             tokenizer=self.tokenizer,
             batch_size=self.eval_batch_size,
-            max_length=4096,
-            max_new_tokens=4096,
             backend="causal",
             device=self.device,
             add_bos_token=True,
@@ -92,6 +97,7 @@ class ModelEvaluator:
             log_samples=True,
             gen_kwargs=gen_kwargs_str,
             task_manager=tm,
+            limit=400,
         )
 
         self._save_results(output["results"], experiment_name)
