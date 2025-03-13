@@ -65,13 +65,18 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
         # self.metrics_logger.log_gradient_norms()
 
-    def give_global_step_to_gates(self):
+    def give_global_step_to_gates(self, input_ids):
         if self.config.use_gating:
+            validity_mask = (input_ids != self.tokenizer.pad_token_id) & (
+                input_ids != self.tokenizer.eos_token_id
+            )
             for module in self.model.gating.wrapped_modules.values():
                 module.global_step = self.global_step
+                module.current_input_ids = input_ids
+                module.current_validity_mask = validity_mask
 
     def forward(self, input_ids, **kwargs):
-        self.give_global_step_to_gates()
+        self.give_global_step_to_gates(input_ids)
         output = self.old_forward(input_ids, **kwargs)
 
         if self.config.use_gating:

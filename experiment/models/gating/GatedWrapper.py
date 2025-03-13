@@ -32,6 +32,8 @@ class GatedWrapper(nn.Module):
         self.current_percent_tokens_skipped = 0.0
         self.current_token_importance: Optional[torch.Tensor] = None
         self.past_percent_skipped: list[float] = []
+        self.current_input_ids = None
+        self.current_validity_mask = None
 
         self.global_step = 1
 
@@ -70,7 +72,7 @@ class GatedWrapper(nn.Module):
         tuple[Union[int, torch.Tensor], Optional[torch.Tensor], Optional[Any]],
     ]:
         # Compute the gate values: shape [B, L, hidden_dim]
-        gate_value = self.gate(hidden_states)
+        gate_value = self.gate(hidden_states.detach())
         self.current_gate_value = gate_value
         # Compute per-token importance as the mean over hidden dim: shape [B, L]
         token_importance = gate_value.mean(dim=-1)
@@ -122,11 +124,23 @@ class GatedWrapper(nn.Module):
             threshold = self.get_threshold()
             process_mask = (token_importance > threshold).unsqueeze(-1)
 
+            # Get attention mask (if available)
+            if self.current_validity_mask is not None:
+
+                # Only count tokens that are not padding/EOT (where validity_mask is 1)
+                skip_mask = ~(token_importance > threshold)
+                valid_tokens = self.current_validity_mask[
+                    :, -skip_mask.size(1) :
+                ].bool()
+                num_skipped = (skip_mask & valid_tokens).sum().item()
+                total_tokens = skip_mask.shape[0]
+            else:
+                raise ValueError("No validity mask found")
+
             batch_size, seq_len, hidden_dim = hidden_states.shape
-            num_skipped = (~(token_importance > threshold)).sum().item()
-            total_tokens = batch_size * seq_len
-            self.current_percent_tokens_skipped = num_skipped / total_tokens
-            self.past_percent_skipped.append(self.current_percent_tokens_skipped)
+            self.current_percent_tokens_skipped = (
+                num_skipped / total_tokens if total_tokens > 0 else 0.0
+            )
 
             is_attn_layer = "attn" in self.module_name
 
