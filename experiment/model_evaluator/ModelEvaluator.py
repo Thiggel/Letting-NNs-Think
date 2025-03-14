@@ -51,9 +51,9 @@ class ModelEvaluator:
         else:
             gen_kwargs = {}
 
-        gen_kwargs["max_length"] = 1024
+        gen_kwargs["max_length"] = 256
         gen_kwargs["max_new_tokens"] = 1024
-        gen_kwargs["repetition_penalty"] = 1.5
+        # gen_kwargs["repetition_penalty"] = 1.5
         gen_kwargs["no_repeat_ngram_size"] = 3
 
         return gen_kwargs
@@ -98,6 +98,7 @@ class ModelEvaluator:
             log_samples=True,
             gen_kwargs=gen_kwargs_str,
             task_manager=tm,
+            limit=256,
         )
 
         self._save_results(output["results"], experiment_name)

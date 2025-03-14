@@ -48,7 +48,20 @@ class GatedWrapper(nn.Module):
             raise ValueError("No attention layer found in parent module")
         return attn_layer.current_token_importance
 
-    def get_threshold(self) -> float:
+    def get_threshold(self, token_importance) -> float:
+        if self.config.budget is not None:
+            assert self.current_validity_mask is not None
+            # sort gate values from smallest to largest
+            # and select the top k values where k is the budget
+            valid_token_importance = token_importance[self.current_validity_mask.bool()]
+            sorted_token_importance = torch.sort(valid_token_importance.view(-1))[0]
+            num_values = sorted_token_importance.size(0)
+            portion_to_skip = 1 - self.config.budget
+            num_skip = int(num_values * portion_to_skip)
+            threshold = sorted_token_importance[num_skip].item()
+
+            return threshold
+
         if self.config.increasing_threshold:
             delta_threshold = self.config.skip_threshold - self.config.start_threshold
             current_threshold = self.config.start_threshold + (
@@ -76,6 +89,17 @@ class GatedWrapper(nn.Module):
         self.current_gate_value = gate_value
         # Compute per-token importance as the mean over hidden dim: shape [B, L]
         token_importance = gate_value.mean(dim=-1)
+
+        assert self.current_validity_mask is not None
+
+        token_importance = torch.where(
+            self.current_validity_mask,
+            token_importance,
+            torch.ones_like(token_importance),
+        )
+
+        assert torch.all(token_importance[~self.current_validity_mask] == 1.0)
+
         self.current_token_importance = token_importance
 
         # If we are in a layer that should always be processed (when only_skip_every_second_layer is True)
@@ -121,26 +145,18 @@ class GatedWrapper(nn.Module):
                 token_importance = self.get_attn_token_importance()
 
             # Compute process_mask only once:
-            threshold = self.get_threshold()
+            threshold = self.get_threshold(token_importance)
             process_mask = (token_importance > threshold).unsqueeze(-1)
 
-            # Get attention mask (if available)
-            if self.current_validity_mask is not None:
-
-                # Only count tokens that are not padding/EOT (where validity_mask is 1)
-                skip_mask = ~(token_importance > threshold)
-                valid_tokens = self.current_validity_mask[
-                    :, -skip_mask.size(1) :
-                ].bool()
-                num_skipped = (skip_mask & valid_tokens).sum().item()
-                total_tokens = skip_mask.shape[0]
-            else:
-                raise ValueError("No validity mask found")
+            num_skipped = (~process_mask).sum().item()
+            total_tokens = self.current_validity_mask.sum().item()
 
             batch_size, seq_len, hidden_dim = hidden_states.shape
             self.current_percent_tokens_skipped = (
                 num_skipped / total_tokens if total_tokens > 0 else 0.0
             )
+
+            print(self.current_percent_tokens_skipped)
 
             is_attn_layer = "attn" in self.module_name
 

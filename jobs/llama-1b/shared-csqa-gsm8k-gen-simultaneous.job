@@ -19,9 +19,32 @@ srun python -m experiment \
   --use-gating \
   --no-one-gate-per-layer \
   --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 3.0 \
+  --batch-size 1 \
+  --eval-batch-size 16 \
+  --seq-length 1024 \
+  --learning-rate 3e-6 \
+  --warmup-steps 500 \
+  --max-epochs 1 \
+  --max-hours 3 \
+  --lr-decay-steps 1000000 \
+  --finetune-mode full \
+  --use-deepspeed \
+  --experiment-name Shared-Gates-CSQAGen-GSM8K-3e6-Simultaneous \
+  --save-to-checkpoint Shared_Gates_CSQAGen_GSM8K_3e6_Simultaneous \
+  --project-name gating \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --dataset csqa_gsm8k_gen \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --entropy-loss-weight 0.0 \
   --sparsity-loss-weight 1.0 \
   --batch-size 8 \
-  --eval-batch-size 16 \
+  --eval-batch-size 256 \
   --seq-length 1024 \
   --learning-rate 3e-6 \
   --warmup-steps 500 \
@@ -32,7 +55,14 @@ srun python -m experiment \
   --lr-decay-steps 1000000 \
   --finetune-mode full \
   --use-deepspeed \
-  --experiment-name Shared-Gates-CSQAGen-GSM8K-3e6-Simultaneous
-  --save-to-checkpoint Shared_Gates_CSQAGen_GSM8K_3e6_Simultaneous \
+  --load-from-checkpoint Shared-Gates-CSQAGen-GSM8K-3e6-Simultaneous \
+  --mode evaluate \
+  --evaluation-metrics csqa_gen,gsm8k_gen \
+  --num-fewshot 0 \
+  --no-actually-gate \
+  --skip-modules \
+  --skip-threshold 0.0 \
+  --experiment-name Shared-Gates-CSQAGen-GSM8K-3e6-Simultaneous-Thr0.0 \
   --project-name gating \
   --enable-logging
+

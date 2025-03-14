@@ -1,5 +1,6 @@
 from pydantic import Field
 from enum import Enum
+from typing import Optional
 
 
 class GatingType(str, Enum):
@@ -64,6 +65,9 @@ class GatingConfig:
     )
     num_increasing_steps: int = Field(
         5_000, description="Number of steps to increase the threshold over"
+    )
+    budget: Optional[float] = Field(
+        None, description="Budget for the number of modules to skip per layer"
     )
     always_skip_layer: int = Field(
         -1,
