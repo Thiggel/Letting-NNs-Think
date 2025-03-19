@@ -70,7 +70,6 @@ class ModelGating(nn.Module):
         if num_modules > 0:
             entropy_loss /= num_modules
             sparsity_loss /= num_modules
-        print("SPARSITY LOSS 2:", sparsity_loss, "\n\n")
 
         return entropy_loss, sparsity_loss
 

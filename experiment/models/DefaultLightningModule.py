@@ -242,7 +242,8 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
     def _step(self, batch, _: int, mode: str = "train") -> torch.Tensor:
         """Perform a single training/validation/test step with early exit loss support."""
-        self.metrics_logger.dump_first_batch(batch)
+        if mode == "train":
+            self.metrics_logger.dump_first_batch(batch)
 
         # For early exit training:
         if (
@@ -336,7 +337,7 @@ class DefaultLightningModule(LightningModule, HasLayers):
 
             self.log(
                 f"{mode}_threshold",
-                list(self.model.gating.wrapped_modules.items())[0][1].get_threshold(),
+                list(self.model.gating.wrapped_modules.items())[0][1].threshold,
                 sync_dist=True,
                 batch_size=batch["input_ids"].shape[0],
             )

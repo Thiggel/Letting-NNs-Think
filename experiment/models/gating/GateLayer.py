@@ -20,15 +20,21 @@ class GateLayer(nn.Module):
                 ),
             )
 
-            nn.init.normal_(gate[0].weight, std=config.gate_init_std)
+            nn.init.normal_(
+                gate[0].weight, mean=config.gate_init_mean, std=config.gate_init_std
+            )
             nn.init.constant_(gate[0].bias, 0.0)
-            nn.init.normal_(gate[2].weight, std=config.gate_init_std)
+            nn.init.normal_(
+                gate[2].weight, mean=config.gate_init_mean, std=config.gate_init_std
+            )
             nn.init.constant_(gate[2].bias, config.gate_init_value)
 
             return gate
 
         gate = nn.Linear(d_model, d_model if not config.single_number_gates else 1)
-        nn.init.normal_(gate.weight, std=config.gate_init_std)
+        nn.init.normal_(
+            gate.weight, mean=config.gate_init_mean, std=config.gate_init_std
+        )
         nn.init.constant_(gate.bias, config.gate_init_value)
 
         return gate

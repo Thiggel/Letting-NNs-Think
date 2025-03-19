@@ -161,7 +161,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
 
         if (
             self.training_config.max_epochs is not None
-            and self.training_config.max_epochs > 1
+            and self.training_config.max_epochs > 1 and "max_steps" in trainer_args
         ):
             trainer_args.pop("max_steps")
 

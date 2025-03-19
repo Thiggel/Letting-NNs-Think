@@ -5,7 +5,7 @@ training_split: train
 test_split: test
 output_type: generate_until          
 
-doc_to_text: "Task: answer the question detailed inside <query></query>. Reason about it inside <thought></thought>. In the end, give only the answer number inside <answer></answer>. <query>{{ question.strip() }}</query>\n<thought>"
+doc_to_text: "<query>{{ question.strip() }}</query>\n<steps>"
 doc_to_target: "{{answer}}"
 metric_list:
   - metric: exact_match

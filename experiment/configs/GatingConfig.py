@@ -60,17 +60,19 @@ class GatingConfig:
     increasing_threshold: bool = Field(
         False, description="Whether to increase the threshold during training"
     )
-    start_threshold: float = Field(
-        0.0, description="Initial threshold for skipping modules"
+    start_thr_percentile: float = Field(
+        0.005,
+        description="Initial threshold for skipping modules, as a number of stds below the mean",
+    )
+    end_thr_percentile: float = Field(
+        0.1,
+        description="Final threshold for skipping modules, as a number of stds above the mean",
     )
     num_increasing_steps: int = Field(
         5_000, description="Number of steps to increase the threshold over"
     )
-    budget: Optional[float] = Field(
-        None, description="Budget for the number of modules to skip per layer"
-    )
-    always_skip_layer: int = Field(
-        -1,
+    always_skip_layers: list[int] = Field(
+        [],
         description="If set, always skip this layer (0-indexed) regardless of gate value",
     )
     skip_module_types: list[str] = Field(
@@ -84,6 +86,9 @@ class GatingConfig:
     )
     gating_type: GatingType = Field("per_layer", description="Type of gating to use")
     gate_init_value: float = Field(1.0, description="Initial gate bias value")
+    gate_init_mean: float = Field(
+        0.0, description="Initial gate weight mean for normal distribution"
+    )
     gate_init_std: float = Field(
         0.01, description="Initial gate weight standard deviation"
     )

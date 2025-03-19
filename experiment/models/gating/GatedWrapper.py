@@ -7,12 +7,6 @@ from experiment.configs.GatingConfig import GatingMode
 
 
 class GatedWrapper(nn.Module):
-    """Wrapper that adds gating to any module.
-    The decision to skip processing is based solely on the current hidden state's gate value.
-    When self.config.only_skip_every_second_layer is True, layers that should not be skipped
-    (e.g. first layers) will process all tokens, and skipping statistics are recorded as 0% skipped.
-    """
-
     def __init__(
         self,
         module: nn.Module,
@@ -39,57 +33,68 @@ class GatedWrapper(nn.Module):
 
         object.__setattr__(self, "parent", parent)
 
-    def get_attn_token_importance(self) -> Optional[torch.Tensor]:
+    @property
+    def attn_token_importance(self) -> torch.Tensor:
         if hasattr(self.parent, "attn"):
             attn_layer = self.parent.attn
         elif hasattr(self.parent, "self_attn"):
             attn_layer = self.parent.self_attn
         else:
             raise ValueError("No attention layer found in parent module")
-        return attn_layer.current_token_importance
+        attn_token_importance = attn_layer.current_token_importance
 
-    def get_threshold(self, token_importance) -> float:
-        if self.config.budget is not None:
-            assert self.current_validity_mask is not None
-            # sort gate values from smallest to largest
-            # and select the top k values where k is the budget
-            valid_token_importance = token_importance[self.current_validity_mask.bool()]
-            sorted_token_importance = torch.sort(valid_token_importance.view(-1))[0]
-            num_values = sorted_token_importance.size(0)
-            portion_to_skip = 1 - self.config.budget
-            num_skip = int(num_values * portion_to_skip)
-            threshold = sorted_token_importance[num_skip].item()
+        assert attn_token_importance is not None
 
-            return threshold
+        return attn_token_importance
 
+    @property
+    def threshold(self) -> float:
         if self.config.increasing_threshold:
-            delta_threshold = self.config.skip_threshold - self.config.start_threshold
-            current_threshold = self.config.start_threshold + (
-                self.global_step / self.config.num_increasing_steps * delta_threshold
+            assert self.global_step is not None
+            assert self.current_token_importance is not None
+            assert self.current_validity_mask is not None
+
+            all_token_importances = (
+                self.current_token_importance[self.current_validity_mask]
+                .detach()
+                .flatten()
+            )
+            sorted_token_importances = torch.sort(all_token_importances.float()).values
+
+            delta_percentile = (
+                self.config.end_thr_percentile - self.config.start_thr_percentile
             )
 
-            return min(
-                current_threshold,
-                self.config.skip_threshold,
+            current_percentile = (
+                self.config.start_thr_percentile
+                + min(1.0, self.global_step / self.config.num_increasing_steps)
+                * delta_percentile
             )
+
+            kth_index = min(
+                int(current_percentile * len(sorted_token_importances)),
+                len(sorted_token_importances) - 1,
+            )
+
+            current_threshold = sorted_token_importances[kth_index].item()
+
+            return current_threshold if current_threshold != 1.0 else 0.999
 
         return self.config.skip_threshold
 
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Union[
-        Union[int, torch.Tensor],
-        tuple[Union[int, torch.Tensor], Optional[torch.Tensor], Optional[Any]],
-    ]:
-        # Compute the gate values: shape [B, L, hidden_dim]
-        gate_value = self.gate(hidden_states.detach())
-        self.current_gate_value = gate_value
-        # Compute per-token importance as the mean over hidden dim: shape [B, L]
-        token_importance = gate_value.mean(dim=-1)
+    @property
+    def is_attn_layer(self) -> bool:
+        return "attn" in self.module_name
 
+    @property
+    def is_skipping_enabled_on_this_module_type(self) -> bool:
+        return any(
+            mod_type in self.module_name for mod_type in self.config.skip_module_types
+        )
+
+    def calculate_token_importance(
+        self, token_importance: torch.Tensor
+    ) -> torch.Tensor:
         assert self.current_validity_mask is not None
 
         token_importance = torch.where(
@@ -100,160 +105,112 @@ class GatedWrapper(nn.Module):
 
         assert torch.all(token_importance[~self.current_validity_mask] == 1.0)
 
+        if self.config.only_skip_every_second_layer and (self.layer_idx % 2 == 0):
+            token_importance = torch.ones_like(token_importance)
+
+        if self.config.randomly_skip:
+            token_importance = (
+                torch.rand_like(token_importance) > self.config.percent_randomly_skip
+            ).float()
+        elif self.layer_idx in self.config.always_skip_layers:
+            token_importance = torch.zeros_like(token_importance)
+        elif self.config.skip_entire_layer_based_on_attn and not self.is_attn_layer:
+            token_importance = self.attn_token_importance
+
+        if (
+            not self.is_skipping_enabled_on_this_module_type
+            or not self.config.skip_modules
+        ):
+            token_importance = torch.ones_like(token_importance)
+
         self.current_token_importance = token_importance
 
-        # If we are in a layer that should always be processed (when only_skip_every_second_layer is True)
-        if self.config.only_skip_every_second_layer and (self.layer_idx % 2 == 0):
-            self.current_percent_tokens_skipped = 0.0
-            self.past_percent_skipped.append(0.0)
-            module_output = self.module(hidden_states, *args, **kwargs)
-            if isinstance(module_output, tuple):
-                main_output = module_output[0]
-                gated_output = (
-                    (gate_value * main_output)
-                    if self.config.actually_gate
-                    else main_output
-                )
-                return (gated_output,) + module_output[1:]
-            else:
-                return (
-                    (gate_value * module_output)
-                    if self.config.actually_gate
-                    else module_output
-                )
+        return token_importance
 
-        # Otherwise, if skipping is enabled for this layer:
-        any_skipped_mod_type = any(
-            mod_type in self.module_name for mod_type in self.config.skip_module_types
+    def calculate_skipping_statistics(self, skip_mask: torch.Tensor) -> None:
+        num_skipped = skip_mask.sum().item()
+        assert self.current_validity_mask is not None
+        total_tokens = self.current_validity_mask.sum().item()
+
+        self.current_percent_tokens_skipped = (
+            num_skipped / total_tokens if total_tokens > 0 else 0.0
         )
-        if self.config.skip_modules and any_skipped_mod_type:
-            # Optionally override token_importance based on config:
-            if self.config.randomly_skip:
-                token_importance = (
-                    torch.rand_like(token_importance)
-                    > self.config.percent_randomly_skip
-                ).float()
-            elif (
-                self.config.always_skip_layer != -1
-                and self.layer_idx == self.config.always_skip_layer
+
+    def update_kv_cache(
+        self,
+        module_output: tuple,
+        past_kv: Optional[torch.Tensor],
+        skip_mask: torch.Tensor,
+    ) -> Optional[torch.Tensor]:
+        if past_kv is not None and skip_mask.any():
+            prev_layer_cache = past_kv[self.layer_idx - 1]  # This returns (k, v) tuple
+
+            if (
+                isinstance(module_output, tuple)
+                and len(module_output) > 1
+                and module_output[1] is not None
             ):
-                token_importance = torch.zeros_like(token_importance)
-            elif (
-                self.config.skip_entire_layer_based_on_attn
-                and "mlp" in self.module_name
-            ):
-                token_importance = self.get_attn_token_importance()
+                current_layer_cache = module_output[1][self.layer_idx]
 
-            # Compute process_mask only once:
-            threshold = self.get_threshold(token_importance)
-            process_mask = (token_importance > threshold).unsqueeze(-1)
+                skip_mask = skip_mask.expand(-1, -1, current_layer_cache[0].size(-1))
 
-            num_skipped = (~process_mask).sum().item()
-            total_tokens = self.current_validity_mask.sum().item()
-
-            batch_size, seq_len, hidden_dim = hidden_states.shape
-            self.current_percent_tokens_skipped = (
-                num_skipped / total_tokens if total_tokens > 0 else 0.0
-            )
-
-            print(self.current_percent_tokens_skipped)
-
-            is_attn_layer = "attn" in self.module_name
-
-            if is_attn_layer:
-                # For attention layers, zero out tokens not meeting the threshold.
-                zeros = torch.zeros_like(hidden_states)
-                effective_hidden_states = torch.where(
-                    process_mask.expand_as(hidden_states), hidden_states, zeros
+                current_layer_cache[0] = torch.where(
+                    skip_mask, prev_layer_cache[0], current_layer_cache[0]
                 )
-                module_output = self.module(effective_hidden_states, *args, **kwargs)
 
-                # Get the past_key_value if it exists
-                past_kv = kwargs.get("past_key_value")
-                if past_kv is not None and not process_mask.all():
-                    # Get previous layer's cache
-                    prev_layer_cache = past_kv[
-                        self.layer_idx - 1
-                    ]  # This returns (k, v) tuple
+                current_layer_cache[1] = torch.where(
+                    skip_mask, prev_layer_cache[1], current_layer_cache[1]
+                )
 
-                    if (
-                        isinstance(module_output, tuple)
-                        and len(module_output) > 1
-                        and module_output[1] is not None
-                    ):
-                        current_layer_cache = module_output[1][
-                            self.layer_idx
-                        ]  # Get current layer cache
-                        skip_mask = ~process_mask.expand(
-                            -1, -1, current_layer_cache[0].size(-1)
-                        )
+                module_output[1][self.layer_idx] = current_layer_cache
 
-                        # Copy k,v from previous layer for skipped tokens
-                        current_layer_cache[0][skip_mask] = prev_layer_cache[0][
-                            skip_mask
-                        ]
-                        current_layer_cache[1][skip_mask] = prev_layer_cache[1][
-                            skip_mask
-                        ]
+                return module_output[1]
 
-                if isinstance(module_output, tuple):
-                    processed_output = module_output[0]
-                    if self.config.actually_gate:
-                        processed_output = gate_value * processed_output
-                    return (processed_output,) + module_output[1:]
-                else:
-                    if self.config.actually_gate:
-                        module_output = gate_value * module_output
-                    return module_output
-            else:
-                # For MLP layers, process only the tokens that pass the threshold.
-                if process_mask.sum() == 0:
-                    return torch.zeros_like(hidden_states)
-                tokens_to_process = hidden_states[process_mask.squeeze(-1)]
-                module_output = self.module(tokens_to_process, *args, **kwargs)
-                output = hidden_states.clone()
-                if isinstance(module_output, tuple):
-                    processed_output = module_output[0]
-                    if self.config.actually_gate:
-                        processed_output = (
-                            gate_value[process_mask.expand_as(gate_value)]
-                            * processed_output
-                        )
-                    processed_output = processed_output.view(-1, hidden_dim)
-                    output[process_mask.squeeze(-1)] = processed_output
-                    return (output,) + module_output[1:]
-                else:
-                    if self.config.actually_gate:
-                        module_output = (
-                            gate_value[process_mask.expand_as(gate_value)]
-                            * module_output
-                        )
-                    module_output = module_output.view(-1, hidden_dim)
-                    output[process_mask.squeeze(-1)] = module_output
-                    return output
+        return None
 
-        # If no skipping is applied at all:
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Union[
+        Union[tuple[torch.Tensor, torch.Tensor], torch.Tensor],
+        tuple[Union[int, torch.Tensor], Optional[torch.Tensor], Optional[Any]],
+    ]:
+        gate_value = self.gate(hidden_states.detach())
+        self.current_gate_value = gate_value
+        token_importance = self.calculate_token_importance(gate_value.mean(dim=-1))
+
         if (
             self.config.gating_mode == GatingMode.BEFORE_MODULE
             and self.config.actually_gate
         ):
             hidden_states = gate_value * hidden_states
 
+        threshold = self.threshold
+        skip_mask = (token_importance < threshold).unsqueeze(-1)
+
+        self.calculate_skipping_statistics(skip_mask)
+
         module_output = self.module(hidden_states, *args, **kwargs)
+        main_output = (
+            module_output[0] if isinstance(module_output, tuple) else module_output
+        )
+
+        updated_kv_cache = self.update_kv_cache(
+            module_output, kwargs.get("past_key_value"), skip_mask
+        )
+
+        if updated_kv_cache is not None:
+            module_output = (main_output, updated_kv_cache)
+
+        if self.config.actually_gate:
+            main_output = gate_value * main_output
+
+        zero_output = torch.zeros_like(hidden_states)
+        main_output = torch.where(skip_mask, zero_output, main_output)
 
         if isinstance(module_output, tuple):
-            main_output = module_output[0]
-            gated_output = (
-                (gate_value * main_output)
-                if self.config.actually_gate
-                and self.config.gating_mode == GatingMode.AFTER_MODULE
-                else main_output
-            )
-            return (gated_output,) + module_output[1:]
+            return (main_output,) + module_output[1:]
         else:
-            return (
-                (gate_value * module_output)
-                if self.config.actually_gate
-                and self.config.gating_mode == GatingMode.AFTER_MODULE
-                else module_output
-            )
+            return main_output

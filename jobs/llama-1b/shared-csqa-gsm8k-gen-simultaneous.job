@@ -20,13 +20,15 @@ srun python -m experiment \
   --no-one-gate-per-layer \
   --entropy-loss-weight 0.0 \
   --sparsity-loss-weight 3.0 \
-  --batch-size 1 \
-  --eval-batch-size 16 \
+  --batch-size 16 \
+  --eval-batch-size 32 \
   --seq-length 1024 \
   --learning-rate 3e-6 \
   --warmup-steps 500 \
-  --max-epochs 1 \
-  --max-hours 3 \
+  --max-epochs 50 \
+  --max-training-steps 100000 \
+  --validate-every-n-steps 500 \
+  --max-hours 8 \
   --lr-decay-steps 1000000 \
   --finetune-mode full \
   --use-deepspeed \

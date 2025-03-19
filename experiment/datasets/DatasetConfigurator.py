@@ -62,6 +62,14 @@ class DatasetConfigurator:
                 "synthetic": True,
                 "process_on_the_fly": True,
             },
+            "gsm8k_gen": {
+                "dataset_class": "GSM8KGen",
+                "q_func": lambda x: f"<query>{x['query']}</query>\n",
+                "ans_func": lambda x: f"<steps>{x['steps']}</steps>\n<answer>{x['solution']}</answer>",
+                "val_subset": 250,
+                "synthetic": True,
+                "process_on_the_fly": True,
+            },
             "csqa_gsm8k_gen": {
                 "dataset_class": "ReasoningDataset",
                 "q_func": lambda x: f"<query>{x['query']}</query>\n",

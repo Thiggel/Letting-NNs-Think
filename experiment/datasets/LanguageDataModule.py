@@ -20,6 +20,7 @@ from .synthetic_datasets import (
     PatternDataset,
     ComplexArithmeticReasoningDataset,
     CSQAGen,
+    GSM8KGen,
     ReasoningDataset,
 )
 
@@ -155,6 +156,7 @@ class LanguageDataModule(LightningDataModule):
                 "PatternDataset": PatternDataset,
                 "ComplexArithmeticReasoningDataset": ComplexArithmeticReasoningDataset,
                 "CSQAGen": CSQAGen,
+                "GSM8KGen": GSM8KGen,
                 "ReasoningDataset": ReasoningDataset,
             }[self.dataset_config["dataset_class"]]
 

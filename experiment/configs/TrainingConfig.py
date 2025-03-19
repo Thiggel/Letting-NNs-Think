@@ -30,7 +30,7 @@ class TrainingConfig(BaseModel):
     learning_rate: float = Field(1e-3, description="The learning rate for the model")
     initial_lr: float = Field(0, description="The initial learning rate for the model")
     warmup_steps: int = Field(50, description="The number of warmup steps")
-    lr_decay_steps: int = Field(1000, description="The number of steps before decaying")
+    lr_decay_steps: int = Field(100000000, description="The number of steps before decaying")
     max_grad_norm: float = Field(
         1.0, description="The maximum gradient norm for gradient clipping"
     )
