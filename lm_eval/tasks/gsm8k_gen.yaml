@@ -6,7 +6,7 @@ test_split: test
 output_type: generate_until          
 
 doc_to_text: "<query>{{ question.strip() }}</query>\n<steps>"
-doc_to_target: "{{answer}}"
+doc_to_target: "{{answer.split('#### ')[0].strip()}}\n</steps><answer>{{answer.split('#### ')[1].strip()}}</answer>"
 metric_list:
   - metric: exact_match
     aggregation: mean

@@ -69,6 +69,28 @@ class ModelEvaluator:
         experiment_name: str,
         generation_mode: GenerationMode,
     ) -> dict[str, float]:
+        gen_kwargs = self.get_gen_kwargs(generation_mode)
+
+        ### TEST
+        #from .CustomEvaluator import CustomEvaluator
+
+        #evaluator = CustomEvaluator(
+        #    model=self.model,
+        #    tokenizer=self.tokenizer,
+        #    batch_size=self.eval_batch_size,
+        #)
+
+        #results = evaluator.evaluate(
+        #    dataset_name='gsm8k',
+        #    split="test",
+        #    num_samples=200,
+        #    generation_kwargs=gen_kwargs,
+        #)
+
+        #print(results)
+        #return results
+        ### /TEST
+
         wrapped_model = HFLM(
             pretrained=self.model,
             tokenizer=self.tokenizer,
@@ -78,7 +100,6 @@ class ModelEvaluator:
             add_bos_token=True,
         )
 
-        gen_kwargs = self.get_gen_kwargs(generation_mode)
         gen_kwargs_str = self.dict_to_str(gen_kwargs) if gen_kwargs != {} else None
 
         print("gen_kwargs_str:", gen_kwargs_str)
@@ -98,7 +119,6 @@ class ModelEvaluator:
             log_samples=True,
             gen_kwargs=gen_kwargs_str,
             task_manager=tm,
-            limit=256,
         )
 
         self._save_results(output["results"], experiment_name)

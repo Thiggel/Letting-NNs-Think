@@ -25,40 +25,6 @@ from .synthetic_datasets import (
 )
 
 
-class RetryingDataLoader(DataLoader):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.samples_seen = 0
-
-    def __iter__(self):
-        max_retries = 10
-        while True:
-            try:
-                iterator = super().__iter__()
-                for batch in iterator:
-                    self.samples_seen += len(batch["input_ids"])
-                    yield batch
-            except FileNotFoundError:
-                print(
-                    f"FileNotFoundError after {self.samples_seen} samples, retrying..."
-                )
-                for _ in range(max_retries):
-                    try:
-                        # Skip to approximately where we were
-                        self.dataset = load_dataset(
-                            self.dataset.config["name"],
-                            self.dataset.config.get("subset"),
-                            streaming=True,
-                            trust_remote_code=True,
-                        )[self.dataset.config["train_field"]].skip(self.samples_seen)
-                        break
-                    except FileNotFoundError:
-                        import time
-
-                        time.sleep(5)
-                continue
-
-
 class LanguageDataModule(LightningDataModule):
     """Main data module for language modeling tasks"""
 
@@ -73,7 +39,6 @@ class LanguageDataModule(LightningDataModule):
         cache_dir: Optional[str] = None,
     ):
         super().__init__()
-        config.HF_DATASETS_TIMEOUT = 300
         self.data_config = data_config
         self.model_config = model_config
         self.training_config = training_config
@@ -102,7 +67,7 @@ class LanguageDataModule(LightningDataModule):
             self.data_config.dataset
         )
 
-        if self.dataset_config.get("process_on_the_fly", False):
+        if self.dataset_config.get("streaming", False):
             self.datasets = self._prepare_streaming_datasets()
         else:
             cache_path = self.dataset_manager.get_cache_path(
@@ -149,23 +114,26 @@ class LanguageDataModule(LightningDataModule):
 
         return DatasetSplit(train_dataset, val_dataset, test_dataset)
 
+    def _get_dataset_instance(self, dataset_class_name, **kwargs):
+        """Factory method to create dataset instances."""
+        dataset_classes = {
+            "ArithmeticDataset": ArithmeticDataset,
+            "PatternDataset": PatternDataset,
+            "ComplexArithmeticReasoningDataset": ComplexArithmeticReasoningDataset,
+            "CSQAGen": CSQAGen,
+            "GSM8KGen": GSM8KGen,
+            "ReasoningDataset": ReasoningDataset,
+        }
+        return dataset_classes[dataset_class_name](**kwargs)
+
     def _prepare_streaming_datasets(self) -> DatasetSplit:
         if "dataset_class" in self.dataset_config:
-            dataset_class = {
-                "ArithmeticDataset": ArithmeticDataset,
-                "PatternDataset": PatternDataset,
-                "ComplexArithmeticReasoningDataset": ComplexArithmeticReasoningDataset,
-                "CSQAGen": CSQAGen,
-                "GSM8KGen": GSM8KGen,
-                "ReasoningDataset": ReasoningDataset,
-            }[self.dataset_config["dataset_class"]]
-
-            # Create dataset
-            train_dataset = dataset_class(
+            train_dataset = self._get_dataset_instance(
+                self.dataset_config["dataset_class"],
                 **self.dataset_config.get("dataset_params", {}),
                 tokenizer=self.tokenizer,
-                process_fn=lambda x: self._process_streaming_sample(
-                    x, self.dataset_config["q_func"], self.dataset_config["ans_func"]
+                process_fn=lambda x: self._process_sample(
+                    x
                 ),
             )
 
@@ -176,10 +144,8 @@ class LanguageDataModule(LightningDataModule):
             )
             for _ in range(self.dataset_config["val_subset"]):
                 sample = next(val_iterator)
-                processed = self._process_streaming_sample(
+                processed = self._process_sample(
                     sample,
-                    self.dataset_config["q_func"],
-                    self.dataset_config["ans_func"],
                 )
                 if processed:
                     validation_samples.append(processed)
@@ -204,8 +170,8 @@ class LanguageDataModule(LightningDataModule):
         )
 
         def filter_and_process(sample):
-            processed = self._process_streaming_sample(
-                sample, self.dataset_config["q_func"], self.dataset_config["ans_func"]
+            processed = self._process_sample(
+                sample
             )
             return processed is not None
 
@@ -214,9 +180,7 @@ class LanguageDataModule(LightningDataModule):
             .filter(filter_and_process)
             .map(
                 partial(
-                    self._process_streaming_sample,
-                    q_func=self.dataset_config["q_func"],
-                    ans_func=self.dataset_config["ans_func"],
+                    self._process_sample,
                 ),
                 remove_columns=ds[self.dataset_config["train_field"]].column_names,
             )
@@ -225,51 +189,41 @@ class LanguageDataModule(LightningDataModule):
         val_dataset = train_dataset.take(self.dataset_config["val_subset"])
         return DatasetSplit(train_dataset, val_dataset, None)
 
-    def _process_streaming_sample(
-        self, sample: dict[str, Any], q_func: callable, ans_func: callable
-    ) -> dict[str, Any]:
+    def _process_sample(self, sample: str) -> Optional[dict[str, Any]]:
+        q_func = self.dataset_config["q_func"]
+        ans_func = self.dataset_config["ans_func"]
 
-        full_text = (
-            q_func(sample)
-            + ans_func(sample)
-            + (
-                self.tokenizer.eos_token
-                if self.dataset_config.get("synthetic", False)
-                else ""
-            )
+        query_text = q_func(sample)
+        answer_text = ans_func(sample) + (
+            self.tokenizer.eos_token
+            if self.dataset_config.get("add_eos_token", False)
+            else ""
         )
 
-        if self.dataset_config.get("synthetic", False):
-            # filter out sequences too long so that they always end in an EOS token
-            temp_tokenized = self.tokenizer(
-                [full_text],
-                padding="do_not_pad",
-                truncation=False,
-            )
+        query_tokens = self.tokenizer(query_text, add_special_tokens=False)
+        answer_tokens = self.tokenizer(answer_text, add_special_tokens=False)
+        query_length = len(query_tokens["input_ids"])
+        total_len = query_length + len(answer_tokens["input_ids"])
 
-            if len(temp_tokenized["input_ids"][0]) > self.data_config.seq_length:
+        if (self.dataset_config.get("filter_samples_above_max_len", False) and total_len > self.data_config.seq_length) or (
+            self.dataset_config.get("filter_samples_below_max_len", False) and total_len < self.data_config.seq_length
+            ):
                 return None
 
-        tokenized = self.token_processor.tokenize_text(
-            [full_text],
-            max_length=(
-                self.data_config.seq_length if self.data_config.seq_length > 0 else None
-            ),
-        )
+        input_ids = query_tokens["input_ids"] + answer_tokens["input_ids"]
+        attention_mask = query_tokens["attention_mask"] + answer_tokens["attention_mask"]
+        labels = input_ids.copy()
+        labels[:query_length] = [-100] * query_length
 
-        if len(
-            tokenized["input_ids"][0]
-        ) < self.data_config.seq_length and not self.dataset_config.get(
-            "synthetic", False
-        ):
-            # filter out sequences that are too short when using e.g. Fineweb
-            # so that the model is at full capacity
-            return None
+        if len(input_ids) > self.data_config.seq_length:
+            input_ids = input_ids[: self.data_config.seq_length]
+            attention_mask = attention_mask[: self.data_config.seq_length]
+            labels = labels[: self.data_config.seq_length]
 
         return {
-            "input_ids": tokenized["input_ids"][0],
-            "attention_mask": tokenized["attention_mask"][0],
-            "labels": tokenized["input_ids"][0],
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "labels": labels,
         }
 
     def _process_split(
@@ -298,36 +252,20 @@ class LanguageDataModule(LightningDataModule):
         return filtered_input_ids, filtered_attention_mask
 
     def _tokenize(self, samples: dict[str, List[Any]]) -> dict[str, List[Any]]:
-        samples = [dict(zip(samples, i)) for i in zip(*samples.values())]
-        full_text = [
-            self.dataset_config["q_func"](sample)
-            + self.dataset_config["ans_func"](sample)
-            + (
-                self.tokenizer.eos_token
-                if not self.dataset_config.get("streaming", False)
-                or self.dataset_config.get("synthetic", False)
-                else ""
-            )
-            for sample in samples
-        ]
-
-        tokenized = self.token_processor.tokenize_text(
-            full_text,
-            max_length=(
-                self.data_config.seq_length if self.data_config.seq_length > 0 else None
-            ),
-        )
-
-        if self.dataset_config.get("streaming", False):
-            input_ids, attention_mask = self._filter_max_len(tokenized)
-        else:
-            input_ids = tokenized["input_ids"]
-            attention_mask = tokenized["attention_mask"]
-
+        samples_list = [dict(zip(samples, i)) for i in zip(*samples.values())]
+    
+        processed = []
+        for sample in samples_list:
+            result = self._process_sample(sample)
+            if result is not None:
+                processed.append(result)
+        
+        if not processed:
+            return {"input_ids": [], "attention_mask": [], "labels": []}
+            
         return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "labels": input_ids.copy(),
+            k: [sample[k] for sample in processed] 
+            for k in processed[0].keys()
         }
 
     def _split_dataset(
@@ -348,7 +286,7 @@ class LanguageDataModule(LightningDataModule):
         if not self.datasets or not self.datasets.train:
             raise ValueError("Training dataset not initialized")
 
-        return RetryingDataLoader(
+        return DataLoader(
             self.datasets.train,
             batch_size=self.data_config.batch_size,
             shuffle=not isinstance(self.datasets.train, IterableDataset),
