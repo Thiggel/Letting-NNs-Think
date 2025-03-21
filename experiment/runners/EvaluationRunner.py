@@ -7,10 +7,10 @@ from optimum.quanto import QuantizedModelForCausalLM, qint4
 from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
-from experiment.model_evaluator import ModelEvaluator, SyntheticDatasetEvaluator
+from experiment.model_evaluator import ModelEvaluator
 
-from .HasTokenizer import HasTokenizer
 from .HasModel import HasModel
+from .HasTokenizer import HasTokenizer
 
 
 class EvaluationRunner(Runner, HasTokenizer, HasModel):
@@ -118,44 +118,24 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
-        # Determine if we're evaluating on synthetic datasets
-        synthetic_tasks = ["arithmetic", "pattern", "complex_arithmetic_reasoning"]
         metrics = self.evaluation_config.evaluation_metrics or ["gsm8k"]
 
         results = {}
 
-        # Handle synthetic dataset evaluation
-        synthetic_metrics = [m for m in metrics if m in synthetic_tasks]
-        if synthetic_metrics:
-            evaluator = SyntheticDatasetEvaluator(
-                model,
-                self.tokenizer,
-                self.evaluation_config.eval_batch_size,
-                self.data_config,
-                self.model_config,
-                self.training_config,
-                seed,
-            )
-            for task in synthetic_metrics:
-                task_results = evaluator.evaluate(task)
-                results.update({f"{task}_{k}": v for k, v in task_results.items()})
-
         # Handle standard dataset evaluation
-        standard_metrics = [m for m in metrics if m not in synthetic_tasks]
-        if standard_metrics:
-            evaluator = ModelEvaluator(
-                model,
-                self.tokenizer,
-                self.evaluation_config.eval_batch_size,
-                self.evaluation_config.num_fewshot,
-            )
-            standard_results = evaluator.evaluate(
-                standard_metrics,
-                seed,
-                self.experiment_config.experiment_name,
-                self.model_config.generation_mode,
-            )
-            results.update(self._format_standard_results(standard_results))
+        evaluator = ModelEvaluator(
+            model,
+            self.tokenizer,
+            self.evaluation_config.eval_batch_size,
+            self.evaluation_config.num_fewshot,
+        )
+        standard_results = evaluator.evaluate(
+            metrics,
+            seed,
+            self.experiment_config.experiment_name,
+            self.model_config.generation_mode,
+        )
+        results.update(self._format_standard_results(standard_results))
 
         results = self._log_percent_tokens_skipped(model, results)
         results = self._log_percent_tokens_skipped_per_layer(model, results)

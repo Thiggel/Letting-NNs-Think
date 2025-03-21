@@ -131,6 +131,8 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
 
         if torch.cuda.is_available():
             trainer_args.update(self._get_cuda_specific_args())
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
 
         return Trainer(**trainer_args)
 
@@ -196,13 +198,34 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
                     "contiguous_gradients": True,
                 },
                 "gradient_clipping": self.training_config.max_grad_norm,
-                "bf16": {"enabled": True},
+                "bf16": {"enabled": False},
+                "wall_clock_breakdown": False,
+                "zero_allow_untested_optimizer": True,
+                "fp16": {
+                    "enabled": False
+                },
+                "flops_profiler": {
+                    "enabled": True,
+                    "profile_step": 1,
+                    "module_depth": -1,
+                    "top_modules": 3,
+                    "detailed": True,
+                },
+                # Add specific torch extension configs
+                "sparse_attention": {
+                    "mode": "dense",  # Use dense attention
+                    "block": 32,      # Block size for sparse attention
+                    "different_layout_per_head": True
+                },
+                # Flash attention for newer GPUs
+                "flash_attention": True,
+                # Tensor cores specific optimizations
+                "tensor_core": {"enabled": True, "ds_inference": True},
                 "wall_clock_breakdown": False,
                 "zero_allow_untested_optimizer": True,
             }
         )
         args = {
-            "precision": "bf16",
             "accelerator": "gpu",
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"] + "/../",
         }

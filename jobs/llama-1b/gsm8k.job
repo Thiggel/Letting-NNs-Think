@@ -19,14 +19,14 @@ srun python -m experiment \
   --batch-size 1 \
   --eval-batch-size 16 \
   --seq-length 2048 \
-  --learning-rate 1e-6 \
+  --learning-rate 3e-6 \
   --warmup-steps 630 \
   --max-epochs 1 \
   --max-hours 5 \
   --finetune-mode full \
   --use-deepspeed \
-  --experiment-name LLama-1b-GSM8K_1e6 \
-  --save-to-checkpoint Llama_1b_GSM8K_1e6 \
+  --experiment-name LLama-1b-GSM8K_3e6 \
+  --save-to-checkpoint Llama_1b_GSM8K_3e6 \
   --project-name gating \
   --enable-logging
 
@@ -41,7 +41,7 @@ srun python -m experiment \
   --mode evaluate \
   --evaluation-metrics gsm8k \
   --num-fewshot 0 \
-  --experiment-name Llama-1b-GSM8K_1e6 \
-  --load-from-checkpoint Llama_1b_GSM8K_1e6 \
+  --experiment-name Llama-1b-GSM8K_3e6 \
+  --load-from-checkpoint Llama_1b_GSM8K_3e6 \
   --project-name gating \
   --enable-logging

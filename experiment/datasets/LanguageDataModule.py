@@ -51,7 +51,10 @@ class LanguageDataModule(LightningDataModule):
                 else "."
             )
         )
-        self.token_processor = TokenizationProcessor(tokenizer)
+        self.dataset_config = DatasetConfigurator.get_dataset_config(
+            self.data_config.dataset
+        )
+        self.token_processor = TokenizationProcessor(tokenizer, self.data_config, self.dataset_config)
         self.batch_collator = BatchCollator(tokenizer, data_config.seq_length)
         self.datasets: Optional[DatasetSplit] = None
         self.setup()
@@ -61,9 +64,6 @@ class LanguageDataModule(LightningDataModule):
 
     def setup(self, stage: Optional[str] = None) -> None:
         try:
-            self.dataset_config = DatasetConfigurator.get_dataset_config(
-                self.data_config.dataset
-            )
 
             cache_path = self.dataset_manager.get_cache_path(
                 self.data_config, self.model_config, self.seed
