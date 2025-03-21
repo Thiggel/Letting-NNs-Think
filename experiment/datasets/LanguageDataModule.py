@@ -15,10 +15,7 @@ from .TokenizationProcessor import TokenizationProcessor
 from .DatasetManager import DatasetManager
 from .BatchCollator import BatchCollator
 from .DatasetConfigurator import DatasetConfigurator
-from .synthetic_datasets import (
-    ArithmeticDataset,
-    PatternDataset,
-    ComplexArithmeticReasoningDataset,
+from .custom_datasets import (
     CSQAGen,
     GSM8KGen,
     ReasoningDataset,
@@ -63,13 +60,11 @@ class LanguageDataModule(LightningDataModule):
         disable_caching()
 
     def setup(self, stage: Optional[str] = None) -> None:
-        self.dataset_config = DatasetConfigurator.get_dataset_config(
-            self.data_config.dataset
-        )
+        try:
+            self.dataset_config = DatasetConfigurator.get_dataset_config(
+                self.data_config.dataset
+            )
 
-        if self.dataset_config.get("streaming", False):
-            self.datasets = self._prepare_streaming_datasets()
-        else:
             cache_path = self.dataset_manager.get_cache_path(
                 self.data_config, self.model_config, self.seed
             )
@@ -78,6 +73,8 @@ class LanguageDataModule(LightningDataModule):
             else:
                 self.datasets = self._prepare_datasets()
                 self.dataset_manager.save_datasets(self.datasets, cache_path)
+        except Exception as e:
+            raise ValueError(f"Error while setting up datasets: {e}")
 
     def _prepare_datasets(self) -> DatasetSplit:
         if self.dataset_config.get("streaming", False):
@@ -86,22 +83,34 @@ class LanguageDataModule(LightningDataModule):
             return self._prepare_static_datasets()
 
     def _prepare_static_datasets(self) -> DatasetSplit:
-        ds = load_dataset(
-            self.dataset_config["name"],
-            self.dataset_config.get("subset"),
-            trust_remote_code=True,
-        )
-
-        train_dataset = self._process_split(ds[self.dataset_config["train_field"]])
-
-        if "test_field" in self.dataset_config:
-            test_dataset = self._process_split(ds[self.dataset_config["test_field"]])
-        elif "test_subset" in self.dataset_config:
-            train_dataset, test_dataset = self._split_dataset(
-                train_dataset, self.dataset_config["test_subset"]
+        if "dataset_class" in self.dataset_config:
+            train_dataset = self._get_dataset_instance(
+                self.dataset_config["dataset_class"],
+                **self.dataset_config.get("dataset_params", {}),
+                tokenizer=self.tokenizer,
+                process_fn=lambda x: self.token_processor.process_sample(x),
             )
-        else:
             test_dataset = None
+
+        else:
+            ds = load_dataset(
+                self.dataset_config["name"],
+                self.dataset_config.get("subset"),
+                trust_remote_code=True,
+            )
+
+            train_dataset = self._process_split(ds[self.dataset_config["train_field"]])
+
+            if "test_field" in self.dataset_config:
+                test_dataset = self._process_split(
+                    ds[self.dataset_config["test_field"]]
+                )
+            elif "test_subset" in self.dataset_config:
+                train_dataset, test_dataset = self._split_dataset(
+                    train_dataset, self.dataset_config["test_subset"]
+                )
+            else:
+                test_dataset = None
 
         train_dataset, val_dataset = self._split_dataset(
             train_dataset,
@@ -117,9 +126,6 @@ class LanguageDataModule(LightningDataModule):
     def _get_dataset_instance(self, dataset_class_name, **kwargs):
         """Factory method to create dataset instances."""
         dataset_classes = {
-            "ArithmeticDataset": ArithmeticDataset,
-            "PatternDataset": PatternDataset,
-            "ComplexArithmeticReasoningDataset": ComplexArithmeticReasoningDataset,
             "CSQAGen": CSQAGen,
             "GSM8KGen": GSM8KGen,
             "ReasoningDataset": ReasoningDataset,
@@ -127,41 +133,6 @@ class LanguageDataModule(LightningDataModule):
         return dataset_classes[dataset_class_name](**kwargs)
 
     def _prepare_streaming_datasets(self) -> DatasetSplit:
-        if "dataset_class" in self.dataset_config:
-            train_dataset = self._get_dataset_instance(
-                self.dataset_config["dataset_class"],
-                **self.dataset_config.get("dataset_params", {}),
-                tokenizer=self.tokenizer,
-                process_fn=lambda x: self._process_sample(
-                    x
-                ),
-            )
-
-            # Create validation set
-            validation_samples = []
-            val_iterator = iter(
-                dataset_class(**self.dataset_config.get("dataset_params", {}))
-            )
-            for _ in range(self.dataset_config["val_subset"]):
-                sample = next(val_iterator)
-                processed = self._process_sample(
-                    sample,
-                )
-                if processed:
-                    validation_samples.append(processed)
-
-            from datasets import Dataset
-
-            validation_dataset = Dataset.from_dict(
-                {
-                    k: [d[k] for d in validation_samples]
-                    for k in validation_samples[0].keys()
-                }
-            )
-
-            return DatasetSplit(train_dataset, validation_dataset, None)
-
-        # Original HuggingFace dataset logic
         ds = load_dataset(
             self.dataset_config["name"],
             self.dataset_config.get("subset"),
@@ -170,9 +141,7 @@ class LanguageDataModule(LightningDataModule):
         )
 
         def filter_and_process(sample):
-            processed = self._process_sample(
-                sample
-            )
+            processed = self.token_processor.process_sample(sample)
             return processed is not None
 
         train_dataset = (
@@ -180,51 +149,15 @@ class LanguageDataModule(LightningDataModule):
             .filter(filter_and_process)
             .map(
                 partial(
-                    self._process_sample,
+                    self.token_processor.process_sample,
                 ),
                 remove_columns=ds[self.dataset_config["train_field"]].column_names,
             )
         )
 
         val_dataset = train_dataset.take(self.dataset_config["val_subset"])
+
         return DatasetSplit(train_dataset, val_dataset, None)
-
-    def _process_sample(self, sample: str) -> Optional[dict[str, Any]]:
-        q_func = self.dataset_config["q_func"]
-        ans_func = self.dataset_config["ans_func"]
-
-        query_text = q_func(sample)
-        answer_text = ans_func(sample) + (
-            self.tokenizer.eos_token
-            if self.dataset_config.get("add_eos_token", False)
-            else ""
-        )
-
-        query_tokens = self.tokenizer(query_text, add_special_tokens=False)
-        answer_tokens = self.tokenizer(answer_text, add_special_tokens=False)
-        query_length = len(query_tokens["input_ids"])
-        total_len = query_length + len(answer_tokens["input_ids"])
-
-        if (self.dataset_config.get("filter_samples_above_max_len", False) and total_len > self.data_config.seq_length) or (
-            self.dataset_config.get("filter_samples_below_max_len", False) and total_len < self.data_config.seq_length
-            ):
-                return None
-
-        input_ids = query_tokens["input_ids"] + answer_tokens["input_ids"]
-        attention_mask = query_tokens["attention_mask"] + answer_tokens["attention_mask"]
-        labels = input_ids.copy()
-        labels[:query_length] = [-100] * query_length
-
-        if len(input_ids) > self.data_config.seq_length:
-            input_ids = input_ids[: self.data_config.seq_length]
-            attention_mask = attention_mask[: self.data_config.seq_length]
-            labels = labels[: self.data_config.seq_length]
-
-        return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "labels": labels,
-        }
 
     def _process_split(
         self, dataset: Union[Dataset, IterableDataset]
@@ -235,38 +168,19 @@ class LanguageDataModule(LightningDataModule):
             batched=True,
         )
 
-    def _filter_max_len(
-        self, tokenized: dict[str, torch.Tensor]
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        # Apply the length filtering
-        filtered_input_ids = []
-        filtered_attention_mask = []
-
-        for input_ids, attention_mask in zip(
-            tokenized["input_ids"], tokenized["attention_mask"]
-        ):
-            if len(input_ids) >= self.data_config.seq_length:
-                filtered_input_ids.append(input_ids)
-                filtered_attention_mask.append(attention_mask)
-
-        return filtered_input_ids, filtered_attention_mask
-
     def _tokenize(self, samples: dict[str, List[Any]]) -> dict[str, List[Any]]:
         samples_list = [dict(zip(samples, i)) for i in zip(*samples.values())]
-    
+
         processed = []
         for sample in samples_list:
-            result = self._process_sample(sample)
+            result = self.token_processor.process_sample(sample)
             if result is not None:
                 processed.append(result)
-        
+
         if not processed:
             return {"input_ids": [], "attention_mask": [], "labels": []}
-            
-        return {
-            k: [sample[k] for sample in processed] 
-            for k in processed[0].keys()
-        }
+
+        return {k: [sample[k] for sample in processed] for k in processed[0].keys()}
 
     def _split_dataset(
         self, dataset: Dataset, split_size: Union[int, float]
@@ -282,44 +196,40 @@ class LanguageDataModule(LightningDataModule):
         )
         return validation_dataset
 
+    def _create_dataloader(self, dataset, batch_size, is_train=False):
+        return DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=is_train and not isinstance(dataset, IterableDataset),
+            collate_fn=self.batch_collator,
+            num_workers=self._get_num_workers(),
+            drop_last=is_train,
+            pin_memory=True,
+            persistent_workers=True,
+        )
+
     def train_dataloader(self) -> DataLoader:
         if not self.datasets or not self.datasets.train:
             raise ValueError("Training dataset not initialized")
 
-        return DataLoader(
-            self.datasets.train,
-            batch_size=self.data_config.batch_size,
-            shuffle=not isinstance(self.datasets.train, IterableDataset),
-            collate_fn=self.batch_collator,
-            num_workers=self._get_num_workers(),
-            drop_last=True,
-            pin_memory=True,
-            persistent_workers=True,
+        return self._create_dataloader(
+            self.datasets.train, self.data_config.batch_size, is_train=True
         )
 
     def val_dataloader(self) -> DataLoader:
         if not self.datasets or not self.datasets.validation:
             raise ValueError("Validation dataset not initialized")
 
-        return DataLoader(
-            self.datasets.validation,
-            batch_size=self.eval_batch_size,
-            collate_fn=self.batch_collator,
-            num_workers=self._get_num_workers(),
-            drop_last=not isinstance(self.datasets.validation, IterableDataset),
+        return self._create_dataloader(
+            self.datasets.validation, self.eval_batch_size, is_train=False
         )
 
     def test_dataloader(self) -> Optional[DataLoader]:
         if not self.datasets or not self.datasets.test:
-            print(self.datasets, self.datasets.test)
             return None
 
-        return DataLoader(
-            self.datasets.test,
-            batch_size=self.eval_batch_size,
-            collate_fn=self.batch_collator,
-            num_workers=self._get_num_workers(),
-            drop_last=not isinstance(self.datasets.test, IterableDataset),
+        return self._create_dataloader(
+            self.datasets.test, self.eval_batch_size, is_train=False
         )
 
     def _get_num_workers(self) -> int:

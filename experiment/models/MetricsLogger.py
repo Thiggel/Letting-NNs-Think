@@ -38,16 +38,18 @@ class MetricsLogger:
 
                 decoded = self.tokenizer.decode(ids)
                 print()
-                print(decoded)
+                print("Input sample: ", decoded)
                 print()
 
-            is_tied = (
-                self.module.model.get_input_embeddings().weight.data_ptr()
-                == self.module.model.get_output_embeddings().weight.data_ptr()
-            )
-
-            print(f"Embedding and LM head weights are tied: {is_tied}")
-            print()
+                if "labels" in batch:
+                    labels = batch["labels"][i]
+                    filtered_input_ids = ids[labels != -100]
+                    decoded = self.tokenizer.decode(filtered_input_ids)
+                    print(
+                        "Target sample (should not include question and padding): ",
+                        decoded,
+                    )
+                    print()
 
             self.num_dumped_first_batch += 1
 
