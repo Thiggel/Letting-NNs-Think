@@ -51,10 +51,8 @@ class ModelEvaluator:
         else:
             gen_kwargs = {}
 
-        gen_kwargs["max_length"] = 256
+        gen_kwargs["max_length"] = 1024
         gen_kwargs["max_new_tokens"] = 1024
-        # gen_kwargs["repetition_penalty"] = 1.5
-        gen_kwargs["no_repeat_ngram_size"] = 3
 
         return gen_kwargs
 
@@ -80,12 +78,14 @@ class ModelEvaluator:
         #    batch_size=self.eval_batch_size,
         #)
 
-        #results = evaluator.evaluate(
-        #    dataset_name='gsm8k',
-        #    split="test",
-        #    num_samples=200,
-        #    generation_kwargs=gen_kwargs,
-        #)
+        #results = []
+        #for metric in metrics:
+        #    metric_results = evaluator.evaluate(
+        #        dataset_name=metric,
+        #        split="test",
+        #        generation_kwargs=gen_kwargs,
+        #    )
+        #    results.append(metric_results)
 
         #print(results)
         #return results

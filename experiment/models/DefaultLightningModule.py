@@ -1,11 +1,11 @@
 import math
 from lightning import LightningModule
 from transformers import PreTrainedTokenizer
+from transformers.optimization import get_cosine_schedule_with_warmup
 from torch.optim import AdamW
 import torch
 import torch.nn.functional as F
 from typing import Optional
-from torch.optim.lr_scheduler import LambdaLR
 
 from experiment.configs import ModelConfig, TrainingConfig, DataConfig, EvaluationConfig
 from experiment.configs.ModelConfig import FinetuneMode
@@ -155,46 +155,6 @@ class DefaultLightningModule(LightningModule, HasLayers):
     def on_validation_start(self):
         self.sample_generate()
 
-    def lr_lambda_warmup_decay(self, current_step: int) -> float:
-        """Get the learning rate for the given step using a lambda function
-
-        The scheduler starts from training_config.initial_lr and scales up to
-        training_config.learning_rate during warmup, then decays with cosine schedule
-        """
-        warmup_steps = self.training_config.warmup_steps
-        default_max_steps = 10_000
-        total_steps = self.training_config.lr_decay_steps or default_max_steps
-        min_lr_factor = 0.1
-
-        # Calculate the ratio between initial and target learning rate
-        lr_ratio = self.training_config.initial_lr / self.training_config.learning_rate
-
-        if current_step < warmup_steps:
-            # Linear warmup from initial_lr to learning_rate
-            warmup_factor = float(current_step) / float(max(1, warmup_steps))
-            return lr_ratio + (1.0 - lr_ratio) * warmup_factor
-        else:
-            # Cosine decay from learning_rate to min_lr
-            progress = min(
-                1.0, (current_step - warmup_steps) / (total_steps - warmup_steps)
-            )
-            cosine_decay = 0.5 * (1.0 + math.cos(min(math.pi, progress * math.pi)))
-            return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
-
-    def lr_lambda_decay(self, current_step: int) -> float:
-        """Get the learning rate for the given step using a lambda function
-
-        The scheduler starts from training_config.initial_lr and decays with cosine schedule
-        """
-        default_max_steps = 10_000
-        total_steps = self.training_config.max_training_steps or default_max_steps
-        min_lr_factor = 0.1
-
-        # Cosine decay from learning_rate to min_lr
-        progress = min(1.0, current_step / total_steps)
-        cosine_decay = 0.5 * (1.0 + math.cos(min(math.pi, progress * math.pi)))
-        return min_lr_factor + (1.0 - min_lr_factor) * cosine_decay
-
     def configure_optimizers(self):
         base_lr = self.training_config.learning_rate
         adam_params = {
@@ -226,9 +186,10 @@ class DefaultLightningModule(LightningModule, HasLayers):
         else:
             optimizer = AdamW(parameters, **adam_params)
 
-        scheduler = LambdaLR(
+        scheduler = get_cosine_schedule_with_warmup(
             optimizer,
-            lr_lambda=self.lr_lambda_warmup_decay,
+            num_warmup_steps=self.training_config.warmup_steps,
+            num_training_steps=self.training_config.lr_decay_steps,
         )
 
         return {

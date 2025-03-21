@@ -1,4 +1,5 @@
 import os
+from datasets import Dataset as HFDataset
 import json
 from typing import Optional, Callable
 from torch.utils.data import Dataset
@@ -40,3 +41,15 @@ class ReasoningDataset(Dataset):
             )
 
         return {"query": query, "steps": steps, "solution": solution}
+
+    def to_hf_dataset(self):
+        """Convert to HuggingFace dataset"""
+        # Collect all data in memory
+        data = {"input_ids": [], "attention_mask": [], "labels": []}
+        for i in range(len(self)):
+            item = self[i]
+            for key in item:
+                if key in data:
+                    data[key].append(item[key])
+
+        return HFDataset.from_dict(data)

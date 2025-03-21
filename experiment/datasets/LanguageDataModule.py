@@ -89,7 +89,7 @@ class LanguageDataModule(LightningDataModule):
                 **self.dataset_config.get("dataset_params", {}),
                 tokenizer=self.tokenizer,
                 process_fn=lambda x: self.token_processor.process_sample(x),
-            )
+            ).to_hf_dataset()
             test_dataset = None
 
         else:

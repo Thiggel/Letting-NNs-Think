@@ -55,11 +55,12 @@ class CustomEvaluator:
 
     def format_prompt(self, question: str) -> str:
         """Format a question with the template"""
-        return f"<query>{question}</query>\n"
+        return f"Question: {question}\nAnswer:"
 
     def extract_answer(self, generated_text: str) -> Optional[str]:
         """Extract the answer from the generated text using <answer></answer> tags"""
-        match = re.search(r"<answer>(.*?)</answer>", generated_text, re.DOTALL)
+        print(generated_text)
+        match = re.search(r"####\s*(.*?)(?:\n|$)", generated_text, re.DOTALL)
         if match:
             return match.group(1).strip()
         return None
@@ -168,66 +169,6 @@ class CustomEvaluator:
         total = 0
         results = []
 
-        five_shot_example = """<query>John buys a heating pad for $30.  He uses it 3 times a week for 2 weeks.  How much does he spend on each use?</query>
-<steps>First, I need to find out how many times John uses the heating pad in total.
-John uses the heating pad 3 times a week.
-He uses it for 2 weeks.
-To find the total number of uses, I multiply the number of uses per week by the number of weeks: 3 uses/week * 2 weeks = 6 uses.
-John spends $30 on the heating pad in total.
-To find out how much he spends per use, divide the total cost by the number of uses: $30 / 6 uses = $5 per use.
-</steps><answer>5</answer>
-<query>When Jayson is 10 his dad is four times his age and his mom is 2 years younger than his dad.  How old was Jayson's mom when he was born?</query>
-<steps>Let's start by determining Jayson's dad's age when Jayson is 10.
-Jayson's dad is four times Jayson's age when Jayson is 10.
-Four times 10 is 40, so Jayson's dad is 40 years old when Jayson is 10.
-Now, let's determine Jayson's mom's age when Jayson is 10.
-Jayson's mom is 2 years younger than his dad.
-Jayson's dad is 40, so Jayson's mom is 40 - 2 = 38 years old when Jayson is 10.
-Next, we need to find out how old Jayson's mom was when Jayson was born.
-When Jayson was born, he was 0 years old.
-Since Jayson is now 10 years old, 10 years have passed since his birth.
-If Jayson's mom is 38 now when Jayson is 10, she must have been 10 years younger when he was born.
-Subtract 10 from 38 to find her age when Jayson was born: 38 - 10 = 28.
-</steps><answer>28</answer>
-<query>Rajesh walked 10 kilometers less than 4 times the distance that Hiro walked. Together they walked 25 kilometers. How many kilometers did Rajesh walk?</query>
-<steps>Let's define the variables: let x be the distance Hiro walked.
-According to the problem, Rajesh walked 10 kilometers less than 4 times the distance Hiro walked. So, the distance Rajesh walked can be expressed as 4x - 10.
-Together, they walked 25 kilometers. This means x (Hiro's distance) plus (4x - 10) (Rajesh's distance) equals 25 kilometers.
-Now, set up the equation: x + (4x - 10) = 25.
-Simplify the equation: x + 4x - 10 = 25.
-Combine like terms: 5x - 10 = 25.
-Add 10 to both sides to isolate the term with x: 5x = 35.
-Divide both sides by 5 to solve for x: x = 7.
-Now that we know Hiro walked 7 kilometers, calculate how far Rajesh walked: 4x - 10.
-Substitute x = 7 into Rajesh's distance formula: 4(7) - 10.
-Calculate: 28 - 10 = 18.
-</steps><answer>18</answer>
-<query>A craft store makes a third of its sales in the fabric section, a quarter of its sales in the jewelry section, and the rest in the stationery section. They made 36 sales today. How many sales were in the stationery section?</query>
-<steps>First, I need to calculate the number of sales made in the fabric section.
-The fabric section accounts for a third of the total sales.
-A third of 36 is calculated as ( \frac{1}{3} \times 36 = 12 ).
-Next, I calculate the number of sales made in the jewelry section.
-The jewelry section accounts for a quarter of the total sales.
-A quarter of 36 is calculated as ( \frac{1}{4} \times 36 = 9 ).
-Now, I know the number of sales in both the fabric and jewelry sections, which are 12 and 9 respectively.
-I add the sales from the fabric and jewelry sections to determine the total sales made in these two sections.
-The total sales in the fabric and jewelry sections is ( 12 + 9 = 21 ).
-Finally, I calculate the number of sales in the stationery section by subtracting the sales from the fabric and jewelry sections from the total sales.
-The sales in the stationery section is ( 36 - 21 = 15 ).
-</steps><answer>15</answer>
-<query>A deep-sea monster rises from the waters once every hundred years to feast on a ship and sate its hunger. Over three hundred years, it has consumed 847 people. Ships have been built larger over time, so each new ship has twice as many people as the last ship. How many people were on the ship the monster ate in the first hundred years?</query>
-<steps>The monster rises once every hundred years; therefore, it has attacked a ship three times over three hundred years.
-Let the number of people on the ship in the first hundred years be ( x ).
-According to the problem, each new ship has twice as many people as the last.
-Thus, the number of people on the ship in the second hundred years would be ( 2x ).
-Similarly, the number of people on the ship in the third hundred years would be ( 4x ).
-We are told that the total number of people consumed is 847.
-So, the equation that represents the total number of people consumed is: ( x + 2x + 4x = 847 ).
-Simplifying the equation, we get: ( 7x = 847 ).
-To find ( x ), divide both sides by 7: ( x = 847 / 7 ).
-Calculate the division: ( 847 \div 7 = 121 ).
-</steps><answer>121</answer>"""
-        
         # Process in batches
         for i in tqdm(range(0, len(dataset), self.batch_size)):
             batch = dataset[i:i+self.batch_size]
@@ -251,7 +192,7 @@ Calculate the division: ( 847 \div 7 = 121 ).
                         # Fallback if something's wrong with the format
                         reference_answers.append(choice_label)
             
-            prompts = [five_shot_example + "\n\n" + self.format_prompt(q) for q in questions]
+            prompts = [self.format_prompt(q) for q in questions]
             
             # Tokenize inputs
             self.tokenizer.padding_side = 'left'
@@ -270,7 +211,7 @@ Calculate the division: ( 847 \div 7 = 121 ).
             
             # Calculate accuracy for this batch
             for q, ref, pred, full_text in zip(questions, reference_answers, predicted_answers, generated_texts):
-                print(full_text, pred, ref, '\n\n\n')
+                print(full_text, "Prediction: ", pred, "Reference: ",ref, '\n\n\n')
                 is_correct = self.compare_answers(pred, ref, dataset_name)
                 
                 if is_correct:
