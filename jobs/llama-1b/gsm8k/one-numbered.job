@@ -1,0 +1,250 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=8:30:00
+#SBATCH --job-name=Llama-1b-GSM8K
+#SBATCH --output=job_logs/llama-1b/gsm8k/single-number-%A.out
+
+cd $HOME/Gating
+
+. jobs/environment.sh
+
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --dataset gsm8k \
+#  --pretrained \
+#  --use-gating \
+#  --no-one-gate-per-layer \
+#  --single-number-gates \
+#  --entropy-loss-weight 0.0 \
+#  --sparsity-loss-weight 1.0 \
+#  --skip-modules \
+#  --increasing-threshold \
+#  --start-thr-percentile 0.0 \
+#  --end-thr-percentile 0.2 \
+#  --num-increasing-steps 6800 \
+#  --batch-size 1 \
+#  --eval-batch-size 16 \
+#  --seq-length 4096 \
+#  --learning-rate 3e-6 \
+#  --warmup-steps 1000 \
+#  --lr-decay-steps 6800 \
+#  --max-epochs 1 \
+#  --finetune-mode full \
+#  --experiment-name llama1b-gsm8k-single-number \
+#  --save-to-checkpoint llama1b-gsm8k-single-number \
+#  --project-name skipgate \
+#  --enable-logging
+#
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --pretrained \
+#  --use-gating \
+#  --no-one-gate-per-layer \
+#  --single-number-gates \
+#  --eval-batch-size 256 \
+#  --seq-length 4096 \
+#  --finetune-mode full \
+#  --mode evaluate \
+#  --evaluation-metrics gsm8k \
+#  --num-fewshot 0 \
+#  --experiment-name llama1b-gsm8k-single-number-0.0 \
+#  --load-from-checkpoint llama1b-gsm8k-single-number \
+#  --skip-modules \
+#  --skip-threshold 0.0 \
+#  --project-name skipgate \
+#  --enable-logging
+#
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --single-number-gates \
+  --eval-batch-size 256 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics gsm8k \
+  --num-fewshot 0 \
+  --experiment-name llama1b-gsm8k-single-number-0.4125 \
+  --load-from-checkpoint llama1b-gsm8k-single-number \
+  --skip-modules \
+  --skip-threshold 0.4125 \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --single-number-gates \
+  --eval-batch-size 256 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics gsm8k \
+  --num-fewshot 0 \
+  --experiment-name llama1b-gsm8k-single-number-0.4 \
+  --load-from-checkpoint llama1b-gsm8k-single-number \
+  --skip-modules \
+  --skip-threshold 0.4 \
+  --project-name skipgate \
+  --enable-logging
+
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --pretrained \
+#  --use-gating \
+#  --no-one-gate-per-layer \
+#  --single-number-gates \
+#  --eval-batch-size 256 \
+#  --seq-length 4096 \
+#  --finetune-mode full \
+#  --mode evaluate \
+#  --evaluation-metrics gsm8k \
+#  --num-fewshot 0 \
+#  --experiment-name llama1b-gsm8k-single-number-0.475 \
+#  --load-from-checkpoint llama1b-gsm8k-single-number \
+#  --skip-modules \
+#  --skip-threshold 0.475 \
+#  --project-name skipgate \
+#  --enable-logging
+#
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --pretrained \
+#  --use-gating \
+#  --no-one-gate-per-layer \
+#  --single-number-gates \
+#  --eval-batch-size 256 \
+#  --seq-length 4096 \
+#  --finetune-mode full \
+#  --mode evaluate \
+#  --evaluation-metrics gsm8k \
+#  --num-fewshot 0 \
+#  --experiment-name llama1b-gsm8k-single-number-0.5 \
+#  --load-from-checkpoint llama1b-gsm8k-single-number \
+#  --skip-modules \
+#  --skip-threshold 0.5 \
+#  --project-name skipgate \
+#  --enable-logging
+#
+##srun python -m experiment \
+##  --model-name "meta-llama/Llama-3.2-1B" \
+##  --pretrained \
+##  --use-gating \
+##  --no-one-gate-per-layer \
+##  --single-number-gates \
+##  --eval-batch-size 256 \
+##  --seq-length 4096 \
+##  --finetune-mode full \
+##  --mode evaluate \
+##  --evaluation-metrics gsm8k \
+##  --num-fewshot 0 \
+##  --experiment-name llama1b-gsm8k-single-number-0.675 \
+##  --load-from-checkpoint llama1b-gsm8k-single-number \
+##  --skip-modules \
+##  --skip-threshold 0.675 \
+##  --project-name skipgate \
+##  --enable-logging
+##
+##srun python -m experiment \
+##  --model-name "meta-llama/Llama-3.2-1B" \
+##  --pretrained \
+##  --use-gating \
+##  --no-one-gate-per-layer \
+##  --single-number-gates \
+##  --eval-batch-size 256 \
+##  --seq-length 4096 \
+##  --finetune-mode full \
+##  --mode evaluate \
+##  --evaluation-metrics gsm8k \
+##  --num-fewshot 0 \
+##  --experiment-name llama1b-gsm8k-single-number-0.7 \
+##  --load-from-checkpoint llama1b-gsm8k-single-number \
+##  --skip-modules \
+##  --skip-threshold 0.7 \
+##  --project-name skipgate \
+##  --enable-logging
+##
+##srun python -m experiment \
+##  --model-name "meta-llama/Llama-3.2-1B" \
+##  --pretrained \
+##  --use-gating \
+##  --no-one-gate-per-layer \
+##  --single-number-gates \
+##  --eval-batch-size 256 \
+##  --seq-length 4096 \
+##  --finetune-mode full \
+##  --mode evaluate \
+##  --evaluation-metrics gsm8k \
+##  --num-fewshot 0 \
+##  --experiment-name llama1b-gsm8k-single-number-0.725 \
+##  --load-from-checkpoint llama1b-gsm8k-single-number \
+##  --skip-modules \
+##  --skip-threshold 0.725 \
+##  --project-name skipgate \
+##  --enable-logging
+##
+##srun python -m experiment \
+##  --model-name "meta-llama/Llama-3.2-1B" \
+##  --pretrained \
+##  --use-gating \
+##  --no-one-gate-per-layer \
+##  --single-number-gates \
+##  --eval-batch-size 256 \
+##  --seq-length 4096 \
+##  --finetune-mode full \
+##  --mode evaluate \
+##  --evaluation-metrics gsm8k \
+##  --num-fewshot 0 \
+##  --experiment-name llama1b-gsm8k-single-number-0.75 \
+##  --load-from-checkpoint llama1b-gsm8k-single-number \
+##  --skip-modules \
+##  --skip-threshold 0.75 \
+##  --project-name skipgate \
+##  --enable-logging
+##
+##srun python -m experiment \
+##  --model-name "meta-llama/Llama-3.2-1B" \
+##  --pretrained \
+##  --use-gating \
+##  --no-one-gate-per-layer \
+##  --single-number-gates \
+##  --eval-batch-size 256 \
+##  --seq-length 4096 \
+##  --finetune-mode full \
+##  --mode evaluate \
+##  --evaluation-metrics gsm8k \
+##  --num-fewshot 0 \
+##  --experiment-name llama1b-gsm8k-single-number-0.775 \
+##  --load-from-checkpoint llama1b-gsm8k-single-number \
+##  --skip-modules \
+##  --skip-threshold 0.775 \
+##  --project-name skipgate \
+##  --enable-logging
+##
+##srun python -m experiment \
+##  --model-name "meta-llama/Llama-3.2-1B" \
+##  --pretrained \
+##  --use-gating \
+##  --no-one-gate-per-layer \
+##  --single-number-gates \
+##  --eval-batch-size 256 \
+##  --seq-length 4096 \
+##  --finetune-mode full \
+##  --mode evaluate \
+##  --evaluation-metrics gsm8k \
+##  --num-fewshot 0 \
+##  --experiment-name llama1b-gsm8k-single-number-0.8 \
+##  --load-from-checkpoint llama1b-gsm8k-single-number \
+##  --skip-modules \
+##  --skip-threshold 0.8 \
+##  --project-name skipgate \
+##  --enable-logging
+##

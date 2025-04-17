@@ -1,0 +1,32 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=8:30:00
+#SBATCH --job-name=Llama-3b-Baseline
+#SBATCH --output=job_logs/Llama-3b-Baseline-%A.log
+
+cd $HOME/Gating
+
+ . jobs/environment.sh
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-3B" \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --eval-batch-size 512 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics csqa_gen,gsm8k \
+  --num-fewshot 0 \
+  --experiment-name Llama_3B_Baseline \
+  --load-from-checkpoint Gated_Llama_3B_CSQAGen_GSM8K_3e6 \
+  --skip-modules \
+  --randomly-skip \
+  --percent-randomly-skip 0.05 \
+  --project-name gating \
+  --enable-logging

@@ -50,7 +50,6 @@ class GatedWrapper(nn.Module):
     @property
     def threshold(self) -> float:
         if self.config.increasing_threshold:
-            assert self.global_step is not None
             assert self.current_token_importance is not None
             assert self.current_validity_mask is not None
 
@@ -65,9 +64,11 @@ class GatedWrapper(nn.Module):
                 self.config.end_thr_percentile - self.config.start_thr_percentile
             )
 
+            current_fraction = self.global_step / self.config.num_increasing_steps if self.global_step is not None else 1.0
+
             current_percentile = (
                 self.config.start_thr_percentile
-                + min(1.0, self.global_step / self.config.num_increasing_steps)
+                + min(1.0, current_fraction)
                 * delta_percentile
             )
 
@@ -80,7 +81,14 @@ class GatedWrapper(nn.Module):
 
             return current_threshold if current_threshold != 1.0 else 0.999
 
-        return self.config.skip_threshold
+        if len(self.config.skip_threshold) == 1:
+            return self.config.skip_threshold[0]
+
+        index = 2 * self.layer_idx 
+
+        index += 1 if not self.is_attn_layer else 0
+
+        return self.config.skip_threshold[index]
 
     @property
     def is_attn_layer(self) -> bool:
@@ -112,8 +120,13 @@ class GatedWrapper(nn.Module):
             token_importance = (
                 torch.rand_like(token_importance) > self.config.percent_randomly_skip
             ).float()
+
         elif self.layer_idx in self.config.always_skip_layers:
             token_importance = torch.zeros_like(token_importance)
+        elif self.config.always_skip_layers is not None and len(
+            self.config.always_skip_layers
+        ) > 0:
+            token_importance = torch.ones_like(token_importance)
         elif self.config.skip_entire_layer_based_on_attn and not self.is_attn_layer:
             token_importance = self.attn_token_importance
 
@@ -128,8 +141,8 @@ class GatedWrapper(nn.Module):
         return token_importance
 
     def calculate_skipping_statistics(self, skip_mask: torch.Tensor) -> None:
-        num_skipped = skip_mask.sum().item()
         assert self.current_validity_mask is not None
+        num_skipped = skip_mask[self.current_validity_mask].sum().item()
         total_tokens = self.current_validity_mask.sum().item()
 
         self.current_percent_tokens_skipped = (
@@ -180,6 +193,7 @@ class GatedWrapper(nn.Module):
         gate_value = self.gate(hidden_states.detach())
         self.current_gate_value = gate_value
         token_importance = self.calculate_token_importance(gate_value.mean(dim=-1))
+
 
         if (
             self.config.gating_mode == GatingMode.BEFORE_MODULE

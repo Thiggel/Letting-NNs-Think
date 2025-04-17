@@ -58,6 +58,10 @@ class ModWrapper(nn.Module):
         """Update capacity for routing"""
         self.capacity = capacity
 
+    @property
+    def current_percent_tokens_skipped(self) -> float:
+        return 1.0 - self.current_percent_tokens_processed
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -77,7 +81,7 @@ class ModWrapper(nn.Module):
         if not self.training:
             predictor_logits = self.predictor(hidden_states).squeeze(-1)
             selection_mask = (
-                torch.sigmoid(predictor_logits) > self.config.skip_threshold
+                torch.sigmoid(predictor_logits) > self.config.skip_threshold[0]
             ).unsqueeze(-1)
 
             # Process through module
@@ -106,7 +110,6 @@ class ModWrapper(nn.Module):
         router_logits = self.router(hidden_states).sigmoid()  # [B, S, 1]
         self.current_token_importance = router_logits
 
-        print(router_logits.min(), router_logits.max())
 
         # get true/false mask whether tokens are above the 12.5% threshold of
         # highest router logits

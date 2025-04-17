@@ -56,17 +56,15 @@ class GatingConfig:
         0.0,
         description="Percentage of modules to randomly skip if randomly_skip is True",
     )
-    skip_threshold: float = Field(0.5, description="Threshold for skipping modules")
+    skip_threshold: list[float] = Field([0.5], description="Threshold for skipping modules")
     increasing_threshold: bool = Field(
         False, description="Whether to increase the threshold during training"
     )
     start_thr_percentile: float = Field(
         0.005,
-        description="Initial threshold for skipping modules, as a number of stds below the mean",
     )
     end_thr_percentile: float = Field(
         0.1,
-        description="Final threshold for skipping modules, as a number of stds above the mean",
     )
     num_increasing_steps: int = Field(
         5_000, description="Number of steps to increase the threshold over"

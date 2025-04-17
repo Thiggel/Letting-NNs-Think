@@ -13,6 +13,7 @@ from experiment.configs.ModelConfig import FinetuneMode
 from .model_adapter import ModelAdapter
 from .MetricsLogger import MetricsLogger
 from .HasLayers import HasLayers
+from .gating.GatingStatsCollector import GatingStatsCollector
 
 from deepspeed.utils import safe_get_full_grad
 
@@ -52,6 +53,8 @@ class DefaultLightningModule(LightningModule, HasLayers):
             self, self.tokenizer, self.data_config.batch_size
         )
 
+        self.gating_stats_collector = GatingStatsCollector()
+
     def on_before_optimizer_step(self, _):
         """Log gradient norms before optimization step"""
         capacity = self.config.mod_capacity_factor + (
@@ -84,6 +87,9 @@ class DefaultLightningModule(LightningModule, HasLayers):
                 self.percent_tokens_skipped.append(
                     module.current_percent_tokens_skipped
                 )
+
+            if not self.training:
+                self.gating_stats_collector.collect(self.model)
         elif self.config.use_mod:
             percent_skipped = []
             for module in self.model.mod.wrapped_modules.values():
@@ -265,15 +271,16 @@ class DefaultLightningModule(LightningModule, HasLayers):
                 )
 
                 gate_entropy_loss = self.config.entropy_loss_weight * gate_entropy_loss
-                gate_sparsity_loss = (
-                    self.config.sparsity_loss_weight * gate_sparsity_loss
-                )
 
                 self.log(
                     f"{mode}_gate_sparsity_loss",
                     gate_sparsity_loss,
                     sync_dist=True,
                     batch_size=batch["labels"].shape[0],
+                )
+
+                gate_sparsity_loss = (
+                    self.config.sparsity_loss_weight * gate_sparsity_loss
                 )
 
                 loss += gate_entropy_loss
@@ -338,7 +345,6 @@ class DefaultLightningModule(LightningModule, HasLayers):
         return self._step(batch, batch_idx, mode="train")
 
     def validation_step(self, batch, batch_idx):
-        self.sample_generate()
         return self._step(batch, batch_idx, mode="val")
 
     def test_step(self, batch, batch_idx):

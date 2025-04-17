@@ -1,0 +1,148 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_h100
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=16
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=8:30:00
+#SBATCH --job-name=Llama-1b-GSM8K
+#SBATCH --output=job_logs/llama-1b/csqa_gsm8k_gen/vector-only-mlp-%A.out
+
+cd $HOME/Gating
+
+. jobs/environment.sh
+
+
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --pretrained \
+#  --use-gating \
+#  --no-one-gate-per-layer \
+#  --skip-module-types mlp \
+#  --eval-batch-size 200 \
+#  --seq-length 4096 \
+#  --finetune-mode full \
+#  --mode evaluate \
+#  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+#  --num-fewshot 0 \
+#  --experiment-name llama1b-csqa-gsm8k-gen-vector-only-mlp-0.65 \
+#  --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
+#  --skip-modules \
+#  --skip-threshold 0.65 \
+#  --project-name skipgate \
+#  --enable-logging
+#
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --pretrained \
+#  --use-gating \
+#  --skip-module-types mlp \
+#  --no-one-gate-per-layer \
+#  --eval-batch-size 200 \
+#  --seq-length 4096 \
+#  --finetune-mode full \
+#  --mode evaluate \
+#  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+#  --num-fewshot 0 \
+#  --experiment-name llama1b-csqa-gsm8k-gen-vector-only-mlp-0.6825 \
+#  --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
+#  --skip-modules \
+#  --skip-threshold 0.6825 \
+#  --project-name skipgate \
+#  --enable-logging
+#
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --pretrained \
+#  --use-gating \
+#  --skip-module-types mlp \
+#  --no-one-gate-per-layer \
+#  --eval-batch-size 200 \
+#  --seq-length 4096 \
+#  --finetune-mode full \
+#  --mode evaluate \
+#  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+#  --num-fewshot 0 \
+#  --experiment-name llama1b-csqa-gsm8k-gen-vector-only-mlp-0.7 \
+#  --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
+#  --skip-modules \
+#  --skip-threshold 0.7 \
+#  --project-name skipgate \
+#  --enable-logging
+#
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --pretrained \
+#  --use-gating \
+#  --skip-module-types mlp \
+#  --no-one-gate-per-layer \
+#  --eval-batch-size 200 \
+#  --seq-length 4096 \
+#  --finetune-mode full \
+#  --mode evaluate \
+#  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+#  --num-fewshot 0 \
+#  --experiment-name llama1b-csqa-gsm8k-gen-vector-only-mlp-0.705 \
+#  --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
+#  --skip-modules \
+#  --skip-threshold 0.705 \
+#  --project-name skipgate \
+#  --enable-logging
+#
+#srun python -m experiment \
+#  --model-name "meta-llama/Llama-3.2-1B" \
+#  --pretrained \
+#  --use-gating \
+#  --skip-module-types mlp \
+#  --no-one-gate-per-layer \
+#  --eval-batch-size 200 \
+#  --seq-length 4096 \
+#  --finetune-mode full \
+#  --mode evaluate \
+#  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+#  --num-fewshot 0 \
+#  --experiment-name llama1b-csqa-gsm8k-gen-vector-only-mlp-0.71 \
+#  --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
+#  --skip-modules \
+#  --skip-threshold 0.71 \
+#  --project-name skipgate \
+#  --enable-logging
+#
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --skip-module-types mlp \
+  --no-one-gate-per-layer \
+  --eval-batch-size 200 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-vector-only-mlp-0.715 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
+  --skip-modules \
+  --skip-threshold 0.715 \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --skip-module-types mlp \
+  --no-one-gate-per-layer \
+  --eval-batch-size 200 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-vector-only-mlp-0.72 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
+  --skip-modules \
+  --skip-threshold 0.72 \
+  --project-name skipgate \
+  --enable-logging
+

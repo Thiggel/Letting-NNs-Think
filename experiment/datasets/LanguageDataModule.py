@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizer
 from lightning import LightningDataModule
-from datasets import Dataset, load_dataset, disable_caching, config
+from datasets import Dataset, load_dataset, disable_caching, config, load_from_disk
 from torch.utils.data import IterableDataset
 from functools import partial
 
@@ -19,6 +19,7 @@ from .custom_datasets import (
     CSQAGen,
     GSM8KGen,
     ReasoningDataset,
+    HFReasoningDataset,
 )
 
 
@@ -74,6 +75,7 @@ class LanguageDataModule(LightningDataModule):
                 self.datasets = self._prepare_datasets()
                 self.dataset_manager.save_datasets(self.datasets, cache_path)
         except Exception as e:
+            print(e)
             raise ValueError(f"Error while setting up datasets: {e}")
 
     def _prepare_datasets(self) -> DatasetSplit:
@@ -84,13 +86,27 @@ class LanguageDataModule(LightningDataModule):
 
     def _prepare_static_datasets(self) -> DatasetSplit:
         if "dataset_class" in self.dataset_config:
-            train_dataset = self._get_dataset_instance(
-                self.dataset_config["dataset_class"],
-                **self.dataset_config.get("dataset_params", {}),
-                tokenizer=self.tokenizer,
-                process_fn=lambda x: self.token_processor.process_sample(x),
-            ).to_hf_dataset()
-            test_dataset = None
+            cache_dir = os.path.join(
+                os.environ.get("BASE_CACHE_DIR", "."),
+                self.data_config.dataset,
+                self.model_config.model_name,
+            )
+
+            if not os.path.exists(cache_dir):
+
+                train_dataset = self._get_dataset_instance(
+                    self.dataset_config["dataset_class"],
+                    **self.dataset_config.get("dataset_params", {}),
+                    tokenizer=self.tokenizer,
+                    process_fn=lambda x: self.token_processor.process_sample(x),
+                ).to_hf_dataset()
+                test_dataset = None
+
+                train_dataset.save_to_disk(cache_dir)
+
+            else:
+                train_dataset = load_from_disk(cache_dir)
+                test_dataset = None
 
         else:
             ds = load_dataset(
@@ -129,6 +145,7 @@ class LanguageDataModule(LightningDataModule):
             "CSQAGen": CSQAGen,
             "GSM8KGen": GSM8KGen,
             "ReasoningDataset": ReasoningDataset,
+            "HFReasoningDataset": HFReasoningDataset,
         }
         return dataset_classes[dataset_class_name](**kwargs)
 

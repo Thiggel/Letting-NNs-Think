@@ -1,6 +1,10 @@
 from typing import Any, Dict
 import wandb
 import torch
+from torch import nn
+from scipy import stats
+import matplotlib.pyplot as plt
+import numpy as np
 from pydantic import BaseModel
 from optimum.quanto import QuantizedModelForCausalLM, qint4
 
@@ -141,7 +145,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         results = self._log_percent_tokens_skipped_per_layer(model, results)
 
         if self.experiment_config.enable_logging:
-            self._log_results(results, seed)
+            self._log_results(model, results, seed)
 
         return results
 
@@ -182,13 +186,20 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
         return results
 
-    def _log_results(self, results: Dict[str, Any], seed: int):
+    def _log_results(self, model: nn.Module, results: Dict[str, Any], seed: int):
         wandb.init(
             project=self.experiment_config.project_name,
             name=f"{self.experiment_config.experiment_name}_{seed}",
             group=self.experiment_config.experiment_name,
         )
         wandb.log(results)
+
+        # if hasattr(model, "gating_stats_collector"):
+        #     with model.gating_stats_collector.visualize_gate_distributions(
+        #         model
+        #     ) as gate_visualizations:
+        #         wandb.log(gate_visualizations)
+
         wandb.finish()
 
     def _format_standard_results(self, results: Dict[str, Any]) -> Dict[str, float]:
@@ -200,7 +211,11 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
                 else (
                     value["exact_match,flexible-extract"]
                     if "exact_match,flexible-extract" in value
-                    else value["exact_match,extract_answer"]
+                    else (
+                        value["exact_match,extract_answer"]
+                        if "exact_match,extract_answer" in value
+                        else value["exact_match,strict-match"]
+                    )
                 )
             )
             for key, value in results.items()
