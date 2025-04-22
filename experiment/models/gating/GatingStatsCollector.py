@@ -74,7 +74,7 @@ class GatingStatsCollector:
         try:
             # Create visualizations for each distribution
             for name, values in distributions.items():
-                visualization, percentile_table = self.create_gating_visualization(values)
+                visualization, percentile_table = self.create_gating_visualization(values, name=name)
                 if visualization is None:
                     continue
 
@@ -90,7 +90,7 @@ class GatingStatsCollector:
             for percent, thresholds in threshold_suggestions.items():
                 print(f"{percent}: {thresholds}")
             
-            overall_vis, overall_table = overall_distribution, overall_percentile_table = self.create_gating_visualization(torch.cat(list(distributions.values())))
+            overall_vis, overall_table = overall_distribution, overall_percentile_table = self.create_gating_visualization(torch.cat(list(distributions.values())), name="overall")
 
             if overall_vis is not None:
                 visualizations["gate_distributions/overall_distribution"] = overall_vis
@@ -103,7 +103,7 @@ class GatingStatsCollector:
             # Clean up any remaining figures
             plt.close('all')
 
-    def create_gating_visualization(self, values: torch.Tensor) -> None:
+    def create_gating_visualization(self, values: torch.Tensor, name="default") -> None:
         gate_values = values.detach().cpu().numpy()
         flat_values = gate_values.flatten()
         
@@ -173,6 +173,7 @@ class GatingStatsCollector:
 
 
         
+        plt.savefig(f"{name}_gate_distribution.pdf", format='pdf')
         # Close the figure to free memory
         plt.close(fig)
 

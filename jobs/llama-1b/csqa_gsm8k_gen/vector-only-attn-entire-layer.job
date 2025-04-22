@@ -140,10 +140,10 @@ srun python -m experiment \
   --mode evaluate \
   --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
   --num-fewshot 0 \
-  --experiment-name llama1b-csqa-gsm8k-gen-vector-attn-entire-layer-0.695 \
+  --experiment-name llama1b-csqa-gsm8k-gen-vector-attn-entire-layer-0.0 \
   --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
   --skip-modules \
-  --skip-threshold 0.695 \
+  --skip-threshold 0.0 \
   --project-name skipgate \
   --enable-logging
 

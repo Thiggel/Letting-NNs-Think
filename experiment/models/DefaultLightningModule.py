@@ -59,7 +59,7 @@ class DefaultLightningModule(LightningModule, HasLayers):
         """Log gradient norms before optimization step"""
         capacity = self.config.mod_capacity_factor + (
             1 - self.config.mod_capacity_factor
-        ) * (1.0 / (self.global_step / 1000 + 1))
+        ) * (1.0 / (self.global_step / 1500 + 1))
 
         if self.config.use_mod:
             self.model.mod.update_capacity(capacity)

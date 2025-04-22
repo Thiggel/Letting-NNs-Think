@@ -14,6 +14,16 @@ class DatasetConfigurator:
     @staticmethod
     def get_all_dataset_configs() -> dict[str, dict[str, Any]]:
         base_configs = {
+            "wmt16": {
+                "name": "wmt/wmt16",
+                "subset": "ro-en",
+                "q_func": lambda x: f"translate English to Romanian: {x['translation']['en']}\n",
+                "ans_func": lambda x: x["translation"]["ro"],
+                "train_field": "train",
+                "test_field": "test",
+                "add_eos_token": True,
+                "filter_samples_above_max_len": True,
+            },
             "ultrafeedback": {
                 "name": "openbmb/UltraFeedback",
                 "q_func": lambda x: f"Question: {x['instruction']}\n\nAnswer:",

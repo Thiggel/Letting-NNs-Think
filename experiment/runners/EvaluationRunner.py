@@ -1,4 +1,5 @@
 from typing import Any, Dict
+import numbers
 import wandb
 import torch
 from torch import nn
@@ -12,6 +13,8 @@ from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
 from experiment.configs import ModelConfig, DataConfig, TrainingConfig, EvaluationConfig
 from experiment.model_evaluator import ModelEvaluator
+from experiment.models.mixture_of_depths import ModWrapper
+from experiment.models.early_exit import EarlyExitWrapper
 
 from .HasModel import HasModel
 from .HasTokenizer import HasTokenizer
@@ -107,6 +110,9 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
 
         for idx, layer in enumerate(decoder_layers):
+            if isinstance(layer, ModWrapper) or isinstance(layer, EarlyExitWrapper):
+                layer = layer.module
+            
             mlp = layer.mlp if hasattr(layer, "mlp") else layer.ff
             attn = layer.self_attn if hasattr(layer, "self_attn") else layer.attn
 
@@ -172,6 +178,9 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
 
         for idx, layer in enumerate(decoder_layers):
+            if isinstance(layer, ModWrapper) or isinstance(layer, EarlyExitWrapper):
+                layer = layer.module
+
             mlp = layer.mlp if hasattr(layer, "mlp") else layer.ff
             attn = layer.self_attn if hasattr(layer, "self_attn") else layer.attn
 
@@ -194,29 +203,19 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
         wandb.log(results)
 
-        # if hasattr(model, "gating_stats_collector"):
-        #     with model.gating_stats_collector.visualize_gate_distributions(
-        #         model
-        #     ) as gate_visualizations:
-        #         wandb.log(gate_visualizations)
+        if hasattr(model, "gating_stats_collector"):
+            with model.gating_stats_collector.visualize_gate_distributions(
+                model
+            ) as gate_visualizations:
+                wandb.log(gate_visualizations)
 
         wandb.finish()
 
     def _format_standard_results(self, results: Dict[str, Any]) -> Dict[str, float]:
         print(results.items())
         return {
-            f"{key}_accuracy": (
-                value["acc,none"]
-                if "acc,none" in value
-                else (
-                    value["exact_match,flexible-extract"]
-                    if "exact_match,flexible-extract" in value
-                    else (
-                        value["exact_match,extract_answer"]
-                        if "exact_match,extract_answer" in value
-                        else value["exact_match,strict-match"]
-                    )
-                )
-            )
+            f"{key}_{metric}": float(metric_value)
             for key, value in results.items()
+            for metric, metric_value in value.items()
+            if isinstance(metric_value, numbers.Number)
         }

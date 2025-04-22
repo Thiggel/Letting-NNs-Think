@@ -148,20 +148,12 @@ class ModelAdapter(HasLayers):
 
             # Wrap appropriate modules (usually attention modules)
             for i, layer in enumerate(layers):
-                if hasattr(layer, "self_attn"):
-                    layer.self_attn = early_exit.wrap_module(
-                        f"attn_{i}",
-                        layer.self_attn,
-                        parent=model,  # Use the model as parent for output embeddings access
-                        layer_idx=i,
-                    )
-                elif hasattr(layer, "attn"):
-                    layer.attn = early_exit.wrap_module(
-                        f"attn_{i}",
-                        layer.attn,
-                        parent=model,  # Use the model as parent for output embeddings access
-                        layer_idx=i,
-                    )
+                layers[i] = early_exit.wrap_module(
+                    f"layer_{i}",
+                    layer,
+                    parent=model,  # Use the model as parent for output embeddings access
+                    layer_idx=i,
+                )
 
             # Add early exit manager to model for easier access
             model.add_module("early_exit", early_exit)
@@ -274,7 +266,7 @@ class ModelAdapter(HasLayers):
         )
         print("Loading from checkpoint", checkpoint_path)
 
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
 
         state_dict = (
             checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint

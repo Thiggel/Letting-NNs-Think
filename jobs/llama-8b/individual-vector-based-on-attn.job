@@ -1,9 +1,10 @@
 #!/bin/bash
 
 #SBATCH --partition=gpu_h100
-#SBATCH --gpus=1
+#SBATCH --gpus=2
 #SBATCH --cpus-per-task=16
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks=2
+#SBATCH --mem=368640
 #SBATCH --time=8:30:00
 #SBATCH --job-name=llama-8b-GSM8K
 #SBATCH --output=job_logs/llama-8b/csqa_gsm8k_gen/individual-%A.out
@@ -38,7 +39,7 @@ cd $HOME/Gating
 #  --project-name skipgate \
 #  --enable-logging
 #
-run python -m experiment \
+srun python -m experiment \
   --model-name "meta-llama/Llama-3.1-8B" \
  --pretrained \
  --use-gating \

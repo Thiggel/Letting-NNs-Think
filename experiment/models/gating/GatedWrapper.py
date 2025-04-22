@@ -152,10 +152,29 @@ class GatedWrapper(nn.Module):
     def update_kv_cache(
         self,
         module_output: tuple,
-        past_kv: Optional[torch.Tensor],
+        past_kv,
         skip_mask: torch.Tensor,
-    ) -> Optional[torch.Tensor]:
-        if past_kv is not None and skip_mask.any():
+    ):
+        if past_kv is None or not skip_mask.any():
+            return None
+            
+        # Get previous layer cache - method differs by model type
+        if hasattr(past_kv, 'get_layer_cache'):  # Gemma
+            prev_layer_cache = past_kv.get_layer_cache(self.layer_idx - 1)
+            current_cache = module_output[1]
+            current_layer_cache = current_cache.get_layer_cache(self.layer_idx)
+            
+            # Apply the same logic as LLaMA for updating
+            skip_mask = skip_mask.expand(-1, -1, current_layer_cache[0].size(-1))
+            
+            # Create updated cache
+            new_k = torch.where(skip_mask, prev_layer_cache[0], current_layer_cache[0])
+            new_v = torch.where(skip_mask, prev_layer_cache[1], current_layer_cache[1])
+            
+            # Update the cache - method differs by model type
+            current_cache.update_layer_cache(self.layer_idx, (new_k, new_v))
+            return current_cache
+        else:
             prev_layer_cache = past_kv[self.layer_idx - 1]  # This returns (k, v) tuple
 
             if (
@@ -178,8 +197,6 @@ class GatedWrapper(nn.Module):
                 module_output[1][self.layer_idx] = current_layer_cache
 
                 return module_output[1]
-
-        return None
 
     def forward(
         self,
@@ -211,9 +228,13 @@ class GatedWrapper(nn.Module):
             module_output[0] if isinstance(module_output, tuple) else module_output
         )
 
-        updated_kv_cache = self.update_kv_cache(
-            module_output, kwargs.get("past_key_value"), skip_mask
-        )
+        try:
+            updated_kv_cache = self.update_kv_cache(
+                module_output, kwargs.get("past_key_value"), skip_mask
+            )
+        except Exception as e:
+            print(f"Error in updating kv cache: {e}")
+            updated_kv_cache = None
 
         if updated_kv_cache is not None:
             module_output = (main_output, updated_kv_cache)

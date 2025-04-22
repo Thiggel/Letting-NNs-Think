@@ -38,7 +38,7 @@ class HasModel:
             )
             print("Loading from checkpoint", checkpoint_path)
 
-            checkpoint = torch.load(checkpoint_path)
+            checkpoint = torch.load(checkpoint_path, weights_only=False)
 
             state_dict = (
                 checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint

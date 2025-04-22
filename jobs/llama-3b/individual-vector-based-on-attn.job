@@ -37,7 +37,7 @@ cd $HOME/Gating
 #  --project-name skipgate \
 #  --enable-logging
 #
-run python -m experiment \
+srun python -m experiment \
   --model-name "meta-llama/Llama-3.2-3B" \
  --pretrained \
  --use-gating \
@@ -48,29 +48,11 @@ run python -m experiment \
  --mode evaluate \
  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
  --num-fewshot 0 \
- --experiment-name llama3b-csqa-gsm8k-gen-individual-0.7 \
+ --experiment-name llama3b-csqa-gsm8k-gen-individual-0.705 \
  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \
  --skip-modules \
- --skip-threshold 0.7 \
+ --skip-threshold 0.705 \
  --project-name skipgate \
  --enable-logging
 
-
-srun python -m experiment \
-  --model-name "meta-llama/Llama-3.2-3B" \
-  --pretrained \
-  --use-gating \
-  --skip-entire-layer-based-on-attn \
-  --eval-batch-size 100 \
-  --seq-length 4096 \
-  --finetune-mode full \
-  --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
-  --num-fewshot 0 \
-  --experiment-name llama3b-csqa-gsm8k-gen-individual-0.69 \
-  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \
-  --skip-modules \
-  --skip-threshold 0.69 \
-  --project-name skipgate \
-  --enable-logging
 

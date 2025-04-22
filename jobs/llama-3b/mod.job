@@ -17,6 +17,7 @@ srun python -m experiment \
   --dataset fineweb \
   --pretrained \
   --use-mod \
+  --mod-capacity-factor 0.8 \
   --batch-size 8 \
   --grad-acc-steps 8 \
   --eval-batch-size 16 \

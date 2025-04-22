@@ -37,6 +37,7 @@ class EarlyExitWrapper(nn.Module):
         self.exit_layer_indices: List[int] = []
         self.tokens_processed = 0
         self.tokens_exited_early = 0
+        self.prev_hidden_states: Optional[torch.Tensor] = None
 
     def compute_threshold(self, step_idx: int, max_steps: int = 100) -> float:
         """Compute the decaying threshold based on generation step."""
@@ -81,9 +82,10 @@ class EarlyExitWrapper(nn.Module):
                     device=hidden_states.device,
                 )
 
+
         elif self.config.confidence_measure == ConfidenceMeasure.HIDDEN_STATE:
             # Compute cosine similarity with previous layer's hidden state
-            if prev_hidden is None:
+            if self.prev_hidden_states is None:
                 confidence = torch.zeros(
                     hidden_states.shape[0],
                     hidden_states.shape[1],
@@ -92,7 +94,7 @@ class EarlyExitWrapper(nn.Module):
             else:
                 # Normalize both tensors for cosine similarity
                 norm_curr = F.normalize(hidden_states, p=2, dim=-1)
-                norm_prev = F.normalize(prev_hidden, p=2, dim=-1)
+                norm_prev = F.normalize(self.prev_hidden_states, p=2, dim=-1)
                 confidence = torch.sum(norm_curr * norm_prev, dim=-1)
         else:
             confidence = torch.zeros(
@@ -139,6 +141,7 @@ class EarlyExitWrapper(nn.Module):
             prev_hidden: Previous layer's hidden states (for hidden_state confidence)
             step_idx: Current generation step (for decaying threshold)
         """
+        self.prev_hidden_states = hidden_states
         # Just pass through to the wrapped module
         outputs = self.module(hidden_states, *args, **kwargs)
 
