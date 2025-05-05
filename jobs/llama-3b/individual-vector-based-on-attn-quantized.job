@@ -46,7 +46,7 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
  --experiment-name llama3b-csqa-gsm8k-gen-individual-quantized-0.0 \
  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \
@@ -66,7 +66,7 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
  --experiment-name llama3b-csqa-gsm8k-gen-individual-quantized-0.69 \
  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \
@@ -86,7 +86,7 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
  --experiment-name llama3b-csqa-gsm8k-gen-individual-quantized-0.7 \
  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \
@@ -106,7 +106,7 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
  --experiment-name llama3b-csqa-gsm8k-gen-individual-quantized-0.705 \
  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \
@@ -126,7 +126,7 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
  --experiment-name llama3b-csqa-gsm8k-gen-individual-quantized-0.71 \
  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \
@@ -146,7 +146,7 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
  --experiment-name llama3b-csqa-gsm8k-gen-individual-quantized-0.714 \
  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \
@@ -166,7 +166,7 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
  --experiment-name llama3b-csqa-gsm8k-gen-individual-quantized-0.72 \
  --load-from-checkpoint llama3b-csqa-gsm8k-gen-individual \

@@ -40,7 +40,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-randomskip-0.05 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \
@@ -59,7 +59,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-randomskip-0.1 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \
@@ -78,7 +78,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-randomskip-0.15 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \
@@ -97,7 +97,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-randomskip-0.2 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \
@@ -116,7 +116,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-randomskip-0.3 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \
@@ -136,7 +136,7 @@ python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-alwaysskip-14 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \
@@ -154,7 +154,7 @@ python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-alwaysskip-14-15 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \
@@ -172,7 +172,7 @@ python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-alwaysskip-13-14-15 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \
@@ -190,7 +190,7 @@ python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-baseline-alwaysskip-13-14-15-16 \
   --load-from-checkpoint llama1b-csqa-gsm8k-baseline \

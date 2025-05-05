@@ -12,31 +12,31 @@ cd $HOME/Gating
 
 . jobs/environment.sh
 
-#srun python -m experiment \
-#  --model-name "google/gemma-2-2b" \
-#  --dataset csqa_gsm8k_gen \
-#  --pretrained \
-#  --use-gating \
-#  --entropy-loss-weight 0.0 \
-#  --sparsity-loss-weight 1.0 \
-#  --skip-modules \
-#  --increasing-threshold \
-#  --start-thr-percentile 0.0 \
-#  --end-thr-percentile 0.2 \
-#  --num-increasing-steps 6800 \
-#  --batch-size 1 \
-#  --eval-batch-size 8 \
-#  --seq-length 4096 \
-#  --learning-rate 3e-6 \
-#  --warmup-steps 1000 \
-#  --lr-decay-steps 6800 \
-#  --max-epochs 1 \
-#  --finetune-mode full \
-#  --use-deepspeed \
-#  --experiment-name gemma2b-csqa-gsm8k-gen-individual \
-#  --save-to-checkpoint gemma2b-csqa-gsm8k-gen-individual \
-#  --project-name skipgate \
-#  --enable-logging
+srun python -m experiment \
+  --model-name "google/gemma-2-2b" \
+  --dataset csqa_gsm8k_gen \
+  --pretrained \
+  --use-gating \
+  --entropy-loss-weight 0.0 \
+  --sparsity-loss-weight 1.0 \
+  --skip-modules \
+  --increasing-threshold \
+  --start-thr-percentile 0.0 \
+  --end-thr-percentile 0.2 \
+  --num-increasing-steps 6800 \
+  --batch-size 1 \
+  --eval-batch-size 8 \
+  --seq-length 4096 \
+  --learning-rate 3e-6 \
+  --warmup-steps 1000 \
+  --lr-decay-steps 6800 \
+  --max-epochs 1 \
+  --finetune-mode full \
+  --use-deepspeed \
+  --experiment-name gemma2b-csqa-gsm8k-gen-individual \
+  --save-to-checkpoint gemma2b-csqa-gsm8k-gen-individual \
+  --project-name skipgate \
+  --enable-logging
 
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
@@ -47,12 +47,12 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
- --experiment-name gemma2b-csqa-gsm8k-gen-individual-0.66 \
+ --experiment-name gemma2b-csqa-gsm8k-gen-individual-0.0 \
  --load-from-checkpoint gemma2b-csqa-gsm8k-gen-individual \
  --skip-modules \
- --skip-threshold 0.66 \
+ --skip-threshold 0.0 \
  --project-name skipgate \
  --enable-logging
 
@@ -66,12 +66,12 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
- --experiment-name gemma2b-csqa-gsm8k-gen-individual-0.655 \
+ --experiment-name gemma2b-csqa-gsm8k-gen-individual-0.625 \
  --load-from-checkpoint gemma2b-csqa-gsm8k-gen-individual \
  --skip-modules \
- --skip-threshold 0.655 \
+ --skip-threshold 0.625 \
  --project-name skipgate \
  --enable-logging
 
@@ -84,12 +84,48 @@ srun python -m experiment \
  --seq-length 4096 \
  --finetune-mode full \
  --mode evaluate \
- --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+ --num-fewshot 0 \
+ --experiment-name gemma2b-csqa-gsm8k-gen-individual-0.65 \
+ --load-from-checkpoint gemma2b-csqa-gsm8k-gen-individual \
+ --skip-modules \
+ --skip-threshold 0.65 \
+ --project-name skipgate \
+ --enable-logging
+
+srun python -m experiment \
+  --model-name "google/gemma-2-2b" \
+ --pretrained \
+ --use-gating \
+  --skip-entire-layer-based-on-attn \
+ --eval-batch-size 50 \
+ --seq-length 4096 \
+ --finetune-mode full \
+ --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
  --num-fewshot 0 \
  --experiment-name gemma2b-csqa-gsm8k-gen-individual-0.665 \
  --load-from-checkpoint gemma2b-csqa-gsm8k-gen-individual \
  --skip-modules \
  --skip-threshold 0.665 \
+ --project-name skipgate \
+ --enable-logging
+
+srun python -m experiment \
+  --model-name "google/gemma-2-2b" \
+ --pretrained \
+ --use-gating \
+  --skip-entire-layer-based-on-attn \
+ --eval-batch-size 50 \
+ --seq-length 4096 \
+ --finetune-mode full \
+ --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+ --num-fewshot 0 \
+ --experiment-name gemma2b-csqa-gsm8k-gen-individual-0.685 \
+ --load-from-checkpoint gemma2b-csqa-gsm8k-gen-individual \
+ --skip-modules \
+ --skip-threshold 0.685 \
  --project-name skipgate \
  --enable-logging
 

@@ -23,7 +23,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-csqa-gsm8k-gen-vector-only-attn-0.65 \
   --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
@@ -42,7 +42,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-csqa-gsm8k-gen-vector-only-attn-0.6825 \
   --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
@@ -61,7 +61,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-csqa-gsm8k-gen-vector-only-attn-0.7 \
   --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
@@ -80,7 +80,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-csqa-gsm8k-gen-vector-only-attn-0.705 \
   --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \
@@ -99,7 +99,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-csqa-gsm8k-gen-vector-only-attn-0.71 \
   --load-from-checkpoint llama1b-csqa-gsm8k-gen-vector \

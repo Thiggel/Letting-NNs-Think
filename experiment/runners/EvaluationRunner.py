@@ -203,11 +203,11 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
         wandb.log(results)
 
-        if hasattr(model, "gating_stats_collector"):
-            with model.gating_stats_collector.visualize_gate_distributions(
-                model
-            ) as gate_visualizations:
-                wandb.log(gate_visualizations)
+        #if hasattr(model, "gating_stats_collector"):
+        #    with model.gating_stats_collector.visualize_gate_distributions(
+        #        model
+        #    ) as gate_visualizations:
+        #        wandb.log(gate_visualizations)
 
         wandb.finish()
 

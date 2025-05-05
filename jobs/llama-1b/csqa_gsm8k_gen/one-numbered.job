@@ -38,26 +38,6 @@ cd $HOME/Gating
 #  --save-to-checkpoint llama1b-csqa-gsm8k-gen-single-number \
 #  --project-name skipgate \
 #  --enable-logging
-#
-#srun python -m experiment \
-#  --model-name "meta-llama/Llama-3.2-1B" \
-#  --pretrained \
-#  --use-gating \
-#  --no-one-gate-per-layer \
-#  --single-number-gates \
-#  --eval-batch-size 256 \
-#  --seq-length 4096 \
-#  --finetune-mode full \
-#  --mode evaluate \
-#  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
-#  --num-fewshot 0 \
-#  --experiment-name llama1b-csqa-gsm8k-gen-single-number-0.0 \
-#  --load-from-checkpoint llama1b-csqa-gsm8k-gen-single-number \
-#  --skip-modules \
-#  --skip-threshold 0.0 \
-#  --project-name skipgate \
-#  --enable-logging
-#
 
 srun python -m experiment \
   --model-name "meta-llama/Llama-3.2-1B" \
@@ -69,7 +49,84 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-single-number-0.0 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-gen-single-number \
+  --skip-modules \
+  --skip-threshold 0.0 \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --single-number-gates \
+  --eval-batch-size 256 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-single-number-0.15 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-gen-single-number \
+  --skip-modules \
+  --skip-threshold 0.15 \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --single-number-gates \
+  --eval-batch-size 256 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-single-number-0.175 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-gen-single-number \
+  --skip-modules \
+  --skip-threshold 0.175 \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --single-number-gates \
+  --eval-batch-size 256 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-single-number-0.2 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-gen-single-number \
+  --skip-modules \
+  --skip-threshold 0.2 \
+  --project-name skipgate \
+  --enable-logging
+
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --single-number-gates \
+  --eval-batch-size 256 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-csqa-gsm8k-gen-single-number-0.225 \
   --load-from-checkpoint llama1b-csqa-gsm8k-gen-single-number \
@@ -88,7 +145,27 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-single-number-0.25 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-gen-single-number \
+  --skip-modules \
+  --skip-threshold 0.25 \
+  --project-name skipgate \
+  --enable-logging
+
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-gating \
+  --no-one-gate-per-layer \
+  --single-number-gates \
+  --eval-batch-size 256 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
   --experiment-name llama1b-csqa-gsm8k-gen-single-number-0.275 \
   --load-from-checkpoint llama1b-csqa-gsm8k-gen-single-number \

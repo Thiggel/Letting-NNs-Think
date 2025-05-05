@@ -20,9 +20,11 @@ class ModelEvaluator:
         tokenizer: PreTrainedTokenizer,
         eval_batch_size: int = 128,
         num_fewshot: int = 0,
+        limit: int = 10000,
     ):
         self.eval_batch_size = eval_batch_size
         self.num_fewshot = num_fewshot
+        self.limit = limit
 
         self.model = model
 
@@ -119,7 +121,7 @@ class ModelEvaluator:
             log_samples=True,
             gen_kwargs=gen_kwargs_str,
             task_manager=tm,
-            limit=100,
+            limit=self.limit,
         )
 
         self._save_results(output["results"], experiment_name)

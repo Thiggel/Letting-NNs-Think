@@ -38,11 +38,11 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
-   --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-0.8 \
+   --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-1.0 \
   --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
-  --base-threshold 0.8 \
+  --base-threshold 1.0 \
   --confidence-measure hidden_state \
   --project-name skipgate \
   --enable-logging
@@ -55,7 +55,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
    --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-0.99 \
   --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
@@ -72,11 +72,94 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
   --num-fewshot 0 \
    --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-0.95 \
   --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
   --base-threshold 0.95 \
+  --confidence-measure hidden_state \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-early-exit \
+  --eval-batch-size 200 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+   --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-0.8 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
+  --base-threshold 0.8 \
+  --confidence-measure hidden_state \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-early-exit \
+  --eval-batch-size 200 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+   --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-0.2 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
+  --base-threshold 0.2 \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-early-exit \
+  --eval-batch-size 200 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+   --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-0.1 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
+  --base-threshold 0.1 \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-early-exit \
+  --eval-batch-size 200 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-0.05 \
+  --base-threshold 0.05 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
+  --confidence-measure hidden_state \
+  --project-name skipgate \
+  --enable-logging
+
+srun python -m experiment \
+  --model-name "meta-llama/Llama-3.2-1B" \
+  --pretrained \
+  --use-early-exit \
+  --eval-batch-size 200 \
+  --seq-length 4096 \
+  --finetune-mode full \
+  --mode evaluate \
+  --evaluation-metrics mmlu_gen,hellaswag_gen,arc_c_gen,arc_easy_gen \
+  --num-fewshot 0 \
+  --experiment-name llama1b-csqa-gsm8k-gen-early-exit-hss-thr-0.005 \
+  --base-threshold 0.005 \
+  --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
   --confidence-measure hidden_state \
   --project-name skipgate \
   --enable-logging
