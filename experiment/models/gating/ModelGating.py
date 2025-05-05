@@ -89,3 +89,8 @@ class ModelGating(nn.Module):
             first_module = next(iter(self.wrapped_modules.values()))
             return next(first_module.parameters()).device
         return torch.device("cpu")
+
+    def set_thresholds(self, thresholds: list[float]) -> None:
+        """Set thresholds for all wrapped modules"""
+        for i, module in enumerate(self.wrapped_modules.values()):
+            module.gate.set_threshold(thresholds[i])

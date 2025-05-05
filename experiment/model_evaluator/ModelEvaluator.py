@@ -20,11 +20,9 @@ class ModelEvaluator:
         tokenizer: PreTrainedTokenizer,
         eval_batch_size: int = 128,
         num_fewshot: int = 0,
-        limit: int = 10000,
     ):
         self.eval_batch_size = eval_batch_size
         self.num_fewshot = num_fewshot
-        self.limit = limit
 
         self.model = model
 
@@ -68,20 +66,21 @@ class ModelEvaluator:
         seed: int,
         experiment_name: str,
         generation_mode: GenerationMode,
+        limit: int = 10000,
     ) -> dict[str, float]:
         gen_kwargs = self.get_gen_kwargs(generation_mode)
 
         ### TEST
-        #from .CustomEvaluator import CustomEvaluator
+        # from .CustomEvaluator import CustomEvaluator
 
-        #evaluator = CustomEvaluator(
+        # evaluator = CustomEvaluator(
         #    model=self.model,
         #    tokenizer=self.tokenizer,
         #    batch_size=self.eval_batch_size,
-        #)
+        # )
 
-        #results = []
-        #for metric in metrics:
+        # results = []
+        # for metric in metrics:
         #    metric_results = evaluator.evaluate(
         #        dataset_name=metric,
         #        split="test",
@@ -89,8 +88,8 @@ class ModelEvaluator:
         #    )
         #    results.append(metric_results)
 
-        #print(results)
-        #return results
+        # print(results)
+        # return results
         ### /TEST
 
         wrapped_model = HFLM(
@@ -121,7 +120,7 @@ class ModelEvaluator:
             log_samples=True,
             gen_kwargs=gen_kwargs_str,
             task_manager=tm,
-            limit=self.limit,
+            limit=limit,
         )
 
         self._save_results(output["results"], experiment_name)

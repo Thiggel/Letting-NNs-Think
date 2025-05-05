@@ -9,6 +9,9 @@ class EvaluationConfig(BaseModel):
     evaluation_metrics: Optional[list[str]] = Field(
         None, description="The evaluation metrics to use"
     )
+    subset_metric: str = Field(
+        "csqa_gen", description="The metric to use for subset evaluation"
+    )
     load_from_checkpoint: Optional[Path] = Field(
         None, description="The path to the checkpoint to load"
     )
