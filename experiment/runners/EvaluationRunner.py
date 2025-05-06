@@ -126,7 +126,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
         wandb.log(results)
 
-        #if hasattr(model, "gating_stats_collector"):
+        # if hasattr(model, "gating_stats_collector"):
         #    with model.gating_stats_collector.visualize_gate_distributions(
         #        model
         #    ) as gate_visualizations:
@@ -177,7 +177,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         for idx, layer in enumerate(decoder_layers):
             if isinstance(layer, ModWrapper) or isinstance(layer, EarlyExitWrapper):
                 layer = layer.module
-            
+
             mlp = layer.mlp if hasattr(layer, "mlp") else layer.ff
             attn = layer.self_attn if hasattr(layer, "self_attn") else layer.attn
 
@@ -206,33 +206,26 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
 
         # define evaluate_fn for optimizer: returns (compute_saved, accuracy)
-        def eval_fn(x: torch.Tensor) -> Tuple[float, float]:
-            # apply thresholds
-            model.config.skip_threshold = x.tolist()
-            # run subset evaluation
+        def eval_fn(t: float) -> float:
+            model.config.skip_threshold = t
             results = evaluator_small.evaluate(
-                metrics=subset_metric,
+                metrics=[subset_metric],
                 seed=seed,
-                experiment_name=f"thresh_opt_{seed}",
+                experiment_name="th_opt",
                 generation_mode=self.model_config.generation_mode,
-                limit=small_limit,
+                limit=subset_limit,
             )
-            # get accuracy and compute saved
-            acc = results[subset_metric[0]][self.evaluation_config.accuracy_key]
-            pct_saved = sum(model.percent_tokens_skipped) / len(
-                model.percent_tokens_skipped
+            return float(
+                sum(model.percent_tokens_skipped) / len(model.percent_tokens_skipped)
             )
-            return float(pct_saved), float(acc)
 
-        num_layers = len(model.model.model.layers) * 2 # 2 for each layer (mlp and attn)
-        optimizer = ThresholdOptimizer(
-            evaluate_fn=eval_fn,
-            num_layers=num_layers,
+        opt = ThresholdOptimizer(
+            eval_fn,
             initial_samples=self.evaluation_config.initial_samples,
-            device=self.device,
-            dtype=torch.float32,
+            grid_size=500,
         )
-        optimizer.run(iterations=self.evaluation_config.optim_iterations)
+        opt.run(iterations=self.evaluation_config.optim_iterations)
+
         # Phase 2: standard evaluation on all metrics with full limit
         evaluator_full = ModelEvaluator(
             model,
@@ -241,8 +234,12 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             self.evaluation_config.num_fewshot,
         )
         metrics = self.evaluation_config.evaluation_metrics
-        for s in tqdm([0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], desc="running full eval", leave=False):
-            optimal_t = optimizer.get_thresholds_for_s(s)
+        for s in tqdm(
+            [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+            desc="running full eval",
+            leave=False,
+        ):
+            optimal_t = opt.get_threshold_for_s(s)
             print(s, optimal_t)
             self.model_config.skip_threshold = optimal_t
             # run subset evaluation
