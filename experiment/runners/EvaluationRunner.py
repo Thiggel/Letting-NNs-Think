@@ -206,14 +206,14 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
 
         # Baseline accuracy at t=0
-        with suppress_all_output():
-            baseline_out = evaluator_small.evaluate(
-                metrics=subset_metric,
-                seed=seed,
-                experiment_name=f"baseline_{seed}",
-                generation_mode=self.model_config.generation_mode,
-                limit=self.evaluation_config.subset_limit,
-            )
+        #with suppress_all_output():
+        baseline_out = evaluator_small.evaluate(
+            metrics=subset_metric,
+            seed=seed,
+            experiment_name=f"baseline_{seed}",
+            generation_mode=self.model_config.generation_mode,
+            limit=self.evaluation_config.subset_limit,
+        )
         baseline_acc = baseline_out[subset_metric[0]][
             self.evaluation_config.accuracy_key
         ]
@@ -236,16 +236,16 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             return float(pct_saved), float(acc / baseline_acc)
 
         # Phase 1: optimize thresholds jointly
-        joint_opt = ThresholdOptimizer(
+        opt = ThresholdOptimizer(
             evaluate_fn=joint_eval,
             initial_samples=self.evaluation_config.initial_samples,
             grid_size=500,
         )
-        joint_opt.run(iterations=self.evaluation_config.optim_iterations)
+        opt.run(iterations=self.evaluation_config.optim_iterations)
 
         # Example usage: thresholds for 30% compute & 90% retention
-        t30 = joint_opt.get_threshold_for_compute(0.30)
-        t90 = joint_opt.get_threshold_for_retention(0.90)
+        t30 = opt.get_threshold_for_compute(0.30)
+        t90 = opt.get_threshold_for_retention(0.90)
         print(f"t@30% compute: {t30:.3f}, t@90% acc: {t90:.3f}")
         # Phase 2: standard evaluation on all metrics with full limit
         evaluator_full = ModelEvaluator(
@@ -262,7 +262,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         ):
             threshold = opt.get_threshold_for_compute(compute)
             print(f"Threshold for compute {compute}: {threshold}")
-            self.model_config.skip_threshold = threshold
+            self.model_config.skip_threshold = [threshold]
             # run subset evaluation
             with suppress_all_output():
                 results = evaluator_full.evaluate(

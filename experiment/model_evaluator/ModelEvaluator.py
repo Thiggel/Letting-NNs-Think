@@ -123,6 +123,12 @@ class ModelEvaluator:
             limit=limit,
         )
 
+        samples = {}
+        for task, task_output in output["samples"].items():
+            samples[task] = output["samples"][task][0]
+
+        output["results"]["samples"] = samples
+
         self._save_results(output["results"], experiment_name)
         self._save_samples(output["samples"], seed, experiment_name)
 
