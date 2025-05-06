@@ -6,47 +6,52 @@ from typing import Callable
 
 class ThresholdOptimizer:
     """
-    Active‐learning GP for a single scalar threshold:
-      - evaluate_fn: t -> compute_saved (float)
-      - sequentially sample t where GP uncertainty is highest
-      - invert final GP mean to get threshold for any target savings s
+    Active‐learning on a single scalar threshold t∈[0,1] for two outputs:
+     - compute_saved c(t)
+     - retention r(t)=accuracy(t)/accuracy(0)
+    We fit two independent GPs and at each iteration pick the t
+    maximizing sigma_c(t)+sigma_r(t).
     """
-
     def __init__(
         self,
-        evaluate_fn: Callable[[float], float],
+        evaluate_fn: Callable[[float], Tuple[float, float]],
         initial_samples: int = 5,
-        grid_size: int = 1000,
+        grid_size: int = 500,
     ):
         self.evaluate_fn = evaluate_fn
-        # a fixed grid for acquisition (1D)
-        self._grid = np.linspace(0.0, 1.0, grid_size).reshape(-1, 1)
-        # data
-        self.X = np.empty((0, 1))
-        self.y = np.empty((0,))
-        # GP with a smooth Matérn + tiny noise
+        self.grid = np.linspace(0.0, 1.0, grid_size).reshape(-1, 1)
         kernel = Matern(nu=2.5) + WhiteKernel(noise_level=1e-6)
-        self.gp = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
+        self.gp_c = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
+        self.gp_r = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
+        self.X = np.empty((0, 1))
+        self.y_c = np.empty((0,))
+        self.y_r = np.empty((0,))
 
     def initialize(self):
-        # random initial points
+        # Random seed points
         xs = np.random.rand(self.initial_samples, 1)
-        ys = np.array([self.evaluate_fn(float(x)) for x in xs])
-        self.X, self.y = xs, ys
-        self.gp.fit(self.X, self.y)
+        outs = np.array([self.evaluate_fn(x[0]) for x in xs])
+        self.X = xs
+        self.y_c = outs[:, 0]
+        self.y_r = outs[:, 1]
+        self.gp_c.fit(self.X, self.y_c)
+        self.gp_r.fit(self.X, self.y_r)
 
     def propose(self) -> float:
-        # predict posterior std on the grid, pick argmax
-        _, sigma = self.gp.predict(self._grid, return_std=True)
-        idx = np.argmax(sigma)
-        return float(self._grid[idx, 0])
+        # Posterior std on grid
+        _, s_c = self.gp_c.predict(self.grid, return_std=True)
+        _, s_r = self.gp_r.predict(self.grid, return_std=True)
+        scores = s_c + s_r
+        idx = np.argmax(scores)
+        return float(self.grid[idx, 0])
 
     def update(self, t: float):
-        # evaluate and refit
-        c = self.evaluate_fn(t)
+        c, r = self.evaluate_fn(t)
         self.X = np.vstack([self.X, [[t]]])
-        self.y = np.append(self.y, c)
-        self.gp.fit(self.X, self.y)
+        self.y_c = np.append(self.y_c, c)
+        self.y_r = np.append(self.y_r, r)
+        self.gp_c.fit(self.X, self.y_c)
+        self.gp_r.fit(self.X, self.y_r)
 
     def run(self, iterations: int = 20):
         self.initialize()
@@ -54,28 +59,29 @@ class ThresholdOptimizer:
             t_next = self.propose()
             self.update(t_next)
 
-    def get_threshold_for_s(self, s: float, tol: float = 1e-3) -> float:
-        """
-        Solve GP_mean(t) = s by bisection on [0,1].
-        If no sign change, returns closest endpoint.
-        """
-
-        def f(t):
-            return float(self.gp.predict([[t]])) - s
-
+    def _invert_gp(self, gp: GaussianProcessRegressor, target: float, tol: float = 1e-3) -> float:
+        # bisection solve gp.mean(t)=target on [0,1]
+        def f(x):
+            return gp.predict([[x]])[0] - target
         a, b = 0.0, 1.0
         fa, fb = f(a), f(b)
         if fa * fb > 0:
-            # no root in [0,1]: pick closer end
             return a if abs(fa) < abs(fb) else b
-
         for _ in range(30):
-            m = 0.5 * (a + b)
+            m = 0.5*(a+b)
             fm = f(m)
             if abs(fm) < tol:
                 return m
-            if fa * fm <= 0:
+            if fa*fm <= 0:
                 b, fb = m, fm
             else:
                 a, fa = m, fm
-        return 0.5 * (a + b)
+        return 0.5*(a+b)
+
+    def get_threshold_for_compute(self, s: float) -> float:
+        """Return t so that compute_saved≈s."""
+        return self._invert_gp(self.gp_c, s)
+
+    def get_threshold_for_retention(self, s: float) -> float:
+        """Return t so that retention≈s (e.g. s=0.9 for 90%)."""
+        return self._invert_gp(self.gp_r, s) return 0.5 * (a + b)

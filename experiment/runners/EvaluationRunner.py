@@ -205,27 +205,48 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             self.evaluation_config.num_fewshot,
         )
 
-        # define evaluate_fn for optimizer: returns (compute_saved, accuracy)
-        def eval_fn(t: float) -> float:
-            model.config.skip_threshold = t
-            results = evaluator_small.evaluate(
-                metrics=[subset_metric],
+        # Baseline accuracy at t=0
+        with suppress_all_output():
+            baseline_out = evaluator_small.evaluate(
+                metrics=subset_metric,
                 seed=seed,
-                experiment_name="th_opt",
+                experiment_name=f"baseline_{seed}",
                 generation_mode=self.model_config.generation_mode,
-                limit=subset_limit,
+                limit=self.evaluation_config.subset_limit,
             )
-            return float(
-                sum(model.percent_tokens_skipped) / len(model.percent_tokens_skipped)
-            )
+        baseline_acc = baseline_out[subset_metric[0]][
+            self.evaluation_config.accuracy_key
+        ]
 
-        opt = ThresholdOptimizer(
-            eval_fn,
+        # Joint eval_fn returning (compute_saved, retention)
+        def joint_eval(t: float) -> Tuple[float, float]:
+            model.config.skip_threshold = t
+            with suppress_all_output():
+                out = evaluator_small.evaluate(
+                    metrics=subset_metric,
+                    seed=seed,
+                    experiment_name=f"opt_{seed}",
+                    generation_mode=self.model_config.generation_mode,
+                    limit=self.evaluation_config.subset_limit,
+                )
+            acc = out[subset_metric[0]][self.evaluation_config.accuracy_key]
+            pct_saved = sum(model.percent_tokens_skipped) / len(
+                model.percent_tokens_skipped
+            )
+            return float(pct_saved), float(acc / baseline_acc)
+
+        # Phase 1: optimize thresholds jointly
+        joint_opt = JointThresholdOptimizer(
+            evaluate_fn=joint_eval,
             initial_samples=self.evaluation_config.initial_samples,
-            grid_size=500,
+            grid_size=self.evaluation_config.grid_size,
         )
-        opt.run(iterations=self.evaluation_config.optim_iterations)
+        joint_opt.run(iterations=self.evaluation_config.optim_iterations)
 
+        # Example usage: thresholds for 30% compute & 90% retention
+        t30 = joint_opt.get_threshold_for_compute(0.30)
+        t90 = joint_opt.get_threshold_for_retention(0.90)
+        print(f"t@30% compute: {t30:.3f}, t@90% acc: {t90:.3f}")
         # Phase 2: standard evaluation on all metrics with full limit
         evaluator_full = ModelEvaluator(
             model,
@@ -234,14 +255,14 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             self.evaluation_config.num_fewshot,
         )
         metrics = self.evaluation_config.evaluation_metrics
-        for s in tqdm(
+        for compute in tqdm(
             [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
             desc="running full eval",
             leave=False,
         ):
-            optimal_t = opt.get_threshold_for_s(s)
-            print(s, optimal_t)
-            self.model_config.skip_threshold = optimal_t
+            threshold = opt.get_threshold_for_compute(compute)
+            print(f"Threshold for compute {compute}: {threshold}")
+            self.model_config.skip_threshold = threshold
             # run subset evaluation
             with suppress_all_output():
                 results = evaluator_full.evaluate(
@@ -255,10 +276,27 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             results = self._log_percent_tokens_skipped(model, results)
             results = self._log_percent_tokens_skipped_per_layer(model, results)
 
-            print(f"s={s}, optimal_t={optimal_t}")
             print("Results: ", results)
 
             if self.experiment_config.enable_logging:
                 self._log_results(model, results, seed)
+
+        # Run at 90% accuracy
+        with suppress_all_output():
+            threshold = opt.get_threshold_for_retention(0.9)
+
+            results = evaluator_full.evaluate(
+                metrics=metrics,
+                seed=seed,
+                experiment_name=f"{self.experiment_config.experiment_name}_thresh_opt_{seed}",
+                generation_mode=self.model_config.generation_mode,
+                limit=self.evaluation_config.full_limit,
+            )
+
+            results = self._log_percent_tokens_skipped(model, results)
+            results = self._log_percent_tokens_skipped_per_layer(model, results)
+
+        print(f"Threshold for 90% retetion: {threshold}")
+        print("Results: ", results)
 
         return results
