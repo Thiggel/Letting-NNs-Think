@@ -19,10 +19,10 @@ class EvaluationConfig(BaseModel):
         200, description="The number of examples to use for full evaluation"
     )
     initial_samples: int = Field(
-        20, description="The number of initial samples for the threshold optimizer"
+        10, description="The number of initial samples for the threshold optimizer"
     )
     optim_iterations: int = Field(
-        50, description="The number of iterations for the threshold optimizer"
+        10, description="The number of iterations for the threshold optimizer"
     )
     accuracy_key: str = Field(
         "exact_match,strict-match", description="The key for accuracy in the evaluation metrics"

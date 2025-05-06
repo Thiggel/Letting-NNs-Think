@@ -220,7 +220,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
         # Joint eval_fn returning (compute_saved, retention)
         def joint_eval(t: float) -> Tuple[float, float]:
-            model.config.skip_threshold = t
+            model.config.skip_threshold = [t]
             with suppress_all_output():
                 out = evaluator_small.evaluate(
                     metrics=subset_metric,
@@ -236,10 +236,10 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             return float(pct_saved), float(acc / baseline_acc)
 
         # Phase 1: optimize thresholds jointly
-        joint_opt = JointThresholdOptimizer(
+        joint_opt = ThresholdOptimizer(
             evaluate_fn=joint_eval,
             initial_samples=self.evaluation_config.initial_samples,
-            grid_size=self.evaluation_config.grid_size,
+            grid_size=500,
         )
         joint_opt.run(iterations=self.evaluation_config.optim_iterations)
 

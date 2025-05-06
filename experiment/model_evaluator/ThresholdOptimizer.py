@@ -1,16 +1,16 @@
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern, WhiteKernel
-from typing import Callable
+from typing import Callable, Tuple
+from tqdm import tqdm
 
 
 class ThresholdOptimizer:
     """
-    Active‐learning on a single scalar threshold t∈[0,1] for two outputs:
-     - compute_saved c(t)
-     - retention r(t)=accuracy(t)/accuracy(0)
-    We fit two independent GPs and at each iteration pick the t
-    maximizing sigma_c(t)+sigma_r(t).
+    Active-learning GP for a single scalar threshold t∈[0,1] predicting two outputs:
+      - compute_saved c(t)
+      - retention r(t)=accuracy(t)/baseline_acc
+    Samples where combined uncertainty is highest to learn both curves.
     """
     def __init__(
         self,
@@ -26,11 +26,11 @@ class ThresholdOptimizer:
         self.X = np.empty((0, 1))
         self.y_c = np.empty((0,))
         self.y_r = np.empty((0,))
+        self.initial_samples = initial_samples
 
     def initialize(self):
-        # Random seed points
         xs = np.random.rand(self.initial_samples, 1)
-        outs = np.array([self.evaluate_fn(x[0]) for x in xs])
+        outs = np.array([self.evaluate_fn(x[0]) for x in tqdm(xs, desc="Evaluating initial samples")])
         self.X = xs
         self.y_c = outs[:, 0]
         self.y_r = outs[:, 1]
@@ -38,7 +38,6 @@ class ThresholdOptimizer:
         self.gp_r.fit(self.X, self.y_r)
 
     def propose(self) -> float:
-        # Posterior std on grid
         _, s_c = self.gp_c.predict(self.grid, return_std=True)
         _, s_r = self.gp_r.predict(self.grid, return_std=True)
         scores = s_c + s_r
@@ -55,12 +54,11 @@ class ThresholdOptimizer:
 
     def run(self, iterations: int = 20):
         self.initialize()
-        for _ in range(iterations):
+        for _ in tqdm(range(iterations), desc="Optimizing threshold"):
             t_next = self.propose()
             self.update(t_next)
 
-    def _invert_gp(self, gp: GaussianProcessRegressor, target: float, tol: float = 1e-3) -> float:
-        # bisection solve gp.mean(t)=target on [0,1]
+    def _invert(self, gp: GaussianProcessRegressor, target: float, tol: float = 1e-3) -> float:
         def f(x):
             return gp.predict([[x]])[0] - target
         a, b = 0.0, 1.0
@@ -79,9 +77,8 @@ class ThresholdOptimizer:
         return 0.5*(a+b)
 
     def get_threshold_for_compute(self, s: float) -> float:
-        """Return t so that compute_saved≈s."""
-        return self._invert_gp(self.gp_c, s)
+        return self._invert(self.gp_c, s)
 
     def get_threshold_for_retention(self, s: float) -> float:
-        """Return t so that retention≈s (e.g. s=0.9 for 90%)."""
-        return self._invert_gp(self.gp_r, s) return 0.5 * (a + b)
+        return self._invert(self.gp_r, s)
+
