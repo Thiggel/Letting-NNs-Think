@@ -88,7 +88,12 @@ class GatedWrapper(nn.Module):
 
         index += 1 if not self.is_attn_layer else 0
 
-        return self.config.skip_threshold[index]
+        try:
+            return self.config.skip_threshold[index]
+        except Exception:
+            print(self.config.skip_threshold)
+            print(index)
+            exit()
 
     @property
     def is_attn_layer(self) -> bool:

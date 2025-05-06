@@ -15,7 +15,6 @@ from .MetricsLogger import MetricsLogger
 from .HasLayers import HasLayers
 from .gating.GatingStatsCollector import GatingStatsCollector
 
-from deepspeed.utils import safe_get_full_grad
 
 
 class DefaultLightningModule(LightningModule, HasLayers):

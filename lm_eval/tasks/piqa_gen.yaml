@@ -4,7 +4,7 @@ training_split: train
 validation_split: validation
 output_type: generate_until          
 
-doc_to_text: "Question: {{ goal.strip() }}\n 0. {{ sol1 }}, 1. {{ sol2 }}. In the end, give either 0 or 1 as the answer.\nAnswer:"
+doc_to_text: "Question: {{ goal.strip() }}\n 0. {{ sol1 }},\n1. {{ sol2 }}. In the end, give either 0 or 1 as the answer.\nAnswer:"
 doc_to_target: label
 
 metric_list:

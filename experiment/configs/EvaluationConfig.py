@@ -12,6 +12,21 @@ class EvaluationConfig(BaseModel):
     subset_metric: str = Field(
         "csqa_gen", description="The metric to use for subset evaluation"
     )
+    subset_limit: int = Field(
+        200, description="The number of examples to use for subset evaluation"
+    )
+    full_limit: int = Field(
+        200, description="The number of examples to use for full evaluation"
+    )
+    initial_samples: int = Field(
+        20, description="The number of initial samples for the threshold optimizer"
+    )
+    optim_iterations: int = Field(
+        50, description="The number of iterations for the threshold optimizer"
+    )
+    accuracy_key: str = Field(
+        "exact_match,strict-match", description="The key for accuracy in the evaluation metrics"
+    )
     load_from_checkpoint: Optional[Path] = Field(
         None, description="The path to the checkpoint to load"
     )

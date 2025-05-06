@@ -1,7 +1,6 @@
 import math
 from lightning import LightningModule
 import torch
-from deepspeed.utils import safe_get_full_grad
 from transformers import PreTrainedTokenizer
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
@@ -132,22 +131,3 @@ class MetricsLogger:
                 batch_size=self.batch_size,
             )
 
-    def log_gradient_norms(self):
-        """Log gradient norms for all trainable parameters"""
-        total_norm = 0
-        for name, param in self.module.named_parameters():
-            if param.requires_grad:
-                grad = safe_get_full_grad(param)
-                if grad is None:
-                    continue
-
-                param_norm = grad.norm(2)
-                total_norm += param_norm.item() ** 2
-                self.module.log(
-                    f"gradient_norm/{name}",
-                    param_norm.item(),
-                    batch_size=self.batch_size,
-                )
-
-        total_norm = total_norm**0.5
-        self.module.log("gradient_norm/total", total_norm, batch_size=self.batch_size)
