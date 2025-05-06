@@ -9,11 +9,12 @@ class EvaluationConfig(BaseModel):
     evaluation_metrics: Optional[list[str]] = Field(
         None, description="The evaluation metrics to use"
     )
-    subset_metric: str = Field(
-        "csqa_gen", description="The metric to use for subset evaluation"
+    subset_metric: list[str] = Field(
+        ["csqa_gen", "gsm8k, piqa_gen"],
+        description="The metrics to use for subset evaluation",
     )
     subset_limit: int = Field(
-        200, description="The number of examples to use for subset evaluation"
+        100, description="The number of examples to use for subset evaluation"
     )
     full_limit: int = Field(
         200, description="The number of examples to use for full evaluation"
@@ -25,7 +26,8 @@ class EvaluationConfig(BaseModel):
         25, description="The number of iterations for the threshold optimizer"
     )
     accuracy_key: str = Field(
-        "exact_match,strict-match", description="The key for accuracy in the evaluation metrics"
+        "exact_match,strict-match",
+        description="The key for accuracy in the evaluation metrics",
     )
     load_from_checkpoint: Optional[Path] = Field(
         None, description="The path to the checkpoint to load"
@@ -34,7 +36,7 @@ class EvaluationConfig(BaseModel):
         None, description="The path to the checkpoint to save to"
     )
     eval_batch_size: int = Field(
-        128, description="The batch size to use for evaluation"
+        300, description="The batch size to use for evaluation"
     )
     num_fewshot: int = Field(0, description="The number of few-shot examples to use")
     use_quantization: bool = Field(

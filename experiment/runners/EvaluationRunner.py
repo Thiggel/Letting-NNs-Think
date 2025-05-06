@@ -194,9 +194,8 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
         # Phase 1: find optimal per-layer thresholds on a small subset
-        subset_metric = [
-            self.evaluation_config.subset_metric
-        ]  # e.g. ['commonsense_qa']
+        subset_metric = self.evaluation_config.subset_metric
+        # e.g. ['commonsense_qa']
         small_limit = self.evaluation_config.subset_limit
         evaluator_small = ModelEvaluator(
             model,
@@ -206,7 +205,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
 
         # Baseline accuracy at t=0
-        #with suppress_all_output():
+        # with suppress_all_output():
         baseline_out = evaluator_small.evaluate(
             metrics=subset_metric,
             seed=seed,
