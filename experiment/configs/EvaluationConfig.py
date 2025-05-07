@@ -10,7 +10,7 @@ class EvaluationConfig(BaseModel):
         None, description="The evaluation metrics to use"
     )
     subset_metric: list[str] = Field(
-        ["csqa_gen", "gsm8k, piqa_gen"],
+        ["csqa_gen", "gsm8k", "piqa_gen"],
         description="The metrics to use for subset evaluation",
     )
     subset_limit: int = Field(

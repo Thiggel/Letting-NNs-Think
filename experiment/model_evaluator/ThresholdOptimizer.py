@@ -42,7 +42,10 @@ class ThresholdOptimizer:
         _, s_r = self.gp_r.predict(self.grid, return_std=True)
         scores = s_c + s_r
         idx = np.argmax(scores)
-        return float(self.grid[idx, 0])
+        proposal = float(self.grid[idx, 0])
+        print(f"Proposing threshold: {proposal:.4f} with score: {scores[idx]:.4f}")
+
+        return proposal
 
     def update(self, t: float):
         c, r = self.evaluate_fn(t)

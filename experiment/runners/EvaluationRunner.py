@@ -205,17 +205,19 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
 
         # Baseline accuracy at t=0
-        # with suppress_all_output():
-        baseline_out = evaluator_small.evaluate(
-            metrics=subset_metric,
-            seed=seed,
-            experiment_name=f"baseline_{seed}",
-            generation_mode=self.model_config.generation_mode,
-            limit=self.evaluation_config.subset_limit,
-        )
+        print("Running baseline eval...", end=" ")
+        with suppress_all_output():
+            baseline_out = evaluator_small.evaluate(
+                metrics=subset_metric,
+                seed=seed,
+                experiment_name=f"baseline_{seed}",
+                generation_mode=self.model_config.generation_mode,
+                limit=self.evaluation_config.subset_limit,
+            )
         baseline_acc = baseline_out[subset_metric[0]][
             self.evaluation_config.accuracy_key
         ]
+        print(f"Done. Baseline accuracy: {baseline_acc:.3f}")
 
         # Joint eval_fn returning (compute_saved, retention)
         def joint_eval(t: float) -> Tuple[float, float]:
@@ -298,4 +300,4 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         print(f"Threshold for 90% retetion: {threshold}")
         print("Results: ", results)
 
-        return results
+        return {}
