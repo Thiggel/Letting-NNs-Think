@@ -52,11 +52,13 @@ class GatingConfig:
     randomly_skip: bool = Field(
         False, description="Whether to randomly skip modules as a baseline"
     )
-    percent_randomly_skip: float = Field(
+    desired_skip_ratio: float = Field(
         0.0,
-        description="Percentage of modules to randomly skip if randomly_skip is True",
+        description="Percentage of modules to skip",
     )
-    skip_threshold: list[float] = Field([0.5], description="Threshold for skipping modules")
+    skip_threshold: list[float] = Field(
+        [0.5], description="Threshold for skipping modules"
+    )
     increasing_threshold: bool = Field(
         False, description="Whether to increase the threshold during training"
     )
@@ -68,6 +70,10 @@ class GatingConfig:
     )
     num_increasing_steps: int = Field(
         5_000, description="Number of steps to increase the threshold over"
+    )
+    skip_layers: bool = Field(
+        False,
+        description="Whether to skip layers based on gate value",
     )
     always_skip_layers: list[int] = Field(
         [],

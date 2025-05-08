@@ -2,14 +2,13 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from typing import Any, Optional, Union, Dict
-
-from experiment.configs.ModelConfig import ModelConfig
-
-
 import torch
 from torch import nn
 import torch.nn.functional as F
 from typing import Any, Optional, Union, Dict
+
+from experiment.configs.ModelConfig import ModelConfig
+from experiment.utils.threshold_finder import ThresholdFinder
 
 
 class ModWrapper(nn.Module):
@@ -34,6 +33,10 @@ class ModWrapper(nn.Module):
         self.module_name = module_name
         self.module = module
         object.__setattr__(self, "parent", parent)
+
+        self.threshold_finder = ThresholdFinder(
+            config.desired_skip_ratio,
+        )
 
         # Router projects hidden states to scalar weights
         self.router = nn.Linear(d_model, 1)
@@ -80,9 +83,10 @@ class ModWrapper(nn.Module):
         # During generation/inference, just use the predictor output directly
         if not self.training:
             predictor_logits = self.predictor(hidden_states).squeeze(-1)
-            selection_mask = (
-                torch.sigmoid(predictor_logits) > self.config.skip_threshold[0]
-            ).unsqueeze(-1)
+
+            importance = torch.sigmoid(predictor_logits)
+            threshold = self.threshold_finder.find_threshold(importance)
+            selection_mask = (importance > threshold).unsqueeze(-1)
 
             # Process through module
             output = self.module(
@@ -109,7 +113,6 @@ class ModWrapper(nn.Module):
         # Compute router logits
         router_logits = self.router(hidden_states).sigmoid()  # [B, S, 1]
         self.current_token_importance = router_logits
-
 
         # get true/false mask whether tokens are above the 12.5% threshold of
         # highest router logits

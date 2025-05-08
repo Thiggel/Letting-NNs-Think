@@ -5,6 +5,7 @@ from typing import Any, Optional, Union, Dict, List
 
 from experiment.configs.ModelConfig import ModelConfig
 from experiment.configs.EarlyExitConfig import ConfidenceMeasure
+from experiment.utils.threshold_finder import ThresholdFinder
 
 
 class EarlyExitWrapper(nn.Module):
@@ -39,10 +40,16 @@ class EarlyExitWrapper(nn.Module):
         self.tokens_exited_early = 0
         self.prev_hidden_states: Optional[torch.Tensor] = None
 
-    def compute_threshold(self, step_idx: int, max_steps: int = 100) -> float:
+        self.threshold_finder = ThresholdFinder(
+            config.desired_skip_ratio,
+        )
+
+    def compute_threshold(
+        self, step_idx: int, confidence: torch.Tensor, max_steps: int = 100
+    ) -> float:
         """Compute the decaying threshold based on generation step."""
         if not self.config.use_decaying_threshold:
-            return self.config.base_threshold
+            return self.threshold_finder.find_threshold(confidence)
 
         # Following the paper's decaying threshold formula in Eq. (5)
         decay = (
@@ -82,7 +89,6 @@ class EarlyExitWrapper(nn.Module):
                     device=hidden_states.device,
                 )
 
-
         elif self.config.confidence_measure == ConfidenceMeasure.HIDDEN_STATE:
             # Compute cosine similarity with previous layer's hidden state
             if self.prev_hidden_states is None:
@@ -121,7 +127,7 @@ class EarlyExitWrapper(nn.Module):
         if self.layer_idx < self.config.min_exit_layer:
             return torch.zeros_like(confidence, dtype=torch.bool)
 
-        threshold = self.compute_threshold(step_idx, max_steps)
+        threshold = self.compute_threshold(step_idx, confidence, max_steps)
         self.current_threshold = threshold
         return confidence >= threshold
 

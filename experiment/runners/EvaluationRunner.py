@@ -143,6 +143,19 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
             if isinstance(metric_value, numbers.Number)
         }
 
+    def _single_eval(self, evaluator_full, metrics, seed, model):
+        with suppress_all_output():
+            results = evaluator_full.evaluate(
+                metrics=metrics,
+                seed=seed,
+                experiment_name=f"{self.experiment_config.experiment_name}_{seed}",
+                generation_mode=self.model_config.generation_mode,
+                limit=self.evaluation_config.limit,
+            )
+        results = self._log_percent_tokens_skipped(model, results)
+        results = self._log_percent_tokens_skipped_per_layer(model, results)
+        return results
+
     def run(self, seed: int, state_dict: torch.Tensor = None) -> Dict[str, float]:
         model = self._load_model(seed, mode="test").to(self.device)
         model.eval()
@@ -159,22 +172,22 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
         model.eval()
 
-        #string = self.tokenizer.encode(
+        # string = self.tokenizer.encode(
         #    "Joe has 20 horses. He sells 5 of them for $200 each. How much money does he make?",
         #    return_tensors="pt",
-        #).to(self.device)
+        # ).to(self.device)
 
-        #print([self.tokenizer.decode(token) for token in string[0]])
+        # print([self.tokenizer.decode(token) for token in string[0]])
 
-        #model(string)
+        # model(string)
 
-        #decoder_layers = model.get_decoder_layers(
+        # decoder_layers = model.get_decoder_layers(
         #    model.model
         #    if not self.evaluation_config.use_quantization
         #    else model.model.model
-        #)
+        # )
 
-        #for idx, layer in enumerate(decoder_layers):
+        # for idx, layer in enumerate(decoder_layers):
         #    if isinstance(layer, ModWrapper) or isinstance(layer, EarlyExitWrapper):
         #        layer = layer.module
 
@@ -185,13 +198,13 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         #        if hasattr(module, "current_token_importance"):
         #            print(module.module_name, module.current_token_importance)
 
-        #generated = model.generate(
+        # generated = model.generate(
         #    input_ids=string,
         #    max_length=100,
         #    max_new_tokens=100,
         #    eos_token_id=self.tokenizer.eos_token_id,
-        #)
-        #print("Sample generation: ", self.tokenizer.decode(generated[0]))
+        # )
+        # print("Sample generation: ", self.tokenizer.decode(generated[0]))
 
         evaluator_full = ModelEvaluator(
             model,
@@ -201,33 +214,20 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         )
         metrics = self.evaluation_config.evaluation_metrics
         all_results = {}
-        for threshold in tqdm(
-            range(0, 1000, 5),
-            desc="running full eval",
+
+        # percentages: 0.05, 0.10, …, 1.00
+        for pct in tqdm(
+            np.arange(0.05, 0.35, 0.05),
+            desc="running full eval (random skipping)",
             leave=False,
         ):
-            threshold = threshold / 1000
-            self.model_config.skip_threshold = [threshold]
-            # run subset evaluation
-            with suppress_all_output():
-                results = evaluator_full.evaluate(
-                    metrics=metrics,
-                    seed=seed,
-                    experiment_name=f"{self.experiment_config.experiment_name}_thresh_opt_{seed}",
-                    generation_mode=self.model_config.generation_mode,
-                    limit=self.evaluation_config.limit,
-                )
-
-            results = self._log_percent_tokens_skipped(model, results)
-            results = self._log_percent_tokens_skipped_per_layer(model, results)
-
-            
-            print("Threshold: ", threshold, "Results: ", results)
-
-            all_results[threshold] = results
+            self.model_config.desired_skip_ratio = float(np.round(pct, 2))
+            # the threshold field is irrelevant when random skipping is active
+            results = self._single_eval(evaluator_full, metrics, seed, model)
+            all_results[f"{pct:.2f}"] = results
 
         # Save the results to a file
-        results_path = os.path.join(os.environ.get('BASE_CACHE_DIR'), "results")
+        results_path = os.path.join(os.environ.get("BASE_CACHE_DIR"), "results")
         os.makedirs(results_path, exist_ok=True)
         results_file = self.experiment_config.experiment_name + "_results.json"
         with open(os.path.join(results_path, results_file), "w") as f:
@@ -235,6 +235,5 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
             if self.experiment_config.enable_logging:
                 self._log_results(model, results, seed)
-
 
         return {}

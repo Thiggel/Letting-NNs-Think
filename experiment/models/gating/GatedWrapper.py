@@ -4,6 +4,7 @@ from typing import Any, Optional, Union
 
 from experiment.configs.ModelConfig import ModelConfig
 from experiment.configs.GatingConfig import GatingMode
+from experiment.utils.threshold_finder import ThresholdFinder
 
 
 class GatedWrapper(nn.Module):
@@ -29,6 +30,10 @@ class GatedWrapper(nn.Module):
         self.current_input_ids = None
         self.current_validity_mask = None
 
+        self.threshold_finder = ThresholdFinder(
+            config.desired_skip_ratio,
+        )
+
         self.global_step = 1
 
         object.__setattr__(self, "parent", parent)
@@ -49,27 +54,29 @@ class GatedWrapper(nn.Module):
 
     @property
     def threshold(self) -> float:
-        if self.config.increasing_threshold:
-            assert self.current_token_importance is not None
-            assert self.current_validity_mask is not None
+        assert self.current_token_importance is not None
+        assert self.current_validity_mask is not None
 
-            all_token_importances = (
-                self.current_token_importance[self.current_validity_mask]
-                .detach()
-                .flatten()
-            )
+        all_token_importances = (
+            self.current_token_importance[self.current_validity_mask].detach().flatten()
+        )
+
+        if self.config.increasing_threshold:
             sorted_token_importances = torch.sort(all_token_importances.float()).values
 
             delta_percentile = (
                 self.config.end_thr_percentile - self.config.start_thr_percentile
             )
 
-            current_fraction = self.global_step / self.config.num_increasing_steps if self.global_step is not None else 1.0
+            current_fraction = (
+                self.global_step / self.config.num_increasing_steps
+                if self.global_step is not None
+                else 1.0
+            )
 
             current_percentile = (
                 self.config.start_thr_percentile
-                + min(1.0, current_fraction)
-                * delta_percentile
+                + min(1.0, current_fraction) * delta_percentile
             )
 
             kth_index = min(
@@ -81,19 +88,11 @@ class GatedWrapper(nn.Module):
 
             return current_threshold if current_threshold != 1.0 else 0.999
 
-        if len(self.config.skip_threshold) == 1:
-            return self.config.skip_threshold[0]
+        # compute cumulative probability distribution over token importances
+        # find the threshold that corresponds to the desired skip ratio self.config.desired_skip_ratio
+        threshold = self.threshold_finder.find_threshold(all_token_importances)
 
-        index = 2 * self.layer_idx 
-
-        index += 1 if not self.is_attn_layer else 0
-
-        try:
-            return self.config.skip_threshold[index]
-        except Exception:
-            print(self.config.skip_threshold)
-            print(index)
-            exit()
+        return threshold
 
     @property
     def is_attn_layer(self) -> bool:
@@ -123,14 +122,15 @@ class GatedWrapper(nn.Module):
 
         if self.config.randomly_skip:
             token_importance = (
-                torch.rand_like(token_importance) > self.config.percent_randomly_skip
+                torch.rand_like(token_importance) > self.config.desired_skip_ratio
             ).float()
 
         elif self.layer_idx in self.config.always_skip_layers:
             token_importance = torch.zeros_like(token_importance)
-        elif self.config.always_skip_layers is not None and len(
-            self.config.always_skip_layers
-        ) > 0:
+        elif (
+            self.config.always_skip_layers is not None
+            and len(self.config.always_skip_layers) > 0
+        ):
             token_importance = torch.ones_like(token_importance)
         elif self.config.skip_entire_layer_based_on_attn and not self.is_attn_layer:
             token_importance = self.attn_token_importance
@@ -162,20 +162,20 @@ class GatedWrapper(nn.Module):
     ):
         if past_kv is None or not skip_mask.any():
             return None
-            
+
         # Get previous layer cache - method differs by model type
-        if hasattr(past_kv, 'get_layer_cache'):  # Gemma
+        if hasattr(past_kv, "get_layer_cache"):  # Gemma
             prev_layer_cache = past_kv.get_layer_cache(self.layer_idx - 1)
             current_cache = module_output[1]
             current_layer_cache = current_cache.get_layer_cache(self.layer_idx)
-            
+
             # Apply the same logic as LLaMA for updating
             skip_mask = skip_mask.expand(-1, -1, current_layer_cache[0].size(-1))
-            
+
             # Create updated cache
             new_k = torch.where(skip_mask, prev_layer_cache[0], current_layer_cache[0])
             new_v = torch.where(skip_mask, prev_layer_cache[1], current_layer_cache[1])
-            
+
             # Update the cache - method differs by model type
             current_cache.update_layer_cache(self.layer_idx, (new_k, new_v))
             return current_cache
@@ -215,7 +215,6 @@ class GatedWrapper(nn.Module):
         gate_value = self.gate(hidden_states.detach())
         self.current_gate_value = gate_value
         token_importance = self.calculate_token_importance(gate_value.mean(dim=-1))
-
 
         if (
             self.config.gating_mode == GatingMode.BEFORE_MODULE

@@ -25,7 +25,7 @@ class EarlyExitConfig:
         4.0, description="Decay factor (τ) for threshold over generation steps"
     )
     use_decaying_threshold: bool = Field(
-        True, description="Whether to use decaying threshold over generation steps"
+        False, description="Whether to use decaying threshold over generation steps"
     )
     min_exit_layer: int = Field(
         1, description="Minimum layer to consider for early exiting"
