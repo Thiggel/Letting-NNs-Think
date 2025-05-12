@@ -43,6 +43,8 @@ class ModelEarlyExit(nn.Module):
         self.is_generating = False
         self.current_step = 0
 
+        self.exit_mask = None
+
     def compute_layer_loss_weights(self, num_layers: int) -> torch.Tensor:
         """
         Compute weights for layer losses based on configuration.
@@ -134,6 +136,7 @@ class ModelEarlyExit(nn.Module):
             layer_idx,
             module_name=name,
             parent=parent,
+            controller=self,
         )
         self.wrapped_modules[name] = wrapped
         return wrapped

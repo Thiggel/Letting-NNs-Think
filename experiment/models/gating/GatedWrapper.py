@@ -30,9 +30,7 @@ class GatedWrapper(nn.Module):
         self.current_input_ids = None
         self.current_validity_mask = None
 
-        self.threshold_finder = ThresholdFinder(
-            config.desired_skip_ratio,
-        )
+        self.threshold_finder = ThresholdFinder()
 
         self.global_step = 1
 
@@ -90,7 +88,7 @@ class GatedWrapper(nn.Module):
 
         # compute cumulative probability distribution over token importances
         # find the threshold that corresponds to the desired skip ratio self.config.desired_skip_ratio
-        threshold = self.threshold_finder.find_threshold(all_token_importances)
+        threshold = self.threshold_finder.find_threshold(all_token_importances, self.config.desired_skip_ratio) if not self.config.randomly_skip else 0.5
 
         return threshold
 
@@ -142,6 +140,9 @@ class GatedWrapper(nn.Module):
             token_importance = torch.ones_like(token_importance)
 
         self.current_token_importance = token_importance
+
+
+        percent_skipped = token_importance.mean().item()
 
         return token_importance
 

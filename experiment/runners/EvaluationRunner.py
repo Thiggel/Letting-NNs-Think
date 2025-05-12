@@ -1,4 +1,5 @@
 from typing import Any, Dict, Tuple
+import math
 import numbers
 import wandb
 import torch
@@ -6,9 +7,12 @@ from torch import nn
 from scipy import stats
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.special import lambertw
 from pydantic import BaseModel
 from optimum.quanto import QuantizedModelForCausalLM, qint4
 from tqdm import tqdm
+import os
+import json
 
 from experiment.experiment import Runner
 from experiment.experiment import ExperimentConfig
@@ -156,6 +160,17 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         results = self._log_percent_tokens_skipped_per_layer(model, results)
         return results
 
+    def p_for_saved_fraction(self, A, N, tol=1e-8):
+        lo, hi = 0.0, 1.0          #  p ∈ (0,1)
+        while hi - lo > tol:
+            mid = (lo + hi) / 2
+            saved = 1 - (1 - (1 - mid)**N) / (mid * N)
+            if saved < A:          # not saving enough → raise p
+                lo = mid
+            else:                  # saving too much → lower p
+                hi = mid
+        return (lo + hi) / 2
+
     def run(self, seed: int, state_dict: torch.Tensor = None) -> Dict[str, float]:
         model = self._load_model(seed, mode="test").to(self.device)
         model.eval()
@@ -217,14 +232,21 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
         # percentages: 0.05, 0.10, …, 1.00
         for pct in tqdm(
-            np.arange(0.05, 0.35, 0.05),
-            desc="running full eval (random skipping)",
+            [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35],
+            desc="running full eval",
             leave=False,
         ):
-            self.model_config.desired_skip_ratio = float(np.round(pct, 2))
+            if self.model_config.use_early_exit:
+                N = len(model.model.model.layers)
+                self.model_config.desired_skip_ratio = self.p_for_saved_fraction(
+                    pct, N
+                )
+            else:
+                self.model_config.desired_skip_ratio = pct
             # the threshold field is irrelevant when random skipping is active
             results = self._single_eval(evaluator_full, metrics, seed, model)
             all_results[f"{pct:.2f}"] = results
+            print(f"Results for {pct:.2f}: ", results)
 
         # Save the results to a file
         results_path = os.path.join(os.environ.get("BASE_CACHE_DIR"), "results")

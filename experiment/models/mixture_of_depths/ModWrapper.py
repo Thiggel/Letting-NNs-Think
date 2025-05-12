@@ -34,9 +34,7 @@ class ModWrapper(nn.Module):
         self.module = module
         object.__setattr__(self, "parent", parent)
 
-        self.threshold_finder = ThresholdFinder(
-            config.desired_skip_ratio,
-        )
+        self.threshold_finder = ThresholdFinder()
 
         # Router projects hidden states to scalar weights
         self.router = nn.Linear(d_model, 1)
@@ -85,7 +83,7 @@ class ModWrapper(nn.Module):
             predictor_logits = self.predictor(hidden_states).squeeze(-1)
 
             importance = torch.sigmoid(predictor_logits)
-            threshold = self.threshold_finder.find_threshold(importance)
+            threshold = self.threshold_finder.find_threshold(importance, self.config.desired_skip_ratio)
             selection_mask = (importance > threshold).unsqueeze(-1)
 
             # Process through module

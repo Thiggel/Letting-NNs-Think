@@ -129,7 +129,7 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
 
         trainer_args = self._get_trainer_args(callbacks, seed)
 
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and self.training_config.use_deepspeed:
             trainer_args.update(self._get_cuda_specific_args())
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
@@ -230,11 +230,11 @@ class TrainRunner(Runner, HasTokenizer, HasModel):
             "default_root_dir": os.environ["PYTORCH_LIGHTNING_HOME"] + "/../",
         }
 
-        if self.training_config.use_deepspeed:
-            args["strategy"] = strategy
-            args["default_root_dir"] = os.environ["PYTORCH_LIGHTNING_HOME"]
+        args["strategy"] = strategy
+        args["default_root_dir"] = os.environ["PYTORCH_LIGHTNING_HOME"]
 
         return args
+
 
     def _save_checkpoint(self, checkpoint_path: str, seed):
         output_path = os.path.join(

@@ -23,6 +23,7 @@ class EarlyExitWrapper(nn.Module):
         layer_idx: int,
         module_name: str,
         parent: nn.Module,
+        controller: nn.Module,
     ):
         super().__init__()
         self.config = config
@@ -30,6 +31,7 @@ class EarlyExitWrapper(nn.Module):
         self.module_name = module_name
         self.module = module
         object.__setattr__(self, "parent", parent)
+        object.__setattr__(self, "controller", controller)
 
         # For tracking statistics
         self.current_confidence: Optional[torch.Tensor] = None
@@ -40,16 +42,17 @@ class EarlyExitWrapper(nn.Module):
         self.tokens_exited_early = 0
         self.prev_hidden_states: Optional[torch.Tensor] = None
 
-        self.threshold_finder = ThresholdFinder(
-            config.desired_skip_ratio,
-        )
+        self.threshold_finder = ThresholdFinder()
 
     def compute_threshold(
         self, step_idx: int, confidence: torch.Tensor, max_steps: int = 100
     ) -> float:
         """Compute the decaying threshold based on generation step."""
         if not self.config.use_decaying_threshold:
-            return self.threshold_finder.find_threshold(confidence)
+            p = self.config.desired_skip_ratio
+            current_layer_skip_ratio = 1 - (1 - p) ** (self.layer_idx + 1)
+            threshold = self.threshold_finder.find_threshold(confidence, current_layer_skip_ratio)
+            return threshold
 
         # Following the paper's decaying threshold formula in Eq. (5)
         decay = (
@@ -124,12 +127,31 @@ class EarlyExitWrapper(nn.Module):
             ).expand_as(confidence)
 
         # Don't exit before minimum layer
-        if self.layer_idx < self.config.min_exit_layer:
+        if (self.layer_idx + 1) < self.config.min_exit_layer:
             return torch.zeros_like(confidence, dtype=torch.bool)
+
+        if self.controller.exit_mask is not None:
+            confidence = torch.where(
+                self.controller.exit_mask, torch.ones_like(confidence), confidence
+            )
 
         threshold = self.compute_threshold(step_idx, confidence, max_steps)
         self.current_threshold = threshold
-        return confidence >= threshold
+
+        if self.controller.exit_mask is None:
+            self.controller.exit_mask = torch.zeros_like(confidence, dtype=torch.bool)
+
+        exit_mask = confidence > threshold
+
+        self.controller.exit_mask = torch.logical_or(
+            self.controller.exit_mask, exit_mask
+        )
+
+        percent_skipped = self.controller.exit_mask.float().mean().item()
+
+        print(f"Layer {self.layer_idx}, number of tokens skipped: {percent_skipped:.2f}")
+
+        return self.controller.exit_mask
 
     def forward(
         self,
@@ -147,7 +169,9 @@ class EarlyExitWrapper(nn.Module):
             prev_hidden: Previous layer's hidden states (for hidden_state confidence)
             step_idx: Current generation step (for decaying threshold)
         """
-        self.prev_hidden_states = hidden_states
+        if self.layer_idx == 0:
+            self.controller.exit_mask = None
+
         # Just pass through to the wrapped module
         outputs = self.module(hidden_states, *args, **kwargs)
 
@@ -155,6 +179,10 @@ class EarlyExitWrapper(nn.Module):
             main_output = outputs[0]
         else:
             main_output = outputs
+
+
+
+        self.prev_hidden_states = main_output
 
         # Compute confidence
         self.current_confidence = self.compute_confidence(main_output, prev_hidden)

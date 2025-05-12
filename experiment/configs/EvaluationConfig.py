@@ -9,8 +9,8 @@ class EvaluationConfig(BaseModel):
     evaluation_metrics: Optional[list[str]] = Field(
         None, description="The evaluation metrics to use"
     )
-    limit: int = Field(
-        300, description="The number of examples to use for full evaluation"
+    limit: Optional[int] = Field(
+        400, description="The number of examples to use for full evaluation"
     )
     load_from_checkpoint: Optional[Path] = Field(
         None, description="The path to the checkpoint to load"
