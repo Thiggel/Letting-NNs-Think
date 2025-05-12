@@ -219,7 +219,7 @@ class LanguageDataModule(LightningDataModule):
             batch_size=batch_size,
             shuffle=is_train and not isinstance(dataset, IterableDataset),
             collate_fn=self.batch_collator,
-            num_workers=self._get_num_workers(),
+            num_workers=1,
             drop_last=is_train,
             pin_memory=True,
             persistent_workers=True,

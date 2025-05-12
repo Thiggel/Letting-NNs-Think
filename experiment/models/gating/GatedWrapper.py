@@ -154,6 +154,8 @@ class GatedWrapper(nn.Module):
         self.current_percent_tokens_skipped = (
             num_skipped / total_tokens if total_tokens > 0 else 0.0
         )
+        print(self.current_percent_tokens_skipped)
+        exit()
 
     def update_kv_cache(
         self,
@@ -224,7 +226,7 @@ class GatedWrapper(nn.Module):
             hidden_states = gate_value * hidden_states
 
         threshold = self.threshold
-        skip_mask = (token_importance < threshold).unsqueeze(-1)
+        skip_mask = (token_importance <= threshold).unsqueeze(-1)
 
         self.calculate_skipping_statistics(skip_mask)
 

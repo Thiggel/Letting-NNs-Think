@@ -1,6 +1,4 @@
-import torch
-from typing import Union
-
+import torch 
 
 class ThresholdFinder:
     def __init__(self):
@@ -37,9 +35,11 @@ class ThresholdFinder:
         # 2.  Position in the CDF we need (fractional index)
         pos = desired_skip_ratio * (n - 1)          # ∈ [0, n-1]
 
+
         lower_idx = int(torch.floor(torch.tensor(pos)))
         upper_idx = int(torch.ceil(torch.tensor(pos)))
         alpha = pos - lower_idx                     # interpolation weight ∈ [0,1]
+
 
         # 3.  Linear interpolation
         if lower_idx == upper_idx:
@@ -49,7 +49,12 @@ class ThresholdFinder:
             hi = sorted_scores[upper_idx]
             threshold = (1 - alpha) * lo + alpha * hi
 
-        num_skip = (scores <= threshold).sum().item()
+        num_skip = (sorted_scores < threshold).sum().item()
         ratio = num_skip / n
 
+        print(pos, desired_skip_ratio, lower_idx / n, ratio)
+        exit()
+
+
         return threshold.item()
+
