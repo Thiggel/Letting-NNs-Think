@@ -4,9 +4,9 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=24:00:00
+#SBATCH --time=2:00:00
 #SBATCH --job-name=llama1b_vector_individual_mlp_gate
-#SBATCH --output=job_logs/llama1b_vector_individual_mlp_gate-%A.out
+#SBATCH --output=job_logs/cot/llama1b_vector_individual_mlp_gate-%A.out
 
 cd $HOME/Gating
 
@@ -48,7 +48,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
   --num-fewshot 0 \
   --experiment-name llama1b_vector_individual_mlp_gate \
   --load-from-checkpoint llama1b_vector_individual_mlp_gate \
