@@ -148,14 +148,14 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         }
 
     def _single_eval(self, evaluator_full, metrics, seed, model):
-        with suppress_all_output():
-            results = evaluator_full.evaluate(
-               metrics=metrics,
-               seed=seed,
-               experiment_name=f"{self.experiment_config.experiment_name}_{seed}",
-               generation_mode=self.model_config.generation_mode,
-               limit=self.evaluation_config.limit,
-            )
+        #with suppress_all_output():
+        results = evaluator_full.evaluate(
+           metrics=metrics,
+           seed=seed,
+           experiment_name=f"{self.experiment_config.experiment_name}_{seed}",
+           generation_mode=self.model_config.generation_mode,
+           limit=self.evaluation_config.limit,
+        )
         results = self._log_percent_tokens_skipped(model, results)
         results = self._log_percent_tokens_skipped_per_layer(model, results)
         return results
@@ -232,22 +232,22 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
 
         # percentages: 0.05, 0.10, …, 1.00
         for pct in tqdm(
-            [0.00, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35],
+            [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95],
             desc="running full eval",
             leave=False,
         ):
+            model.percent_tokens_skipped = []
+
             if self.model_config.use_early_exit:
                 N = len(model.model.model.layers)
                 self.model_config.desired_skip_ratio = self.p_for_saved_fraction(
                     pct, N
                 )
             elif "attn" not in self.model_config.skip_module_types or "mlp" not in self.model_config.skip_module_types:
-                print(1)
-                print(self.model_config.skip_module_types)
-                exit()
                 self.model_config.desired_skip_ratio = 2 * pct
             else:
                 self.model_config.desired_skip_ratio = pct
+
             # the threshold field is irrelevant when random skipping is active
             results = self._single_eval(evaluator_full, metrics, seed, model)
             all_results[f"{pct:.2f}"] = results

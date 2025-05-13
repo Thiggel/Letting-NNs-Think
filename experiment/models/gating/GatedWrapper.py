@@ -141,7 +141,6 @@ class GatedWrapper(nn.Module):
 
         self.current_token_importance = token_importance
 
-
         percent_skipped = token_importance.mean().item()
 
         return token_importance
@@ -151,9 +150,12 @@ class GatedWrapper(nn.Module):
         num_skipped = skip_mask[self.current_validity_mask].sum().item()
         total_tokens = self.current_validity_mask.sum().item()
 
+
         self.current_percent_tokens_skipped = (
             num_skipped / total_tokens if total_tokens > 0 else 0.0
         )
+
+        print(self.layer_idx, self.current_percent_tokens_skipped)
 
     def update_kv_cache(
         self,

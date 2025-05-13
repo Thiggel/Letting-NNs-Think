@@ -83,7 +83,7 @@ class EarlyExitWrapper(nn.Module):
                 logits = output_embeddings(hidden_states)
                 probs = F.softmax(logits, dim=-1)
                 values, _ = torch.topk(probs, k=2, dim=-1)
-                confidence = (values[..., 0] - values[..., 1]) / (2 * values[..., 0])
+                confidence = values[..., 0] - values[..., 1]
             else:
                 # Default to low confidence if we can't find output embeddings
                 confidence = torch.zeros(
