@@ -19,6 +19,8 @@ class ThresholdFinder:
         """
         scores = importances.flatten()
 
+        desired_skip_ratio = min(max(desired_skip_ratio, 0.0), 1.0)
+
         if scores.numel() <= 1 or (scores == 1.0).all():
             return 0.0
         
