@@ -185,9 +185,14 @@ class EarlyExitWrapper(nn.Module):
         else:
             main_output = outputs
 
+        if self.controller.exit_mask is not None and self.controller.prev_hidden_states is not None:
+            main_output = torch.where(
+                self.controller.exit_mask.unsqueeze(-1).repeat(1, 1, self.controller.prev_hidden_states.shape[-1]), self.controller.prev_hidden_states, main_output
+            )
 
         # Compute confidence
         self.current_confidence = self.compute_confidence(main_output, prev_hidden)
+
 
         self.controller.prev_hidden_states = main_output
 
