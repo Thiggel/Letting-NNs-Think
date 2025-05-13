@@ -48,7 +48,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag \
+  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,winogrande,openbookqa,squadv2 \
   --num-fewshot 0 \
   --experiment-name llama1b_vector_individual_before_gate \
   --load-from-checkpoint llama1b_vector_individual_before_gate \

@@ -46,7 +46,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag \
+  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,winogrande,openbookqa,squadv2 \
   --num-fewshot 0 \
   --experiment-name llama1b_vector_individual_gate \
   --load-from-checkpoint llama1b_vector_individual_gate \
@@ -64,7 +64,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag \
+  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,winogrande,openbookqa,squadv2 \
   --num-fewshot 0 \
   --experiment-name llama1b_vector_individual_gate_only_skip_attn \
   --load-from-checkpoint llama1b_vector_individual_gate \
@@ -82,7 +82,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag \
+  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,winogrande,openbookqa,squadv2 \
   --num-fewshot 0 \
   --experiment-name llama1b_vector_individual_gate_only_skip_mlp \
   --load-from-checkpoint llama1b_vector_individual_gate \
@@ -100,7 +100,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag \
+  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,winogrande,openbookqa,squadv2 \
   --num-fewshot 0 \
   --experiment-name llama1b_vector_individual_gate_skip_layers_based_on_attn \
   --load-from-checkpoint llama1b_vector_individual_gate \
@@ -117,7 +117,7 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag \
+  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,winogrande,openbookqa,squadv2 \
   --num-fewshot 0 \
   --experiment-name llama1b_vector_individual_gate_every_second_layer \
   --load-from-checkpoint llama1b_vector_individual_gate \
