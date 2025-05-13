@@ -40,7 +40,6 @@ class EarlyExitWrapper(nn.Module):
         self.exit_layer_indices: List[int] = []
         self.tokens_processed = 0
         self.tokens_exited_early = 0
-        self.prev_hidden_states: Optional[torch.Tensor] = None
 
         self.threshold_finder = ThresholdFinder()
 
@@ -50,9 +49,8 @@ class EarlyExitWrapper(nn.Module):
         """Compute the decaying threshold based on generation step."""
         if not self.config.use_decaying_threshold:
             p = self.config.desired_skip_ratio
-            current_layer_skip_ratio = 1 - (1 - p) ** (self.layer_idx + 1)
-            print(f"Current layer skip ratio: {current_layer_skip_ratio:.2f}")
-            threshold = self.threshold_finder.find_threshold(confidence, current_layer_skip_ratio, skip_below_threshold=False)
+            non_exited_confidence = confidence[~self.controller.exit_mask] if self.controller.exit_mask is not None else confidence
+            threshold = self.threshold_finder.find_threshold(non_exited_confidence, self.config.desired_skip_ratio, skip_below_threshold=False)
             return threshold
 
         # Following the paper's decaying threshold formula in Eq. (5)
@@ -95,7 +93,7 @@ class EarlyExitWrapper(nn.Module):
 
         elif self.config.confidence_measure == ConfidenceMeasure.HIDDEN_STATE:
             # Compute cosine similarity with previous layer's hidden state
-            if self.prev_hidden_states is None:
+            if self.controller.prev_hidden_states is None:
                 confidence = torch.zeros(
                     hidden_states.shape[0],
                     hidden_states.shape[1],
@@ -104,8 +102,9 @@ class EarlyExitWrapper(nn.Module):
             else:
                 # Normalize both tensors for cosine similarity
                 norm_curr = F.normalize(hidden_states, p=2, dim=-1)
-                norm_prev = F.normalize(self.prev_hidden_states, p=2, dim=-1)
+                norm_prev = F.normalize(self.controller.prev_hidden_states, p=2, dim=-1)
                 confidence = torch.sum(norm_curr * norm_prev, dim=-1)
+
         else:
             confidence = torch.zeros(
                 hidden_states.shape[0],
@@ -142,6 +141,7 @@ class EarlyExitWrapper(nn.Module):
         if self.controller.exit_mask is None:
             self.controller.exit_mask = torch.zeros_like(confidence, dtype=torch.bool)
 
+
         exit_mask = confidence > threshold
 
         self.controller.exit_mask = torch.logical_or(
@@ -150,7 +150,6 @@ class EarlyExitWrapper(nn.Module):
 
         percent_skipped = self.controller.exit_mask.float().mean().item()
 
-        print(f"Layer {self.layer_idx}, number of tokens skipped: {percent_skipped:.2f}")
 
         return self.controller.exit_mask
 
@@ -172,6 +171,7 @@ class EarlyExitWrapper(nn.Module):
         """
         if self.layer_idx == 0:
             self.controller.exit_mask = None
+            self.controller.prev_hidden_states = None
 
         # Just pass through to the wrapped module
         outputs = self.module(hidden_states, *args, **kwargs)
@@ -182,11 +182,11 @@ class EarlyExitWrapper(nn.Module):
             main_output = outputs
 
 
-
-        self.prev_hidden_states = main_output
-
         # Compute confidence
         self.current_confidence = self.compute_confidence(main_output, prev_hidden)
+
+        self.controller.prev_hidden_states = main_output
+
 
         # Determine exit decision - for tracking purposes
         self.current_exit_decision = self.should_exit(self.current_confidence, step_idx)

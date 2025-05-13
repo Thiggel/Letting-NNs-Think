@@ -20,6 +20,8 @@ class ModelEarlyExit(nn.Module):
         self.config = config
         self.wrapped_modules: Dict[str, EarlyExitWrapper] = {}
 
+        self.prev_hidden_states: Optional[torch.Tensor] = None
+
         # Track which layer each token exited at
         self.exit_decisions: Dict[Tuple[int, int], int] = (
             {}
@@ -266,6 +268,8 @@ class ModelEarlyExit(nn.Module):
 
         total_exits = sum(self.exit_layer_counts.values())
 
+        print(self.exit_layer_counts)
+
         # Calculate average exit layer, weighted by counts
         weighted_sum = sum(
             layer_idx * count for layer_idx, count in self.exit_layer_counts.items()
@@ -278,9 +282,15 @@ class ModelEarlyExit(nn.Module):
             "avg_exit_layer": avg_layer,
         }
 
+        print(self.total_tokens)
+        exit()
+
         # Add per-layer exit rates
         for layer_idx, count in self.exit_layer_counts.items():
             stats[f"layer_{layer_idx}_exit_rate"] = count / max(1, self.total_tokens)
+
+        print(stats)
+        exit()
 
         # Calculate compute savings
         num_layers = (

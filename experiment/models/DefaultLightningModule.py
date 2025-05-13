@@ -78,6 +78,8 @@ class DefaultLightningModule(LightningModule, HasLayers):
                 module.current_validity_mask = validity_mask
 
     def forward(self, input_ids, **kwargs):
+        if hasattr(self.model, "early_exit"):
+            self.model.early_exit.total_tokens = input_ids.size(-1)
         self.give_global_step_to_gates(input_ids)
         output = self.old_forward(input_ids, **kwargs)
 
@@ -109,7 +111,6 @@ class DefaultLightningModule(LightningModule, HasLayers):
             self.model.early_exit.is_generating = True
             self.model.early_exit.reset_statistics()
 
-            self.model.early_exit.total_tokens = kwargs["input_ids"].size(-1)
 
         self.metrics_logger.dump_first_batch(kwargs)
         output = self.model.generate(*args, **kwargs)
