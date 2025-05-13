@@ -51,7 +51,8 @@ class EarlyExitWrapper(nn.Module):
         if not self.config.use_decaying_threshold:
             p = self.config.desired_skip_ratio
             current_layer_skip_ratio = 1 - (1 - p) ** (self.layer_idx + 1)
-            threshold = self.threshold_finder.find_threshold(confidence, current_layer_skip_ratio)
+            print(f"Current layer skip ratio: {current_layer_skip_ratio:.2f}")
+            threshold = self.threshold_finder.find_threshold(confidence, current_layer_skip_ratio, skip_below_threshold=False)
             return threshold
 
         # Following the paper's decaying threshold formula in Eq. (5)
@@ -195,6 +196,7 @@ class EarlyExitWrapper(nn.Module):
     def get_exit_statistics(self) -> Dict[str, float]:
         """Get statistics about early exits"""
         exit_rate = self.tokens_exited_early / max(1, self.tokens_processed)
+        print(f"Layer {self.layer_idx} exit rate: {exit_rate:.2f}")
         return {
             "exit_rate": exit_rate,
             "layer_idx": self.layer_idx,

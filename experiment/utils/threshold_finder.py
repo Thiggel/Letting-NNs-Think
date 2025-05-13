@@ -9,6 +9,7 @@ class ThresholdFinder:
         self,
         importances: torch.Tensor,
         desired_skip_ratio: float,
+        skip_below_threshold: bool = True,
     ) -> float:
         """
         Return a threshold τ such that
@@ -20,16 +21,25 @@ class ThresholdFinder:
         scores = importances.flatten()
 
         desired_skip_ratio = min(max(desired_skip_ratio, 0.0), 1.0)
+        do_not_skip_gating = skip_below_threshold and (scores == 1.0).all()
+        do_not_skip_early_exit = not skip_below_threshold and (scores == 0.0).all()
+        do_not_skip = do_not_skip_gating or do_not_skip_early_exit
+        do_not_skip_default_value = 0.0 if skip_below_threshold else 1.0
 
-        if scores.numel() <= 1 or (scores == 1.0).all():
-            return 0.0
+        if scores.numel() <= 1 or do_not_skip:
+            return do_not_skip_default_value
         
         if desired_skip_ratio == 0.0:
-            return 0.0
+            return do_not_skip_default_value
 
         jitter = 1e-6 * torch.rand_like(scores)
         scores = scores + jitter
-        threshold = torch.quantile(scores, desired_skip_ratio, interpolation='linear')
+        quantile = desired_skip_raio if skip_below_threshold else 1 - desired_skip_ratio
+        threshold = torch.quantile(scores, quantile, interpolation='linear')
+
+        ratio = torch.sum(scores >= threshold).item() / scores.numel()
+
+        print(f"Threshold: {threshold.item():.4f}, Ratio: {ratio:.4f}, Desired Skip Ratio: {desired_skip_ratio:.4f}")
 
         return threshold.item()
 
