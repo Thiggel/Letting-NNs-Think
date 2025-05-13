@@ -151,22 +151,11 @@ class ModelEarlyExit(nn.Module):
             layer_idx: Current layer index
             hidden_states: Hidden states at this layer
         """
-        tokens_exited = []
-        for name, wrapper in self.wrapped_modules.items():
-            # Record which tokens exited at this layer
-            exit_decision = wrapper.current_exit_decision
+        percent_skipped = torch.tensor([wrapper.percent_skipped for _, wrapper in self.wrapped_modules.items()]).mean().item()
 
-            if len(tokens_exited) == 0:
-                tokens_exited.append(exit_decision)
-            else:
-                tokens_exited.append(tokens_exited[-1] | exit_decision)
+        return percent_skipped
 
-        self.exit_layer_counts = {}
-        for layer_idx in range(len(tokens_exited) - 1, 0, -1):
-            self.exit_layer_counts[layer_idx] = (
-                tokens_exited[layer_idx].sum().item()
-                - tokens_exited[layer_idx - 1].sum().item()
-            )
+
 
     def maybe_propagate_hidden_states(
         self,
@@ -263,54 +252,11 @@ class ModelEarlyExit(nn.Module):
 
     def compute_early_exit_statistics(self) -> Dict[str, float]:
         """Compute statistics about early exits across all layers."""
-        # self.exit_counts is a cumsum -> if a token exits at layer 3, it also counts as an exit at layer 4. How can I reverse this?
-        self.record_exit_decisions()
-
-        total_exits = sum(self.exit_layer_counts.values())
-
-        print(self.exit_layer_counts)
-
-        # Calculate average exit layer, weighted by counts
-        weighted_sum = sum(
-            layer_idx * count for layer_idx, count in self.exit_layer_counts.items()
-        )
-        avg_layer = weighted_sum / max(1, total_exits)
+        percent_skipped = self.record_exit_decisions()
 
         stats = {
-            "total_tokens": self.total_tokens,
-            "total_early_exits": total_exits,
-            "avg_exit_layer": avg_layer,
+            "compute_saved": percent_skipped,
         }
-
-        print(self.total_tokens)
-        exit()
-
-        # Add per-layer exit rates
-        for layer_idx, count in self.exit_layer_counts.items():
-            stats[f"layer_{layer_idx}_exit_rate"] = count / max(1, self.total_tokens)
-
-        print(stats)
-        exit()
-
-        # Calculate compute savings
-        num_layers = (
-            max([wrapper.layer_idx for wrapper in self.wrapped_modules.values()]) + 1
-        )
-
-        # Compare actual compute to theoretical compute if all tokens went through all layers
-        theoretical_compute = (
-            sum(count for count in self.exit_layer_counts.values()) * num_layers
-        )
-
-        # Actual compute: sum over each token going through its exit layer
-        actual_compute = sum(
-            (layer_idx + 1) * count
-            for layer_idx, count in self.exit_layer_counts.items()
-        )
-
-        if theoretical_compute > 0:
-            compute_saved = 1.0 - (actual_compute / theoretical_compute)
-            stats["compute_saved"] = compute_saved
 
         return stats
 

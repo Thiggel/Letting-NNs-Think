@@ -40,6 +40,7 @@ class EarlyExitWrapper(nn.Module):
         self.exit_layer_indices: List[int] = []
         self.tokens_processed = 0
         self.tokens_exited_early = 0
+        self.percent_skipped = 0.0
 
         self.threshold_finder = ThresholdFinder()
 
@@ -49,8 +50,9 @@ class EarlyExitWrapper(nn.Module):
         """Compute the decaying threshold based on generation step."""
         if not self.config.use_decaying_threshold:
             p = self.config.desired_skip_ratio
-            non_exited_confidence = confidence[~self.controller.exit_mask] if self.controller.exit_mask is not None else confidence
-            threshold = self.threshold_finder.find_threshold(non_exited_confidence, self.config.desired_skip_ratio, skip_below_threshold=False)
+            current_layer_skip_ratio = 1 - (1 - p) ** (self.layer_idx + 1)
+            print(f"Current layer skip ratio: {current_layer_skip_ratio:.2f}")
+            threshold = self.threshold_finder.find_threshold(confidence, current_layer_skip_ratio, skip_below_threshold=False)
             return threshold
 
         # Following the paper's decaying threshold formula in Eq. (5)
@@ -149,6 +151,8 @@ class EarlyExitWrapper(nn.Module):
         )
 
         percent_skipped = self.controller.exit_mask.float().mean().item()
+
+        self.percent_skipped = percent_skipped
 
 
         return self.controller.exit_mask

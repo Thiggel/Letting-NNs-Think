@@ -34,12 +34,8 @@ class ThresholdFinder:
 
         jitter = 1e-6 * torch.rand_like(scores)
         scores = scores + jitter
-        quantile = desired_skip_raio if skip_below_threshold else 1 - desired_skip_ratio
+        quantile = desired_skip_ratio if skip_below_threshold else 1 - desired_skip_ratio
         threshold = torch.quantile(scores, quantile, interpolation='linear')
-
-        ratio = torch.sum(scores >= threshold).item() / scores.numel()
-
-        print(f"Threshold: {threshold.item():.4f}, Ratio: {ratio:.4f}, Desired Skip Ratio: {desired_skip_ratio:.4f}")
 
         return threshold.item()
 
