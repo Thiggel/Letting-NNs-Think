@@ -4,9 +4,9 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=02:30:00
+#SBATCH --time=05:30:00
 #SBATCH --job-name=gemma2b_vector_individual_gate
-#SBATCH --output=job_logs/gemma2b_vector_individual_gate-%A.out
+#SBATCH --output=job_logs/loglikelihood/gemma2b_vector_individual_gate-%A.out
 
 cd $HOME/Gating
 
@@ -14,7 +14,8 @@ cd $HOME/Gating
 
 srun python -m experiment \
   --model-name "google/gemma-2-2b" \
-  --dataset csqa_gsm8k_gen \
+  --dataset fineweb \
+  --max-hours 1 \
   --pretrained \
   --use-gating \
   --entropy-loss-weight 0.0 \
@@ -25,15 +26,15 @@ srun python -m experiment \
   --end-thr-percentile 0.2 \
   --num-increasing-steps 6800 \
   --batch-size 1 \
-  --eval-batch-size 16 \
-  --seq-length 4096 \
+  --eval-batch-size 1 \
+  --seq-length 1024 \
   --learning-rate 3e-6 \
   --warmup-steps 1000 \
   --lr-decay-steps 6800 \
   --max-epochs 1 \
   --finetune-mode full \
-  --experiment-name gemma2b_vector_individual_gate \
-  --save-to-checkpoint gemma2b_vector_individual_gate \
+  --experiment-name loglikelihood_gemma2b_vector_individual_gate \
+  --save-to-checkpoint loglikelihood_gemma2b_vector_individual_gate \
   --project-name gateskip \
   --enable-logging
  
@@ -44,11 +45,11 @@ srun python -m experiment \
   --skip-modules \
   --skip-layers \
   --eval-batch-size 32 \
-  --seq-length 4096 \
+  --seq-length 1024 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,winogrande,openbookqa,squadv2 \
-  --num-fewshot 0 \
-  --experiment-name gemma2b_vector_individual_gate \
-  --load-from-checkpoint gemma2b_vector_individual_gate \
+  --evaluation-metrics commonsense_qa,piqa,mmlu_stem,hellaswag,winogrande,openbookqa \
+  --num-fewshot 5 \
+  --experiment-name loglikelihood_gemma2b_vector_individual_gate \
+  --load-from-checkpoint loglikelihood_gemma2b_vector_individual_gate \
   --project-name gateskip

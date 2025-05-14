@@ -4,7 +4,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=2:00:00
+#SBATCH --time=02:59:00
 #SBATCH --job-name=llama1b_calm
 #SBATCH --output=job_logs/cot/llama1b_calm-%A.out
 
@@ -39,9 +39,9 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics csqa_gen,gsm8k \
   --num-fewshot 0 \
-  --experiment-name llama1b_calm \
+  --experiment-name llama1b_calm_hss \
   --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
   --project-name gateskip
 
@@ -54,9 +54,9 @@ srun python -m experiment \
   --seq-length 4096 \
   --finetune-mode full \
   --mode evaluate \
-  --evaluation-metrics csqa_gen,gsm8k,piqa_gen \
+  --evaluation-metrics csqa_gen,gsm8k \
   --num-fewshot 0 \
-  --experiment-name llama1b_calm \
+  --experiment-name llama1b_calm_softmax \
   --load-from-checkpoint llama1b-csqa-gsm8k-early-exit \
   --project-name gateskip
 

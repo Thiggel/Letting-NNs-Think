@@ -148,7 +148,7 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         }
 
     def _single_eval(self, evaluator_full, metrics, seed, model):
-        #with suppress_all_output():
+        # with suppress_all_output():
         results = evaluator_full.evaluate(
            metrics=metrics,
            seed=seed,
@@ -230,9 +230,11 @@ class EvaluationRunner(Runner, HasTokenizer, HasModel):
         metrics = self.evaluation_config.evaluation_metrics
         all_results = {}
 
+        percents = [0.00, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95] if "loglikelihood" in self.experiment_config.experiment_name else [0.3, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4]
+
         # percentages: 0.05, 0.10, …, 1.00
         for pct in tqdm(
-            [0.00, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95],
+            percents,
             desc="running full eval",
             leave=False,
         ):

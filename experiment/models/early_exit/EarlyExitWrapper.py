@@ -186,9 +186,13 @@ class EarlyExitWrapper(nn.Module):
             main_output = outputs
 
         if self.controller.exit_mask is not None and self.controller.prev_hidden_states is not None:
+            print('Num exited ', self.controller.exit_mask.sum())
             main_output = torch.where(
                 self.controller.exit_mask.unsqueeze(-1).repeat(1, 1, self.controller.prev_hidden_states.shape[-1]), self.controller.prev_hidden_states, main_output
             )
+
+        if self.layer_idx == 15:
+            exit()
 
         # Compute confidence
         self.current_confidence = self.compute_confidence(main_output, prev_hidden)

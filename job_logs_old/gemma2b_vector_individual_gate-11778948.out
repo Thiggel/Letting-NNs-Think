@@ -1,0 +1,14 @@
+
+JOB STATISTICS
+==============
+Job ID: 11778948
+Cluster: snellius
+User/Group: fdsousahorta/fdsousahorta
+State: CANCELLED (exit code 0)
+Nodes: 1
+Cores per node: 16
+CPU Utilized: 01:24:12
+CPU Efficiency: 6.26% of 22:24:32 core-walltime
+Job Wall-clock time: 01:24:02
+Memory Utilized: 2.89 GB
+Memory Efficiency: 1.61% of 180.00 GB (180.00 GB/node)
