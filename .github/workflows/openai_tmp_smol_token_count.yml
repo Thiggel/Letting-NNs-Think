@@ -1,0 +1,116 @@
+name: OpenAI temporary SmolTalk token count
+
+on:
+  pull_request:
+    branches: [master]
+    paths: [.openai_tmp_hf_links.md]
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -q 'datasets>=3,<5' 'transformers>=4.51,<5' 'huggingface_hub>=0.30' 'accelerate>=1'
+      - name: Count samples and Qwen3 chat-template tokens
+        run: |
+          cat > /tmp/count.py <<'PY'
+          import json, re, time
+          from collections import defaultdict
+          from datasets import load_dataset, get_dataset_split_names
+          from huggingface_hub import HfApi
+          from transformers import AutoTokenizer
+
+          MODEL = 'Qwen/Qwen3-0.6B'
+          api = HfApi()
+          tok = AutoTokenizer.from_pretrained(MODEL, use_fast=True)
+          think_re = re.compile(r'<\s*/?\s*think\s*>', re.I)
+
+          specs = [
+              ('smol-smoltalk', 'HuggingFaceTB/smol-smoltalk', None),
+              ('smoltalk', 'HuggingFaceTB/smoltalk', 'all'),
+          ]
+          out = {
+              'metric': 'Qwen3 chat-template tokens for each complete conversation; add_generation_prompt=False',
+              'tokenizer': MODEL,
+              'tokenizer_revision': api.model_info(MODEL).sha,
+              'datasets': {},
+          }
+
+          def render_count(batch_messages):
+              ids = tok.apply_chat_template(
+                  batch_messages,
+                  tokenize=True,
+                  add_generation_prompt=False,
+                  return_dict=False,
+              )
+              return [len(x) for x in ids]
+
+          for label, repo, config in specs:
+              rev = api.dataset_info(repo).sha
+              splits = get_dataset_split_names(repo, config_name=config, revision=rev)
+              result = {
+                  'repo': repo, 'config': config, 'revision': rev,
+                  'splits': {},
+                  'all': defaultdict(int),
+                  'by_source': {},
+              }
+              source_acc = defaultdict(lambda: defaultdict(int))
+              for split in splits:
+                  ds = load_dataset(repo, config, split=split, streaming=True, revision=rev)
+                  acc = defaultdict(int)
+                  msgs_batch, meta_batch = [], []
+                  last = time.time()
+                  for row in ds:
+                      msgs = row['messages']
+                      src = str(row.get('source') or '')
+                      explicit = any(
+                          m.get('role') == 'assistant' and think_re.search(str(m.get('content') or ''))
+                          for m in msgs
+                      )
+                      sl = src.lower()
+                      long_cot = ('numina' in sl) or ('metamath' in sl)
+                      msgs_batch.append(msgs)
+                      meta_batch.append((src, explicit, long_cot))
+                      if len(msgs_batch) >= 256:
+                          lens = render_count(msgs_batch)
+                          for n, (s, ex, lc) in zip(lens, meta_batch):
+                              acc['samples'] += 1; acc['tokens'] += n
+                              source_acc[s]['samples'] += 1; source_acc[s]['tokens'] += n
+                              if ex:
+                                  acc['explicit_think_samples'] += 1; acc['explicit_think_tokens'] += n
+                              if lc:
+                                  acc['long_cot_samples'] += 1; acc['long_cot_tokens'] += n
+                              else:
+                                  acc['non_long_cot_samples'] += 1; acc['non_long_cot_tokens'] += n
+                          msgs_batch.clear(); meta_batch.clear()
+                          if acc['samples'] % 50000 < 256 and time.time() - last > 10:
+                              print(label, split, acc['samples'], acc['tokens'], flush=True); last=time.time()
+                  if msgs_batch:
+                      lens = render_count(msgs_batch)
+                      for n, (s, ex, lc) in zip(lens, meta_batch):
+                          acc['samples'] += 1; acc['tokens'] += n
+                          source_acc[s]['samples'] += 1; source_acc[s]['tokens'] += n
+                          if ex:
+                              acc['explicit_think_samples'] += 1; acc['explicit_think_tokens'] += n
+                          if lc:
+                              acc['long_cot_samples'] += 1; acc['long_cot_tokens'] += n
+                          else:
+                              acc['non_long_cot_samples'] += 1; acc['non_long_cot_tokens'] += n
+                  result['splits'][split] = dict(acc)
+                  for k,v in acc.items(): result['all'][k] += v
+              result['all'] = dict(result['all'])
+              result['by_source'] = {k: dict(v) for k,v in sorted(source_acc.items())}
+              out['datasets'][label] = result
+              with open('smoltalk_token_counts.json','w') as f: json.dump(out,f,indent=2,sort_keys=True)
+              print(json.dumps(result['all'], sort_keys=True), flush=True)
+          PY
+          python /tmp/count.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoltalk-token-counts
+          path: smoltalk_token_counts.json
+          retention-days: 1
