@@ -2,7 +2,7 @@ python-dotenv
 wandb
 torch
 lightning
-transformers==4.43.1
+transformers==5.3.0
 datasets
 numpy
 matplotlib
